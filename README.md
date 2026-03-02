@@ -5,7 +5,7 @@
 <h1 align="center">Writher</h1>
 
 <p align="center">
-  <strong>Voice-powered productivity for Windows — dictate text anywhere or manage notes, appointments and reminders hands-free.</strong>
+  <strong>Offline voice assistant & dictation tool for Windows (Python) — dictate text anywhere or manage notes, appointments and reminders hands-free.</strong>
 </p>
 
 <p align="center">
