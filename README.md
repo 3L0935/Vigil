@@ -131,7 +131,7 @@ pip install faster-whisper numpy sounddevice pynput pystray Pillow requests wino
 Download from [ollama.com](https://ollama.com), then pull a model that supports function calling:
 
 ```bash
-ollama pull llama3.1
+ollama pull llama3.1:8b
 ```
 
 Update `config.py` with your model name:
