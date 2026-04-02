@@ -2,7 +2,7 @@
   <img src="img/logo_writher.png" width="280" alt="Writher">
 </p>
 
-<h1 align="center">Writher</h1>
+<h1 align="center">WritHer</h1>
 
 <p align="center">
   <strong>Offline voice assistant & dictation tool for Windows (Python) — dictate text anywhere or manage notes, appointments and reminders hands-free.</strong>
@@ -24,7 +24,7 @@
 
 ---
 
-## What is Writher?
+## What is WritHer?
 
 Writher sits quietly in your system tray and gives you two super-powers:
 
