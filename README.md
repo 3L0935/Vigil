@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=dsaG5v-cX5o">
-    <img src="https://img.youtube.com/vi/dsaG5v-cX5o/maxresdefault.jpg" width="600" alt="Writher Demo Video">
+  <a href="https://www.youtube.com/watch?v=lfV0LF3EGMw">
+    <img src="https://img.youtube.com/vi/lfV0LF3EGMw/maxresdefault.jpg" width="600" alt="Writher Demo Video">
   </a>
 </p>
 
