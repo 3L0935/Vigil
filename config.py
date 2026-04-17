@@ -1,11 +1,19 @@
 from pynput.keyboard import Key
 
 # ── Hotkeys ───────────────────────────────────────────────────────────────
+# X11: pynput intercepts these directly.
+# Wayland KDE: KGlobalAccel uses WAYLAND_HOTKEY / WAYLAND_ASSISTANT_HOTKEY instead
+#              (modifier-only keys like AltGr/ctrl_r cannot be registered with KGlobalAccel).
+
 # Hold AltGr to dictate (paste text directly)
 HOTKEY = Key.alt_gr
 
 # Hold Ctrl+R to activate assistant mode (notes, agenda, reminders)
 ASSISTANT_HOTKEY = Key.ctrl_r
+
+# Wayland KDE overrides (KGlobalAccel-compatible combos)
+WAYLAND_HOTKEY = "Ctrl+Alt+W"
+WAYLAND_ASSISTANT_HOTKEY = "Ctrl+Alt+R"
 
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
@@ -39,3 +47,7 @@ MAX_RECORD_SECONDS = 120
 # ── Appointment notifications ─────────────────────────────────────────────
 # How many minutes before an appointment to send a toast notification.
 APPOINTMENT_REMIND_MINUTES = 15
+
+# ── Overlay ───────────────────────────────────────────────────────────────
+OVERLAY_POSITION = "bottom-center"   # bottom-center | bottom-right | top-right
+OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes

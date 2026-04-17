@@ -1,4 +1,5 @@
 import sys
+import signal
 import queue
 import threading
 import time
@@ -75,6 +76,9 @@ def _load_settings():
     lang = db.get_setting("language", "")
     if lang:
         config.LANGUAGE = lang
+    pos = db.get_setting("overlay_position", "")
+    if pos:
+        config.OVERLAY_POSITION = pos
 
 
 # ── Toggle-mode timeout helpers ───────────────────────────────────────────
@@ -381,6 +385,13 @@ def main():
         if tray:
             tray.process_events()
         root.after(50, _pump_qt)
+
+    def _signal_handler(sig, frame):
+        log.info("Signal %s received — shutting down cleanly.", sig)
+        _quit()
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
 
     log.info("Ready. AltGr=dictate, Ctrl+R=assistant.")
     root.after(50, _pump_qt)
