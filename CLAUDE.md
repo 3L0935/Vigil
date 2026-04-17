@@ -8,6 +8,14 @@ uv run python main.py
 
 Prérequis : `llama-server` tourner sur `http://localhost:8080` (ou URL configurée dans settings).
 
+## Premier lancement (setup)
+
+```bash
+uv run python first_run.py
+```
+
+**Important :** Ne pas nommer ce script `setup.py` — setuptools l'exécuterait pendant `uv sync`.
+
 ---
 
 ## Architecture
