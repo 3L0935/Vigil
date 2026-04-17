@@ -1,18 +1,19 @@
-import ctypes
+import sys
 import queue
 import threading
 import time
 import tkinter as tk
 
-# Fix DPI awareness before any window is created.
-# CustomTkinter changes the DPI mode which shifts widget positioning.
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)   # PROCESS_SYSTEM_DPI_AWARE
-except Exception:
+# Windows-only: fix DPI awareness before any window is created.
+if sys.platform == "win32":
+    import ctypes
     try:
-        ctypes.windll.user32.SetProcessDPIAware()
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
-        pass
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 _STOP = object()  # sentinel to shut down pipeline workers
 
@@ -65,6 +66,15 @@ def _load_settings():
             config.MAX_RECORD_SECONDS = int(max_sec)
         except ValueError:
             pass
+    url = db.get_setting("llama_server_url", "")
+    if url:
+        config.LLAMA_SERVER_URL = url
+    vault = db.get_setting("obsidian_vault_path", "")
+    if vault:
+        config.OBSIDIAN_VAULT_PATH = vault
+    lang = db.get_setting("language", "")
+    if lang:
+        config.LANGUAGE = lang
 
 
 # ── Toggle-mode timeout helpers ───────────────────────────────────────────
@@ -319,9 +329,9 @@ def main():
                     on_show_settings=_show_settings)
     tray.start()
 
-    # Check Ollama connectivity at startup
-    if not assistant.ping_ollama():
-        log.warning("Ollama is not reachable at %s", config.OLLAMA_URL)
+    # Check llama-server connectivity at startup
+    if not assistant.ping_llama_server():
+        log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
         tray.set_tooltip(locales.get("tray_ollama_down"))
 
     transcriber = Transcriber()

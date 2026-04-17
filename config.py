@@ -9,7 +9,7 @@ ASSISTANT_HOTKEY = Key.ctrl_r
 
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
-# Supported values: "en" (English), "it" (Italian).
+# Supported values: "en" (English), "it" (Italian), "fr" (French).
 LANGUAGE = "en"
 
 # ── Whisper ───────────────────────────────────────────────────────────────
@@ -18,9 +18,16 @@ SAMPLE_RATE = 16000
 DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
 
-# ── Ollama (assistant) ───────────────────────────────────────────────────
-OLLAMA_URL = "http://localhost:11434"
-OLLAMA_MODEL = "gpt-oss:120b-cloud"
+# ── llama-server (assistant) ─────────────────────────────────────────────
+# llama-server exposes an OpenAI-compatible API at /v1/chat/completions.
+# Same port as LMAgent-plus default (8080) for easy future integration.
+LLAMA_SERVER_URL = "http://localhost:8080"
+LLAMA_MODEL = "qwen2.5-7b-instruct"  # strong tool-calling support
+
+# ── Obsidian vault (optional) ─────────────────────────────────────────────
+# Set to your vault path to enable the search_obsidian_vault tool.
+# Leave empty to disable the feature.
+OBSIDIAN_VAULT_PATH = ""
 
 # ── Recording mode ────────────────────────────────────────────────────────
 # True = hold key to record (release stops).  False = toggle (press start, press stop).

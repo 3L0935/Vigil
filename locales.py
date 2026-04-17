@@ -76,6 +76,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_toggle":           "Press to start / stop",
         "setting_max_duration":     "Max recording (seconds)",
         "setting_saved":            "Settings saved",
+
+        # obsidian vault (new)
+        "vault_no_results":         "No notes found for '{query}' in the vault",
     },
 
     "it": {
@@ -136,6 +139,80 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_toggle":           "Premi per avviare / fermare",
         "setting_max_duration":     "Durata max registrazione (secondi)",
         "setting_saved":            "Impostazioni salvate",
+
+        # obsidian vault (new)
+        "vault_no_results":         "Nessuna nota trovata per '{query}' nella vault",
+    },
+
+    "fr": {
+        # assistant.py — dispatch confirmations
+        "note_saved":           "Note enregistrée (#{nid})",
+        "list_saved":           "Liste '{title}' enregistrée ({count} éléments)",
+        "added_to_list":        "Ajouté à '{title}'",
+        "list_not_found":       "Liste '{title}' introuvable",
+        "appointment_created":  "Rendez-vous créé : {title} ({dt})",
+        "reminder_set":         "Rappel défini : {dt}",
+        "unknown_command":      "Commande inconnue : {name}",
+        "error":                "Erreur : {detail}",
+        "not_understood":       "Je n'ai pas compris la commande",
+
+        # assistant.py — system prompt
+        "system_prompt": (
+            "Tu es WritHer, un assistant vocal de productivité. "
+            "Date et heure actuelles : {now} ({weekday}). "
+            "L'utilisateur parle en {lang_name}. "
+            "Interprète sa demande et appelle la fonction appropriée. "
+            "Quand l'utilisateur dit des temps relatifs comme 'demain', 'dans une heure', "
+            "'lundi prochain', convertis-les en dates ISO absolues. "
+            "Si l'utilisateur demande de chercher dans sa vault Obsidian, "
+            "utilise search_obsidian_vault. "
+            "Réponds toujours en appelant une fonction — "
+            "jamais en texte libre sauf si aucune fonction ne correspond."
+        ),
+        "lang_name": "French",
+
+        # main.py — widget messages
+        "show_notes":           "📝 Voici vos notes",
+        "show_appointments":    "📅 Voici votre agenda",
+        "show_reminders":       "⏰ Voici vos rappels",
+        "assistant_error":      "Erreur de l'assistant",
+
+        # tray_icon.py
+        "tray_idle":            "WritHer — en attente",
+        "tray_recording":       "WritHer — enregistrement...",
+        "tray_ollama_down":     "WritHer — serveur LLM inaccessible",
+        "tray_notes_agenda":    "Notes & Agenda",
+        "tray_quit":            "Quitter",
+
+        # notes_window.py
+        "no_notes":             "Aucune note",
+        "no_appointments":      "Aucun rendez-vous",
+        "no_reminders":         "Aucun rappel",
+        "tab_notes":            "📝  Notes",
+        "tab_agenda":           "📅  Agenda",
+        "tab_reminders":        "⏰  Rappels",
+        "default_list_title":   "Liste",
+        "default_note_title":   "Note",
+
+        # notifier.py
+        "reminder_toast_title":     "WritHer — Rappel",
+        "appointment_toast_title":  "WritHer — Rendez-vous",
+        "appointment_toast_body":   "📅 {title} — dans {minutes} min",
+        "appointment_toast_now":    "📅 {title} — maintenant !",
+
+        # tray_icon.py — settings menu
+        "tray_settings":            "Paramètres",
+
+        # settings_window.py
+        "settings_title":           "Paramètres",
+        "setting_record_mode":      "Mode d'enregistrement",
+        "setting_hold":             "Maintenir pour enregistrer",
+        "setting_toggle":           "Appuyer pour démarrer / arrêter",
+        "setting_max_duration":     "Durée max d'enregistrement (secondes)",
+        "setting_saved":            "Paramètres enregistrés",
+
+        # obsidian vault (new)
+        "vault_no_results":         "Aucune note trouvée pour '{query}' dans la vault",
     },
 }
 

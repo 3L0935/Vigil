@@ -1,22 +1,18 @@
-"""Ollama-based assistant with function calling for notes, agenda and reminders."""
+"""llama-server assistant with function calling for notes, agenda and reminders."""
 
 import json
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from logger import log
 import config
 import locales
-
-try:
-    import requests
-except ImportError:
-    requests = None
-
 import database as db
+from llm_backend import LlamaServerBackend
 
-# ── Tool definitions (sent to Ollama) ─────────────────────────────────────
+_backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
 
-TOOLS = [
+# ── Tool definitions ──────────────────────────────────────────────────────
+
+_BASE_TOOLS = [
     {
         "type": "function",
         "function": {
@@ -120,10 +116,7 @@ TOOLS = [
         "function": {
             "name": "list_appointments",
             "description": "Show upcoming appointments/agenda.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
+            "parameters": {"type": "object", "properties": {}},
         },
     },
     {
@@ -131,19 +124,43 @@ TOOLS = [
         "function": {
             "name": "list_reminders",
             "description": "Show active (pending) reminders.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
+            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]
+
+_OBSIDIAN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_obsidian_vault",
+        "description": (
+            "Search the user's Obsidian vault for notes matching a query. "
+            "Use when the user says 'check dans ma vault', 'cherche dans mes notes', "
+            "'look in my vault', 'search my notes', or similar."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query":       {"type": "string", "description": "Search query"},
+                "max_results": {"type": "integer", "description": "Max notes to return", "default": 5},
+            },
+            "required": ["query"],
+        },
+    },
+}
+
+
+def _get_tools() -> list[dict]:
+    """Return tool list, adding Obsidian tool only if vault path is configured."""
+    tools = list(_BASE_TOOLS)
+    if config.OBSIDIAN_VAULT_PATH:
+        tools.append(_OBSIDIAN_TOOL)
+    return tools
 
 
 # ── System prompt ─────────────────────────────────────────────────────────
 
 def _system_prompt() -> str:
-    """Build the system prompt using the active language."""
     now = datetime.now()
     return locales.get(
         "system_prompt",
@@ -153,64 +170,10 @@ def _system_prompt() -> str:
     )
 
 
-# ── Ollama API call ───────────────────────────────────────────────────────
-
-def _call_ollama(text: str) -> dict | None:
-    """Send transcribed text to Ollama and return the function-call dict."""
-    if requests is None:
-        log.error("requests library not installed")
-        return None
-
-    url = f"{config.OLLAMA_URL}/api/chat"
-    payload = {
-        "model": config.OLLAMA_MODEL,
-        "messages": [
-            {"role": "system", "content": _system_prompt()},
-            {"role": "user", "content": text},
-        ],
-        "tools": TOOLS,
-        "stream": False,
-    }
-
-    try:
-        resp = requests.post(url, json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        log.error("Ollama request failed: %s", exc)
-        return None
-
-    msg = data.get("message", {})
-
-    # Check for tool_calls in the response
-    tool_calls = msg.get("tool_calls")
-    if tool_calls and len(tool_calls) > 0:
-        tc = tool_calls[0]
-        return {
-            "function": tc["function"]["name"],
-            "arguments": tc["function"].get("arguments", {}),
-        }
-
-    # Some models return the function call in the content as JSON
-    content = msg.get("content", "").strip()
-    if content:
-        log.info("Ollama text response: %s", content)
-        try:
-            parsed = json.loads(content)
-            if "function" in parsed:
-                return parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    return None
-
-
 # ── Function dispatcher ───────────────────────────────────────────────────
 
-def _dispatch(fc: dict) -> str:
+def _dispatch(name: str, args: dict) -> str:
     """Execute a function call and return a localised confirmation string."""
-    name = fc["function"]
-    args = fc.get("arguments", {})
     log.info("Assistant dispatch: %s(%s)", name, args)
 
     try:
@@ -223,24 +186,24 @@ def _dispatch(fc: dict) -> str:
             return locales.get("note_saved", nid=nid)
 
         elif name == "save_list":
-            nid = db.save_list(
+            db.save_list(
                 title=args.get("title", locales.get("default_list_title")),
                 items=args.get("items", []),
                 category=args.get("category", "general"),
             )
-            count = len(args.get("items", []))
-            return locales.get("list_saved", title=args.get("title", ""), count=count)
+            return locales.get("list_saved",
+                               title=args.get("title", ""),
+                               count=len(args.get("items", [])))
 
         elif name == "add_to_list":
             existing = db.find_list_by_title(args.get("list_title", ""))
             if existing:
                 db.add_to_list(existing["id"], args.get("items", []))
                 return locales.get("added_to_list", title=existing["title"])
-            else:
-                return locales.get("list_not_found", title=args.get("list_title", ""))
+            return locales.get("list_not_found", title=args.get("list_title", ""))
 
         elif name == "create_appointment":
-            aid = db.create_appointment(
+            db.create_appointment(
                 title=args.get("title", ""),
                 dt=args.get("datetime", ""),
                 description=args.get("description", ""),
@@ -250,7 +213,7 @@ def _dispatch(fc: dict) -> str:
                                dt=args.get("datetime", ""))
 
         elif name == "set_reminder":
-            rid = db.set_reminder(
+            db.set_reminder(
                 message=args.get("message", ""),
                 remind_at=args.get("remind_at", ""),
             )
@@ -265,6 +228,20 @@ def _dispatch(fc: dict) -> str:
         elif name == "list_reminders":
             return "__show_reminders__"
 
+        elif name == "search_obsidian_vault":
+            from obsidian import search_vault
+            results = search_vault(
+                query=args.get("query", ""),
+                vault_path=config.OBSIDIAN_VAULT_PATH,
+                max_results=args.get("max_results", 5),
+            )
+            if not results:
+                return locales.get("vault_no_results", query=args.get("query", ""))
+            lines = []
+            for r in results:
+                lines.append(f"**{r['title']}**\n{r['excerpt']}")
+            return "\n\n".join(lines)
+
         else:
             return locales.get("unknown_command", name=name)
 
@@ -275,25 +252,66 @@ def _dispatch(fc: dict) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────
 
-def ping_ollama() -> bool:
-    """Quick connectivity check. Returns True if Ollama is reachable."""
-    if requests is None:
-        return False
-    try:
-        resp = requests.get(f"{config.OLLAMA_URL}/api/tags", timeout=5)
-        return resp.status_code == 200
-    except Exception:
-        return False
+def ping_llama_server() -> bool:
+    """Quick connectivity check. Returns True if llama-server is reachable."""
+    return _backend.ping()
+
+
+# Keep old name as alias so existing call in main.py still works
+ping_ollama = ping_llama_server
 
 
 def process(text: str) -> str:
-    """Process transcribed text through Ollama. Returns confirmation string.
+    """Process transcribed text through llama-server. Returns confirmation string.
 
     Special return values starting with '__show_' signal the caller
     to open the notes/agenda window.
     """
     log.info("Assistant input: %r", text)
-    fc = _call_ollama(text)
-    if fc is None:
+
+    data = _backend.chat(
+        messages=[
+            {"role": "system", "content": _system_prompt()},
+            {"role": "user", "content": text},
+        ],
+        tools=_get_tools(),
+    )
+
+    if data is None:
         return locales.get("not_understood")
-    return _dispatch(fc)
+
+    # Extract tool call from OpenAI-format response
+    try:
+        choices = data.get("choices", [])
+        if not choices:
+            return locales.get("not_understood")
+
+        msg = choices[0].get("message", {})
+        tool_calls = msg.get("tool_calls")
+
+        if tool_calls:
+            tc = tool_calls[0]
+            fn_name = tc["function"]["name"]
+            # llama-server returns arguments as a JSON string
+            raw_args = tc["function"].get("arguments", "{}")
+            if isinstance(raw_args, str):
+                try:
+                    args = json.loads(raw_args)
+                except json.JSONDecodeError:
+                    from json_repair import repair_json
+                    args = repair_json(raw_args) or {}
+            else:
+                args = raw_args  # already a dict (shouldn't happen with llama-server)
+
+            return _dispatch(fn_name, args)
+
+        # No tool call: plain text response
+        content = msg.get("content", "").strip()
+        if content:
+            log.info("LLM text response: %s", content)
+            return content
+
+    except (KeyError, IndexError, TypeError) as exc:
+        log.error("Response parsing error: %s", exc)
+
+    return locales.get("not_understood")

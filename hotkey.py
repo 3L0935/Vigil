@@ -3,8 +3,13 @@
 Supports two recording modes controlled by config.HOLD_TO_RECORD:
   - Hold mode (True):  press=start, release=stop  (original behaviour)
   - Toggle mode (False): press=start, press again=stop  (release ignored)
+
+On Wayland, global hotkeys are intercepted via KGlobalAccel (KDE) when available.
+KGlobalAccel only fires on key press (no release), so Wayland always uses toggle mode
+semantics regardless of HOLD_TO_RECORD. On X11, pynput handles both modes normally.
 """
 
+from platform_linux import is_wayland
 from pynput import keyboard
 import config
 from logger import log
@@ -110,6 +115,12 @@ class HotkeyListener:
             log.error("%s error: %s", label, exc)
 
     def start(self):
+        if is_wayland():
+            self._start_wayland()
+        else:
+            self._start_x11()
+
+    def _start_x11(self):
         self._listener = keyboard.Listener(
             on_press=self._handle_press,
             on_release=self._handle_release,
@@ -117,6 +128,70 @@ class HotkeyListener:
         self._listener.start()
         self._listener.wait()
 
+    def _start_wayland(self):
+        """Use KGlobalAccel on Wayland KDE; fall back gracefully if unavailable."""
+        import hotkey_kglobalaccel as kga
+
+        # KGlobalAccel needs string key names; convert pynput Key objects
+        dict_key = _key_to_str(config.HOTKEY)
+        assist_key = _key_to_str(config.ASSISTANT_HOTKEY)
+
+        # On KGlobalAccel, a single press toggles recording (no release event)
+        def _on_dictation_toggle():
+            if not self._dict_recording:
+                self._dict_recording = True
+                self._dict_pressed = True
+                self._safe_call(self._on_press, "Dictation KGA start")
+            else:
+                self._dict_recording = False
+                self._dict_pressed = False
+                self._safe_call(self._on_release, "Dictation KGA stop")
+
+        def _on_assistant_toggle():
+            if not self._assist_recording:
+                self._assist_recording = True
+                self._assist_pressed = True
+                if self._on_assist_press:
+                    self._safe_call(self._on_assist_press, "Assistant KGA start")
+            else:
+                self._assist_recording = False
+                self._assist_pressed = False
+                if self._on_assist_release:
+                    self._safe_call(self._on_assist_release, "Assistant KGA stop")
+
+        success = kga.register(
+            dictation_key=dict_key,
+            on_dictation=_on_dictation_toggle,
+            assistant_key=assist_key,
+            on_assistant=_on_assistant_toggle,
+        )
+
+        if not success:
+            log.warning(
+                "KGlobalAccel unavailable — global hotkeys won't work on this "
+                "Wayland compositor. Use the tray menu 'Start recording' instead."
+            )
+            # Still try pynput as last resort (may work in XWayland)
+            self._start_x11()
+
     def stop(self):
         if self._listener is not None:
             self._listener.stop()
+
+
+def _key_to_str(key) -> str:
+    """Convert a pynput Key or KeyCode to a KGlobalAccel-compatible string."""
+    from pynput.keyboard import Key as K
+    _MAP = {
+        K.alt_gr: "ISO_Level3_Shift",
+        K.ctrl_r: "Ctrl+Right",
+        K.ctrl_l: "Ctrl+Left",
+        K.alt_l: "Alt+Left",
+        K.alt_r: "Alt+Right",
+    }
+    if key in _MAP:
+        return _MAP[key]
+    # KeyCode (regular key): use its char or vk
+    if hasattr(key, "char") and key.char:
+        return key.char.upper()
+    return str(key)

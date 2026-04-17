@@ -3,9 +3,13 @@
 Allows the user to configure:
   - Recording mode: hold-to-record vs toggle (press to start/stop)
   - Max recording duration in seconds (toggle mode only)
+  - LLM server URL (llama-server endpoint)
+  - Obsidian vault path (optional, enables vault search tool)
+  - Language (en / it / fr)
 """
 
 import tkinter as tk
+import tkinter.filedialog as fd
 import customtkinter as ctk
 from PIL import ImageTk
 
@@ -16,7 +20,7 @@ import locales
 from brand import make_title_bar_image
 import theme as T
 
-_WIN_W, _WIN_H = 420, 310
+_WIN_W, _WIN_H = 480, 520
 _TITLE_H = 40
 
 
@@ -32,6 +36,9 @@ class SettingsWindow:
         self._slider = None
         self._slider_val_label = None
         self._slider_section = None
+        self._llm_url_var = None
+        self._vault_path_var = None
+        self._lang_var = None
 
     def show(self):
         if self._win is not None:
@@ -159,6 +166,79 @@ class SettingsWindow:
         )
         self._slider.pack(fill="x")
 
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(T.PAD_L, T.PAD_M))
+
+        # ── LLM Server URL ────────────────────────────────────────────
+        ctk.CTkLabel(pad, text="LLM Server URL",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        self._llm_url_var = tk.StringVar(value=getattr(config, "LLAMA_SERVER_URL", ""))
+        ctk.CTkEntry(pad, textvariable=self._llm_url_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+
+        # ── Obsidian Vault Path ───────────────────────────────────────
+        ctk.CTkLabel(pad, text="Obsidian Vault",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        self._vault_path_var = tk.StringVar(
+            value=getattr(config, "OBSIDIAN_VAULT_PATH", ""))
+        vault_row = ctk.CTkFrame(pad, fg_color="transparent")
+        vault_row.pack(fill="x", pady=(0, T.PAD_L))
+
+        ctk.CTkEntry(vault_row, textvariable=self._vault_path_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(side="left", fill="x",
+                                                       expand=True, padx=(0, T.PAD_M))
+
+        ctk.CTkButton(vault_row, text="Browse", width=80, height=32,
+                      fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+                      border_color=T.BORDER, border_width=1,
+                      text_color=T.FG, font=T.FONT_SMALL,
+                      corner_radius=6,
+                      command=self._browse_vault).pack(side="right")
+
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+
+        # ── Language ──────────────────────────────────────────────────
+        ctk.CTkLabel(pad, text="Language",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        self._lang_var = tk.StringVar(value=getattr(config, "LANGUAGE", "en"))
+        lang_menu = ctk.CTkOptionMenu(
+            pad,
+            values=["en", "it", "fr"],
+            variable=self._lang_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_lang_change,
+        )
+        lang_menu.pack(fill="x", pady=(0, T.PAD_L))
+
+        # ── Save button ───────────────────────────────────────────────
+        ctk.CTkButton(
+            pad, text=locales.get("setting_saved"), height=36,
+            fg_color=T.ACCENT, hover_color=T.ACCENT_HOVER,
+            text_color=T.BG_DEEP, font=T.FONT_TITLE,
+            corner_radius=6, command=self._save_linux_settings,
+        ).pack(fill="x")
+
     # ── Drag ──────────────────────────────────────────────────────────────
 
     def _start_drag(self, event):
@@ -227,3 +307,29 @@ class SettingsWindow:
         db.save_setting("max_record_seconds", str(seconds))
         if self._slider_val_label:
             self._slider_val_label.configure(text=f"{seconds}s")
+
+    def _browse_vault(self):
+        path = fd.askdirectory(title="Select Obsidian Vault")
+        if path and self._vault_path_var:
+            self._vault_path_var.set(path)
+
+    def _on_lang_change(self, value: str):
+        config.LANGUAGE = value
+        db.save_setting("language", value)
+        log.info("Language changed to %s", value)
+
+    def _save_linux_settings(self):
+        if self._llm_url_var:
+            url = self._llm_url_var.get().strip()
+            if url:
+                config.LLAMA_SERVER_URL = url
+                db.save_setting("llama_server_url", url)
+        if self._vault_path_var:
+            path = self._vault_path_var.get().strip()
+            config.OBSIDIAN_VAULT_PATH = path
+            db.save_setting("obsidian_vault_path", path)
+        if self._lang_var:
+            lang = self._lang_var.get()
+            config.LANGUAGE = lang
+            db.save_setting("language", lang)
+        log.info("Linux settings saved.")

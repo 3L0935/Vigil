@@ -1,5 +1,6 @@
-"""Windows toast notifications and reminder/appointment scheduler thread."""
+"""Freedesktop notifications (notify-send) and reminder/appointment scheduler thread."""
 
+import shutil
 import subprocess
 import threading
 import time
@@ -8,82 +9,23 @@ from logger import log
 import config
 import database as db
 import locales
-from brand import get_notification_icon_path
-
-# Try multiple notification backends in order of preference
-_backend = None
-
-try:
-    from winotify import Notification as _WinotifyNotification
-    _backend = "winotify"
-except ImportError:
-    pass
-
-if _backend is None:
-    try:
-        from plyer import notification as _plyer
-        _backend = "plyer"
-    except ImportError:
-        pass
 
 
 def _send_toast(title: str, message: str):
-    """Show a Windows toast notification using the best available backend."""
-    ico = get_notification_icon_path()
-
-    if _backend == "winotify":
+    """Show a desktop notification via notify-send (freedesktop standard)."""
+    if shutil.which("notify-send"):
         try:
-            toast = _WinotifyNotification(
-                app_id="Writher",
-                title=title,
-                msg=message,
-                duration="long",
-                icon=ico,
+            subprocess.Popen(
+                ["notify-send", "-a", "WritHer", "-i", "dialog-information",
+                 title, message],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            toast.show()
-            log.info("Toast sent via winotify.")
-            return
+            log.info("Toast sent via notify-send.")
         except Exception as exc:
-            log.warning("winotify failed: %s", exc)
-
-    if _backend == "plyer":
-        try:
-            _plyer.notify(
-                title=title,
-                message=message,
-                app_name="Writher",
-                timeout=10,
-            )
-            log.info("Toast sent via plyer.")
-            return
-        except Exception as exc:
-            log.warning("plyer failed: %s", exc)
-
-    # Fallback: simple PowerShell BurntToast or basic balloon tip
-    try:
-        ps = (
-            f'Add-Type -AssemblyName System.Windows.Forms; '
-            f'$n = New-Object System.Windows.Forms.NotifyIcon; '
-            f'$n.Icon = [System.Drawing.SystemIcons]::Information; '
-            f'$n.Visible = $true; '
-            f'$n.ShowBalloonTip(10000, "{_ps_escape(title)}", '
-            f'"{_ps_escape(message)}", '
-            f'[System.Windows.Forms.ToolTipIcon]::Info); '
-            f'Start-Sleep -Seconds 12; '
-            f'$n.Dispose()'
-        )
-        subprocess.Popen(
-            ["powershell", "-WindowStyle", "Hidden", "-Command", ps],
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
-        )
-        log.info("Toast sent via PowerShell balloon.")
-    except Exception as exc:
-        log.warning("All notification methods failed: %s", exc)
-
-
-def _ps_escape(s: str) -> str:
-    """Escape string for safe embedding in PowerShell double-quoted string."""
-    return s.replace('"', '`"').replace("'", "`'").replace("\n", " ")
+            log.warning("notify-send failed: %s", exc)
+    else:
+        log.warning("notify-send not found — install libnotify for desktop notifications.")
 
 
 class ReminderScheduler:
