@@ -124,7 +124,7 @@ class SettingsWindow:
         ctk.CTkLabel(pad, text="Whisper model",
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
-        self._whisper_var = tk.StringVar(value=getattr(config, "MODEL_SIZE", "base"))
+        self._whisper_var = tk.StringVar(master=self._win, value=getattr(config, "MODEL_SIZE", "base"))
         ctk.CTkOptionMenu(
             pad,
             values=["tiny", "base", "small", "medium", "large-v3"],
@@ -145,7 +145,7 @@ class SettingsWindow:
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         llm_row = ctk.CTkFrame(pad, fg_color="transparent")
         llm_row.pack(fill="x", pady=(0, T.PAD_L))
-        self._llm_model_var = tk.StringVar(value=db.get_setting("llama_model", ""))
+        self._llm_model_var = tk.StringVar(master=self._win, value=db.get_setting("llama_model", ""))
         ctk.CTkEntry(llm_row, textvariable=self._llm_model_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
@@ -164,7 +164,7 @@ class SettingsWindow:
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_timeout_var = tk.StringVar(
-            value=db.get_setting("llama_unload_timeout", "120"))
+            master=self._win, value=db.get_setting("llama_unload_timeout", "120"))
         ctk.CTkOptionMenu(
             pad,
             values=["60", "120", "300", "0"],
@@ -182,7 +182,7 @@ class SettingsWindow:
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
-        self._llm_url_var = tk.StringVar(value=getattr(config, "LLAMA_SERVER_URL", ""))
+        self._llm_url_var = tk.StringVar(master=self._win, value=getattr(config, "LLAMA_SERVER_URL", ""))
         ctk.CTkEntry(pad, textvariable=self._llm_url_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
@@ -198,7 +198,7 @@ class SettingsWindow:
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
         self._vault_path_var = tk.StringVar(
-            value=getattr(config, "OBSIDIAN_VAULT_PATH", ""))
+            master=self._win, value=getattr(config, "OBSIDIAN_VAULT_PATH", ""))
         vault_row = ctk.CTkFrame(pad, fg_color="transparent")
         vault_row.pack(fill="x", pady=(0, T.PAD_L))
 
@@ -224,7 +224,7 @@ class SettingsWindow:
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
-        self._lang_var = tk.StringVar(value=getattr(config, "LANGUAGE", "en"))
+        self._lang_var = tk.StringVar(master=self._win, value=getattr(config, "LANGUAGE", "en"))
         lang_menu = ctk.CTkOptionMenu(
             pad,
             values=["en", "it", "fr"],
@@ -248,7 +248,7 @@ class SettingsWindow:
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
         self._overlay_pos_var = tk.StringVar(
-            value=getattr(config, "OVERLAY_POSITION", "bottom-center"))
+            master=self._win, value=getattr(config, "OVERLAY_POSITION", "bottom-center"))
         ctk.CTkOptionMenu(
             pad,
             values=["bottom-center", "bottom-right", "top-right"],
@@ -318,6 +318,7 @@ class SettingsWindow:
 
     def _browse_model(self):
         path = fd.askopenfilename(
+            parent=self._win,
             title="Select GGUF model",
             filetypes=[("GGUF files", "*.gguf"), ("All files", "*")],
         )
@@ -329,7 +330,7 @@ class SettingsWindow:
         log.info("LLM unload timeout set to %ss", value)
 
     def _browse_vault(self):
-        path = fd.askdirectory(title="Select Obsidian Vault")
+        path = fd.askdirectory(parent=self._win, title="Select Obsidian Vault")
         if path and self._vault_path_var:
             self._vault_path_var.set(path)
 
