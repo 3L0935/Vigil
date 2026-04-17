@@ -132,6 +132,7 @@ def _on_hotkey_press():
     if tray:
         tray.set_recording(True)
     if widget:
+        widget.hide_answer()
         widget.show_recording()
     _start_timeout("dictation")
     log.info("Recording started (dictation).")
@@ -167,6 +168,7 @@ def _on_assist_press():
     if tray:
         tray.set_recording(True)
     if widget:
+        widget.hide_answer()
         widget.show_assistant()
         widget.set_expression("listening")
     _start_timeout("assistant")
@@ -259,7 +261,7 @@ def _assistant_worker():
             else:
                 if widget:
                     widget.set_expression("happy")
-                    widget.show_message(result, 3000)
+                    widget.show_answer(result)
 
         except Exception as exc:
             log.error("Assistant pipeline error: %s", exc)
