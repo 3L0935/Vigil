@@ -689,9 +689,9 @@ class RecordingWidget:
 
         if self._fading == "out":
             self._cancel_fade()
+        self._reposition()
         if self._win:
             self._win.deiconify()
-        self._reposition()
 
         self._mode = mode
         self._tick = 0
