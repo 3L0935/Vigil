@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Answer Card — Variants</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f0f13;
+    color: #e0e0ec;
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+  h2 { font-size: 18px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #555; margin-bottom: 36px; }
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #444; margin-bottom: 16px; padding-bottom: 8px;
+    border-bottom: 1px solid #1a1a24;
+  }
+
+  .options { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+  .option {
+    flex: 1; min-width: 280px; max-width: 360px;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 20px;
+    background: #111117;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .option:hover { border-color: #333; background: #13131a; }
+  .option.selected { border-color: #a090ff; background: #13121f; }
+  .option.selected::after {
+    content: "✓";
+    position: absolute;
+    top: 12px; right: 14px;
+    font-size: 14px;
+    color: #a090ff;
+  }
+
+  .option-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #666; margin-bottom: 12px;
+  }
+  .option h3 { font-size: 14px; font-weight: 600; color: #ccc; margin-bottom: 6px; }
+  .option p  { font-size: 11.5px; color: #555; line-height: 1.5; margin-bottom: 16px; }
+
+  /* ── Simulated screen ── */
+  .sim {
+    background: #0a0a0e;
+    border-radius: 8px;
+    border: 1px solid #1a1a24;
+    padding: 16px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 180px;
+    position: relative;
+    overflow: hidden;
+  }
+  .sim-bg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #181820; pointer-events: none;
+  }
+
+  /* ── Base card ── */
+  .card {
+    background: #0c0c0f;
+    border-radius: 14px;
+    overflow: hidden;
+    width: 100%;
+  }
+  .card-header {
+    display: flex; align-items: center;
+    padding: 8px 12px 8px 8px;
+    gap: 8px;
+  }
+  .eyes { display: flex; gap: 5px; align-items: center; }
+  .eye  { width: 4px; height: 4px; border-radius: 50%; background: #fff; }
+  .sep  { width: 1px; height: 18px; background: #1e1e2c; }
+  .card-title { font-size: 10px; color: #444; flex: 1; }
+
+  .card-body {
+    padding: 10px 14px;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: #b8b8c8;
+  }
+  .cursor {
+    display: inline-block; width: 1px; height: 12px;
+    background: rgba(255,255,255,0.45);
+    margin-left: 1px; vertical-align: middle;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .divider { height: 1px; background: #151520; margin: 0 14px; }
+
+  /* footer variants */
+  .card-footer {
+    padding: 7px 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .btn { font-size: 10px; color: #3a3a50; cursor: default; }
+  .btn:hover { color: #666; }
+  .timer { font-size: 10px; color: #2a2a3a; margin-left: auto; }
+
+  /* close X */
+  .x-btn {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #1a1a24; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 8px; color: #444;
+  }
+
+  /* progress bar for timer */
+  .progress-bar {
+    height: 2px; background: #151520;
+  }
+  .progress-fill {
+    height: 100%; width: 60%;
+    background: rgba(255,255,255,0.08);
+    border-radius: 1px;
+    animation: drain 8s linear forwards;
+  }
+  @keyframes drain { from{width:100%} to{width:0} }
+
+  /* pill anchor at bottom */
+  .pill-anchor {
+    margin-top: 8px;
+    height: 36px;
+    background: #0c0c0f;
+    border-radius: 18px;
+    border: 1px solid #1c1c26;
+    display: flex; align-items: center;
+    padding: 0 12px 0 8px; gap: 6px;
+    width: 160px; align-self: center;
+  }
+  .pill-eyes { display: flex; gap: 5px; }
+  .pill-eye  { width: 3.5px; height: 3.5px; border-radius: 50%; background: #fff; opacity: 0.6; }
+  .pill-sep  { width: 1px; height: 16px; background: #1e1e2c; }
+  .pill-label { font-size: 9px; color: #3a3a50; }
+
+  /* ── scroll indicator ── */
+  .scroll-hint {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 24px;
+    background: linear-gradient(transparent, #0c0c0f);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 3px;
+    pointer-events: none;
+  }
+  .scroll-hint span { font-size: 8px; color: #333; }
+
+  /* long text for scroll demo */
+  .long-body { max-height: 60px; overflow: hidden; position: relative; }
+</style>
+<script>
+function pick(el) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  if (window.recordChoice) window.recordChoice(choice, el.querySelector('h3').textContent);
+}
+</script>
+</head>
+<body>
+
+<h2>Answer Card — 3 variations</h2>
+<p class="subtitle">Clique pour sélectionner ta préférence</p>
+
+<div class="section-label" style="margin-bottom: 24px;">Quel style pour afficher la réponse du LLM ?</div>
+
+<div class="options">
+
+  <!-- Option A: Ultra-minimal -->
+  <div class="option" data-choice="a" onclick="pick(this)">
+    <div class="option-label">Option A</div>
+    <h3>Ultra-minimal</h3>
+    <p>Juste le texte, aucun contrôle. Se ferme seul après 6s. Tap = ferme immédiatement.</p>
+
+    <div class="sim">
+      <div class="sim-bg">Bureau</div>
+      <div class="card" style="border: 1px solid rgba(255,255,255,0.06);">
+        <div class="card-body">
+          J'ai trouvé dans ta vault la note "async patterns". <code style="background:#151520;padding:1px 4px;border-radius:3px;font-size:10px;">asyncio.gather()</code> est préférable quand les erreurs doivent propager ensemble.<span class="cursor"></span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Card + footer actions -->
+  <div class="option" data-choice="b" onclick="pick(this)">
+    <div class="option-label">Option B</div>
+    <h3>Avec footer actions</h3>
+    <p>Header avec avatar + titre, corps texte, footer "Copier · Fermer" discret.</p>
+
+    <div class="sim">
+      <div class="sim-bg">Bureau</div>
+      <div class="card" style="border: 1px solid rgba(255,255,255,0.07);">
+        <div class="card-header">
+          <div class="eyes"><div class="eye"></div><div class="eye"></div></div>
+          <div class="sep"></div>
+          <span class="card-title">WritHer</span>
+          <div class="x-btn">✕</div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-body">
+          J'ai trouvé dans ta vault la note "async patterns". <code style="background:#151520;padding:1px 4px;border-radius:3px;font-size:10px;">asyncio.gather()</code> est préférable quand les erreurs doivent propager ensemble.<span class="cursor"></span>
+        </div>
+        <div class="divider"></div>
+        <div class="card-footer">
+          <span class="btn">⌘ Copier</span>
+          <span class="timer">ferme dans 8s</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Card above pill (pill stays visible) -->
+  <div class="option" data-choice="c" onclick="pick(this)">
+    <div class="option-label">Option C</div>
+    <h3>Card + pill ancrée</h3>
+    <p>La pill reste visible en bas. La carte apparaît au-dessus — 2 fenêtres distinctes. La pill indique l'état "happy".</p>
+
+    <div class="sim" style="gap: 6px;">
+      <div class="sim-bg">Bureau</div>
+      <div class="card" style="border: 1px solid rgba(255,255,255,0.07); width: 100%;">
+        <div class="card-header">
+          <div class="eyes"><div class="eye"></div><div class="eye"></div></div>
+          <div class="sep"></div>
+          <span class="card-title">WritHer</span>
+          <div class="x-btn">✕</div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-body">
+          J'ai trouvé dans ta vault "async patterns"...<span class="cursor"></span>
+        </div>
+      </div>
+      <!-- pill stays below -->
+      <div class="pill-anchor">
+        <div class="pill-eyes"><div class="pill-eye"></div><div class="pill-eye"></div></div>
+        <div class="pill-sep"></div>
+        <span class="pill-label">Done ✓</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 48px;">
+  <div class="section-label">Réponse longue — scroll automatique</div>
+  <p style="font-size: 12px; color: #555; margin-bottom: 16px;">Quand le LLM génère un pavé, la carte devient scrollable (max-height configurable)</p>
+
+  <div style="max-width: 400px;">
+    <div class="card" style="border: 1px solid rgba(255,255,255,0.06);">
+      <div class="card-header">
+        <div class="eyes"><div class="eye"></div><div class="eye"></div></div>
+        <div class="sep"></div>
+        <span class="card-title">WritHer — réponse longue</span>
+        <div class="x-btn">✕</div>
+      </div>
+      <div class="divider"></div>
+      <div class="card-body" style="max-height: 80px; overflow-y: auto; position: relative;">
+        <div>Voici ce que j'ai trouvé dans ta vault :<br><br>
+        La note "async patterns" du 12 mars explique qu'<code style="background:#151520;padding:1px 3px;border-radius:3px;font-size:10px;">asyncio.gather()</code> est préférable à <code style="background:#151520;padding:1px 3px;border-radius:3px;font-size:10px;">create_task()</code> quand les erreurs doivent propager ensemble. Si l'une des coroutines lève une exception, gather() la propage immédiatement tandis que create_task() l'avale silencieusement.<br><br>
+        La note "Python async deep dive" du 3 avril complète ce point : pour les cas où tu veux tolérer les erreurs partielles, utilise <code style="background:#151520;padding:1px 3px;border-radius:3px;font-size:10px;">return_exceptions=True</code>.</div>
+      </div>
+      <div class="scroll-hint"><span>↓ scroll</span></div>
+      <div class="card-footer">
+        <span class="btn">⌘ Copier</span>
+        <span class="timer">ferme dans 8s</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
