@@ -98,12 +98,14 @@ class SettingsWindow:
             corner_radius=0, command=self._close,
         )
         close_btn.pack(side="right")
-        # Fallback: direct binding in case CTkButton command doesn't fire on Linux
-        close_btn.bind("<ButtonRelease-1>", lambda e: self._close())
 
         win.bind("<Escape>", lambda e: self._close())
 
-        for w in (title_bar, title_lbl):
+        # Bind drag only on the label/icon — NOT on title_bar itself.
+        # Binding on the parent frame would cover the close button area too,
+        # and even a tiny mouse move during click triggers _on_drag which shifts
+        # the window so the ButtonRelease lands off the button.
+        for w in (eye_lbl, title_lbl):
             w.bind("<Button-1>", self._start_drag)
             w.bind("<B1-Motion>", self._on_drag)
 
