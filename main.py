@@ -2,7 +2,6 @@ import sys
 import signal
 import queue
 import threading
-import time
 import tkinter as tk
 import customtkinter as ctk
 ctk.set_appearance_mode("dark")
@@ -48,27 +47,10 @@ settings_win = None
 scheduler   = None
 hotkey_listener = None
 
-_rec_start  = 0.0
-_MIN_DURATION = 0.5
-
-# Toggle-mode timeout timers
-_dict_timeout_timer  = None
-_assist_timeout_timer = None
-
-
 # ── Load persisted settings into config at startup ────────────────────────
 
 def _load_settings():
     """Read settings from DB and apply them to config module."""
-    hold = db.get_setting("hold_to_record", "")
-    if hold != "":
-        config.HOLD_TO_RECORD = hold == "1"
-    max_sec = db.get_setting("max_record_seconds", "")
-    if max_sec != "":
-        try:
-            config.MAX_RECORD_SECONDS = int(max_sec)
-        except ValueError:
-            pass
     url = db.get_setting("llama_server_url", "")
     if url:
         config.LLAMA_SERVER_URL = url
@@ -83,89 +65,37 @@ def _load_settings():
         config.OVERLAY_POSITION = pos
 
 
-# ── Toggle-mode timeout helpers ───────────────────────────────────────────
-
-def _start_timeout(mode: str):
-    """Start a safety timer that auto-stops recording in toggle mode."""
-    global _dict_timeout_timer, _assist_timeout_timer
-    if config.HOLD_TO_RECORD:
-        return
-    seconds = getattr(config, "MAX_RECORD_SECONDS", 120)
-    if seconds <= 0:
-        return
-    if mode == "dictation":
-        _dict_timeout_timer = threading.Timer(seconds, _timeout_dictation)
-        _dict_timeout_timer.daemon = True
-        _dict_timeout_timer.start()
-    elif mode == "assistant":
-        _assist_timeout_timer = threading.Timer(seconds, _timeout_assistant)
-        _assist_timeout_timer.daemon = True
-        _assist_timeout_timer.start()
-
-
-def _cancel_timeout(mode: str):
-    global _dict_timeout_timer, _assist_timeout_timer
-    if mode == "dictation" and _dict_timeout_timer is not None:
-        _dict_timeout_timer.cancel()
-        _dict_timeout_timer = None
-    elif mode == "assistant" and _assist_timeout_timer is not None:
-        _assist_timeout_timer.cancel()
-        _assist_timeout_timer = None
-
-
-def _timeout_dictation():
-    log.warning("Toggle-mode dictation timeout reached.")
-    if hotkey_listener:
-        hotkey_listener.force_stop_dictation()
-
-
-def _timeout_assistant():
-    log.warning("Toggle-mode assistant timeout reached.")
-    if hotkey_listener:
-        hotkey_listener.force_stop_assistant()
-
-
 # ── Dictation callbacks (AltGr) ──────────────────────────────────────────
 
 def _on_hotkey_press():
-    global _rec_start
-    _rec_start = time.monotonic()
     recorder.start()
     if tray:
         tray.set_recording(True)
     if widget:
         widget.hide_answer()
         widget.show_recording()
-    _start_timeout("dictation")
     log.info("Recording started (dictation).")
 
 
 def _on_hotkey_release():
-    _cancel_timeout("dictation")
     audio = recorder.stop()
-    duration = time.monotonic() - _rec_start
     if tray:
         tray.set_recording(False)
-    log.info("Recording stopped (%.2fs).", duration)
+    log.info("Recording stopped (dictation).")
 
-    if audio is not None and len(audio) > 0 and duration >= _MIN_DURATION:
+    if audio is not None and len(audio) > 0:
         if widget:
             widget.show_processing()
         _pipeline_queue.put(audio)
     else:
         if widget:
             widget.hide()
-        if duration < _MIN_DURATION:
-            log.info("Too short (%.2fs), skipping.", duration)
-        else:
-            log.info("Empty audio, skipping.")
+        log.info("Empty audio, skipping.")
 
 
 # ── Assistant callbacks (Ctrl+R) ──────────────────────────────────────────
 
 def _on_assist_press():
-    global _rec_start
-    _rec_start = time.monotonic()
     recorder.start()
     if tray:
         tray.set_recording(True)
@@ -173,19 +103,16 @@ def _on_assist_press():
         widget.hide_answer()
         widget.show_assistant()
         widget.set_expression("listening")
-    _start_timeout("assistant")
     log.info("Recording started (assistant).")
 
 
 def _on_assist_release():
-    _cancel_timeout("assistant")
     audio = recorder.stop()
-    duration = time.monotonic() - _rec_start
     if tray:
         tray.set_recording(False)
-    log.info("Assistant recording stopped (%.2fs).", duration)
+    log.info("Assistant recording stopped.")
 
-    if audio is not None and len(audio) > 0 and duration >= _MIN_DURATION:
+    if audio is not None and len(audio) > 0:
         if widget:
             widget.show_processing()
             widget.set_expression("thinking")
@@ -311,8 +238,6 @@ def _tray_toggle_assistant():
 
 def _quit():
     log.info("Quitting...")
-    _cancel_timeout("dictation")
-    _cancel_timeout("assistant")
     _pipeline_queue.put(_STOP)
     _assistant_queue.put(_STOP)
     if scheduler:

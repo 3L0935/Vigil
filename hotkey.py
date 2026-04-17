@@ -1,12 +1,10 @@
 """Dual-hotkey listener: one for dictation, one for assistant mode.
 
-Supports two recording modes controlled by config.HOLD_TO_RECORD:
-  - Hold mode (True):  press=start, release=stop  (original behaviour)
-  - Toggle mode (False): press=start, press again=stop  (release ignored)
+Toggle mode only: first press starts recording, second press stops it.
 
 On Wayland, global hotkeys are intercepted via KGlobalAccel (KDE) when available.
-KGlobalAccel only fires on key press (no release), so Wayland always uses toggle mode
-semantics regardless of HOLD_TO_RECORD. On X11, pynput handles both modes normally.
+KGlobalAccel only fires on key press (no release), so Wayland uses the same toggle
+semantics. On X11, pynput handles press/release events normally.
 """
 
 from platform_linux import is_wayland
@@ -29,81 +27,38 @@ class HotkeyListener:
         self._assist_recording = False
         self._listener = None
 
-    def _is_hold_mode(self) -> bool:
-        return getattr(config, "HOLD_TO_RECORD", True)
-
     # ── press ─────────────────────────────────────────────────────────────
 
     def _handle_press(self, key):
         if key == config.HOTKEY:
-            if self._is_hold_mode():
-                if not self._dict_pressed:
-                    self._dict_pressed = True
-                    self._safe_call(self._on_press, "Dictation press")
+            if self._dict_pressed:
+                return  # ignore key-repeat
+            self._dict_pressed = True
+            if not self._dict_recording:
+                self._dict_recording = True
+                self._safe_call(self._on_press, "Dictation toggle-start")
             else:
-                # Toggle mode: ignore key-repeat (pressed stays True)
-                if self._dict_pressed:
-                    return
-                self._dict_pressed = True
-                if not self._dict_recording:
-                    self._dict_recording = True
-                    self._safe_call(self._on_press, "Dictation toggle-start")
-                else:
-                    self._dict_recording = False
-                    self._safe_call(self._on_release, "Dictation toggle-stop")
+                self._dict_recording = False
+                self._safe_call(self._on_release, "Dictation toggle-stop")
 
         elif key == config.ASSISTANT_HOTKEY and self._on_assist_press:
-            if self._is_hold_mode():
-                if not self._assist_pressed:
-                    self._assist_pressed = True
-                    self._safe_call(self._on_assist_press, "Assistant press")
+            if self._assist_pressed:
+                return
+            self._assist_pressed = True
+            if not self._assist_recording:
+                self._assist_recording = True
+                self._safe_call(self._on_assist_press, "Assistant toggle-start")
             else:
-                if self._assist_pressed:
-                    return
-                self._assist_pressed = True
-                if not self._assist_recording:
-                    self._assist_recording = True
-                    self._safe_call(self._on_assist_press, "Assistant toggle-start")
-                else:
-                    self._assist_recording = False
-                    self._safe_call(self._on_assist_release, "Assistant toggle-stop")
+                self._assist_recording = False
+                self._safe_call(self._on_assist_release, "Assistant toggle-stop")
 
     # ── release ───────────────────────────────────────────────────────────
 
     def _handle_release(self, key):
         if key == config.HOTKEY:
-            if self._is_hold_mode():
-                if self._dict_pressed:
-                    self._dict_pressed = False
-                    self._safe_call(self._on_release, "Dictation release")
-            else:
-                # Toggle mode: just reset the physical-key flag
-                self._dict_pressed = False
-
-        elif key == config.ASSISTANT_HOTKEY:
-            if self._is_hold_mode():
-                if self._assist_pressed and self._on_assist_release:
-                    self._assist_pressed = False
-                    self._safe_call(self._on_assist_release, "Assistant release")
-            else:
-                self._assist_pressed = False
-
-    # ── public API to force-stop (used by timeout) ────────────────────────
-
-    def force_stop_dictation(self):
-        """Called by the timeout timer to stop a toggle-mode recording."""
-        if self._dict_recording:
-            self._dict_recording = False
             self._dict_pressed = False
-            self._safe_call(self._on_release, "Dictation timeout-stop")
-
-    def force_stop_assistant(self):
-        """Called by the timeout timer to stop a toggle-mode recording."""
-        if self._assist_recording:
-            self._assist_recording = False
+        elif key == config.ASSISTANT_HOTKEY:
             self._assist_pressed = False
-            if self._on_assist_release:
-                self._safe_call(self._on_assist_release, "Assistant timeout-stop")
 
     # ── helpers ───────────────────────────────────────────────────────────
 

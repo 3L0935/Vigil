@@ -37,13 +37,6 @@ LLAMA_MODEL = "qwen2.5-7b-instruct"  # strong tool-calling support
 # Leave empty to disable the feature.
 OBSIDIAN_VAULT_PATH = "/home/elo/.obsidian-vault/wiki/"
 
-# ── Recording mode ────────────────────────────────────────────────────────
-# True = hold key to record (release stops).  False = toggle (press start, press stop).
-HOLD_TO_RECORD = True
-
-# Maximum recording duration in seconds (toggle mode only, safety net).
-MAX_RECORD_SECONDS = 120
-
 # ── Appointment notifications ─────────────────────────────────────────────
 # How many minutes before an appointment to send a toast notification.
 APPOINTMENT_REMIND_MINUTES = 15
