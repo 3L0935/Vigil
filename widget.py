@@ -667,6 +667,7 @@ class RecordingWidget:
             self._cancel_fade()
         if self._win:
             self._win.deiconify()
+        self._reposition()
 
         self._mode = mode
         self._tick = 0
@@ -818,19 +819,11 @@ class RecordingWidget:
         win.configure(bg=_WIN_BG)
         self._alpha = _ALPHA_MIN
 
-        sw = win.winfo_screenwidth()
-        sh = win.winfo_screenheight()
-        pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
-        if pos == "bottom-right":
-            px = sw - _W - _CARD_MARGIN
-            py = sh - _H - _CARD_MARGIN
-        elif pos == "top-right":
-            px = sw - _W - _CARD_MARGIN
-            py = _CARD_MARGIN
-        else:  # bottom-center
-            px = (sw - _W) // 2
-            py = sh - _H - 52
-        win.geometry(f"{_W}x{_H}+{px}+{py}")
+        # Initial geometry — use root for reliable screen dimensions before
+        # the Toplevel is mapped (winfo_screenwidth on a new unmapped window
+        # can return 1 on some compositors).
+        self._win = win
+        self._reposition()
 
         c = tk.Canvas(win, width=_W, height=_H, bg=_WIN_BG,
                       highlightthickness=0)
@@ -904,6 +897,24 @@ class RecordingWidget:
 
         if self._answer_card is None:
             self._answer_card = AnswerCard(self._root)
+
+    def _reposition(self):
+        """Place pill according to current OVERLAY_POSITION config."""
+        if self._win is None:
+            return
+        sw = self._root.winfo_screenwidth()
+        sh = self._root.winfo_screenheight()
+        pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
+        if pos == "bottom-right":
+            px = sw - _W - _CARD_MARGIN
+            py = sh - _H - _CARD_MARGIN
+        elif pos == "top-right":
+            px = sw - _W - _CARD_MARGIN
+            py = _CARD_MARGIN
+        else:  # bottom-center
+            px = (sw - _W) // 2
+            py = sh - _H - 52
+        self._win.geometry(f"{_W}x{_H}+{px}+{py}")
 
     # ── avatar rendering: Pandora Blackboard eyes ────────────────────────
 
