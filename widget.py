@@ -14,9 +14,12 @@ Redesigned to match the JSX floating pill widget:
 """
 
 import math
+import re
 import sys
 import threading
+import time
 import tkinter as tk
+import config
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
 from logger import log
 
@@ -40,7 +43,8 @@ _EYE_R      = 2.1            # base eye dot radius
 
 # ── layout ────────────────────────────────────────────────────────────────
 _SEP_X     = 48              # separator x after avatar
-_TEXT_X    = _SEP_X + 10     # status text start x
+_DOT_X     = _SEP_X + 10    # indicator dot center x = 58
+_TEXT_X    = _SEP_X + 22    # status text start x = 70 (shifted 12px right for dot)
 _WAVE_X    = 0               # computed dynamically based on text
 
 # Waveform (JSX-style: 5 thin bars, listening/recording only)
@@ -74,7 +78,7 @@ _STATE_STYLE = {
     # mode aliases
     "recording":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Listening..."},
     "processing": {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Thinking..."},
-    "assistant":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": ""},
+    "assistant":  {"accent": (160, 144, 255), "glow": (160, 144, 255), "border": (120, 100, 255), "border_a": 0.15, "label": "Assistant..."},
 }
 
 # Eye theme per expression (eye_rgb, glow_rgb for the SVG-like dot rendering)
@@ -94,7 +98,7 @@ _EYE_THEME = {
     "loading":    {"eye": (255, 255, 255), "glow": (255, 255, 255)},
     "recording":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
     "processing": {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "assistant":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
+    "assistant":  {"eye": (160, 144, 255), "glow": (120, 100, 255)},
 }
 
 _IDLE_STYLE = _STATE_STYLE["idle"]
@@ -195,6 +199,7 @@ class RecordingWidget:
         self._text_id    = None
         self._label_id   = None    # status label (JSX-style)
         self._sep_ids    = []      # separator lines
+        self._dot_id     = None   # pulsing color dot: red=dictate, violet=assistant
         self._after_anim = None
         self._after_fade = None
         self._after_msg  = None
@@ -318,7 +323,7 @@ class RecordingWidget:
         elif mode == self.PROCESSING:
             self._expression = "thinking"
         elif mode == self.ASSISTANT:
-            self._expression = "listening"
+            self._expression = "assistant"
 
         # Show waveform bars during recording and assistant (both record audio)
         show_bars = (mode in (self.RECORDING, self.ASSISTANT))
@@ -493,6 +498,13 @@ class RecordingWidget:
         sep = c.create_line(_SEP_X, sep_top, _SEP_X, sep_bot,
                             fill="#222230", width=1)
         self._sep_ids.append(sep)
+
+        # ── Indicator dot (red=dictate, violet=assistant) ─────────
+        self._dot_id = c.create_oval(
+            _DOT_X - 3, _H // 2 - 3,
+            _DOT_X + 3, _H // 2 + 3,
+            fill="#ff4444", outline="", state="hidden",
+        )
 
         # ── Status label text (JSX-style) ─────────────────────────
         self._label_id = c.create_text(
@@ -803,6 +815,27 @@ class RecordingWidget:
 
         # Update label
         self._update_label()
+
+        # Indicator dot — pulsing red for dictation, violet for assistant
+        if self._dot_id is not None:
+            if self._mode == self.RECORDING:
+                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
+                r = int(100 + 155 * val)
+                g = int(20 * val)
+                b = int(20 * val)
+                self._canvas.itemconfig(self._dot_id,
+                                        fill=f"#{r:02x}{g:02x}{b:02x}",
+                                        state="normal")
+            elif self._mode == self.ASSISTANT:
+                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.08))
+                r = int(48 + 112 * val)
+                g = int(40 + 104 * val)
+                b = int(96 + 159 * val)
+                self._canvas.itemconfig(self._dot_id,
+                                        fill=f"#{r:02x}{g:02x}{b:02x}",
+                                        state="normal")
+            else:
+                self._canvas.itemconfig(self._dot_id, state="hidden")
 
         # Waveform bars (recording + assistant both show animated bars)
         if self._mode in (self.RECORDING, self.ASSISTANT):
