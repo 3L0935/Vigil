@@ -15,6 +15,7 @@ Redesigned to match the JSX floating pill widget:
 
 import math
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -146,6 +147,30 @@ def _no_activate(hwnd: int) -> None:
         )
     except Exception:
         pass
+
+
+# ── multi-monitor helper ──────────────────────────────────────────────────
+
+def _monitor_rect(root) -> tuple[int, int, int, int]:
+    """Return (left, top, w, h) of the monitor that contains the mouse cursor.
+
+    Uses xrandr on X11/XWayland.  Falls back to the full virtual screen so
+    single-monitor and pure-Wayland setups still work.
+    """
+    try:
+        cx = root.winfo_pointerx()
+        cy = root.winfo_pointery()
+        out = subprocess.check_output(
+            ["xrandr", "--query"], text=True, stderr=subprocess.DEVNULL, timeout=2)
+        for line in out.splitlines():
+            m = re.search(r"\bconnected\b.*?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
+            if m:
+                w, h, ox, oy = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+                if ox <= cx < ox + w and oy <= cy < oy + h:
+                    return ox, oy, w, h
+    except Exception:
+        pass
+    return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight()
 
 
 # ── pill background renderer ─────────────────────────────────────────────
@@ -371,22 +396,21 @@ class AnswerCard:
         self._win = win
 
     def _calc_position(self, card_h: int) -> tuple[int, int]:
-        sw = self._root.winfo_screenwidth()
-        sh = self._root.winfo_screenheight()
+        ox, oy, sw, sh = _monitor_rect(self._root)
         pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
-        pill_top_y = sh - _H - 52
+        pill_top_y = oy + sh - _H - 52
 
         if pos == "bottom-center":
-            x = (sw - _CARD_W) // 2
+            x = ox + (sw - _CARD_W) // 2
             y = pill_top_y - _CARD_GAP - card_h
         elif pos == "bottom-right":
-            x = sw - _CARD_W - _CARD_MARGIN
-            y = sh - _H - _CARD_MARGIN - _CARD_GAP - card_h
+            x = ox + sw - _CARD_W - _CARD_MARGIN
+            y = oy + sh - _H - _CARD_MARGIN - _CARD_GAP - card_h
         elif pos == "top-right":
-            x = sw - _CARD_W - _CARD_MARGIN
-            y = _CARD_MARGIN + _H + _CARD_GAP
+            x = ox + sw - _CARD_W - _CARD_MARGIN
+            y = oy + _CARD_MARGIN + _H + _CARD_GAP
         else:
-            x = (sw - _CARD_W) // 2
+            x = ox + (sw - _CARD_W) // 2
             y = pill_top_y - _CARD_GAP - card_h
         return x, y
 
@@ -899,21 +923,21 @@ class RecordingWidget:
             self._answer_card = AnswerCard(self._root)
 
     def _reposition(self):
-        """Place pill according to current OVERLAY_POSITION config."""
+        """Place pill on the active monitor according to OVERLAY_POSITION."""
         if self._win is None:
             return
-        sw = self._root.winfo_screenwidth()
-        sh = self._root.winfo_screenheight()
+        ox, oy, sw, sh = _monitor_rect(self._root)
         pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
         if pos == "bottom-right":
-            px = sw - _W - _CARD_MARGIN
-            py = sh - _H - _CARD_MARGIN
+            px = ox + sw - _W - _CARD_MARGIN
+            py = oy + sh - _H - _CARD_MARGIN
         elif pos == "top-right":
-            px = sw - _W - _CARD_MARGIN
-            py = _CARD_MARGIN
+            px = ox + sw - _W - _CARD_MARGIN
+            py = oy + _CARD_MARGIN
         else:  # bottom-center
-            px = (sw - _W) // 2
-            py = sh - _H - 52
+            px = ox + (sw - _W) // 2
+            py = oy + sh - _H - 52
+        log.debug("pill pos=%s monitor=(%d,%d %dx%d) -> +%d+%d", pos, ox, oy, sw, sh, px, py)
         self._win.geometry(f"{_W}x{_H}+{px}+{py}")
 
     # ── avatar rendering: Pandora Blackboard eyes ────────────────────────

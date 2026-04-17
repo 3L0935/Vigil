@@ -98,6 +98,10 @@ class SettingsWindow:
             corner_radius=0, command=self._close,
         )
         close_btn.pack(side="right")
+        # Fallback: direct binding in case CTkButton command doesn't fire on Linux
+        close_btn.bind("<ButtonRelease-1>", lambda e: self._close())
+
+        win.bind("<Escape>", lambda e: self._close())
 
         for w in (title_bar, title_lbl):
             w.bind("<Button-1>", self._start_drag)
@@ -276,12 +280,14 @@ class SettingsWindow:
             self._win.geometry(f"+{x}+{y}")
 
     def _close(self):
-        if self._win:
+        win = self._win
+        self._win = None
+        if win:
             try:
-                self._win.destroy()
+                win.withdraw()
+                win.after(1, win.destroy)
             except Exception:
                 pass
-            self._win = None
 
     # ── UI sync ───────────────────────────────────────────────────────────
 
