@@ -59,6 +59,16 @@ _FADE_STEPS    = 14
 _FADE_INTERVAL = 18
 _ANIM_FPS_MS   = 33          # ~30 fps
 
+# ── Answer card constants ─────────────────────────────────────────────────
+_CARD_W          = 400
+_CARD_HEADER_H   = 36
+_CARD_BODY_MAX_H = 160
+_CARD_FOOTER_H   = 28
+_CARD_PROG_H     = 2
+_CARD_GAP        = 8    # vertical gap between pill top and card bottom
+_CARD_MARGIN     = 16   # edge margin for non-centered positions
+_TYPEWRITER_MS   = 28   # ms between tokens during typewriter animation
+
 # ── JSX-matching accent colours per state ────────────────────────────────
 # Format: accent_rgb, glow_rgba_str, border_rgb, border_opacity
 _STATE_STYLE = {
@@ -186,6 +196,335 @@ def _render_pill(w: int, h: int, radius: int,
     return pill.convert("RGB")
 
 
+class AnswerCard:
+    """Floating answer card: typewriter text, smart dismiss, configurable position."""
+
+    def __init__(self, root: tk.Tk):
+        self._root = root
+        self._win: tk.Toplevel | None = None
+        self._text_widget: tk.Text | None = None
+        self._footer_label: tk.Label | None = None
+        self._prog_canvas: tk.Canvas | None = None
+        self._prog_id = None
+        self._full_text = ""
+        self._tokens: list[str] = []
+        self._token_idx = 0
+        self._after_type: str | None = None
+        self._after_countdown: str | None = None
+        self._countdown_start = 0.0
+        self._countdown_dur = 0.0
+        self._paused = False
+        self._alpha = 0.0
+        self._after_fade: str | None = None
+        self._fading: str | None = None
+
+    # ── public API ────────────────────────────────────────────────────────
+
+    def show(self, text: str):
+        self._root.after(0, lambda: self._show(text))
+
+    def hide(self):
+        self._root.after(0, self._start_fade_out)
+
+    # ── internal ──────────────────────────────────────────────────────────
+
+    def _show(self, text: str):
+        self._cancel_all_timers()
+        self._full_text = text
+        self._tokens = re.findall(r'\S+\s*|\n', text)
+        self._token_idx = 0
+        self._countdown_dur = float(getattr(config, "OVERLAY_ANSWER_TIMEOUT", 8))
+        self._paused = False
+
+        needs_build = self._win is None
+        if not needs_build:
+            try:
+                needs_build = not self._win.winfo_exists()
+            except Exception:
+                needs_build = True
+
+        if needs_build:
+            self._build()
+        else:
+            self._win.deiconify()
+
+        self._text_widget.config(state=tk.NORMAL)
+        self._text_widget.delete("1.0", tk.END)
+        self._text_widget.config(state=tk.DISABLED)
+
+        self._alpha = 0.0
+        self._fading = None
+        self._win.wm_attributes("-alpha", 0.0)
+        self._start_fade_in()
+        self._typewriter_tick()
+        self._countdown_start = time.monotonic()
+        self._countdown_tick()
+
+    def _build(self):
+        win = tk.Toplevel(self._root)
+        win.overrideredirect(True)
+        win.wm_attributes("-topmost", True)
+        win.wm_attributes("-alpha", 0.0)
+        win.configure(bg="#0c0c0f")
+
+        total_h = (_CARD_HEADER_H + 1 + _CARD_BODY_MAX_H
+                   + 1 + _CARD_FOOTER_H + _CARD_PROG_H)
+        x, y = self._calc_position(total_h)
+        win.geometry(f"{_CARD_W}x{total_h}+{x}+{y}")
+
+        outer = tk.Frame(win, bg="#0c0c0f",
+                         highlightbackground="#1e1e2c", highlightthickness=1)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        # ── Header ────────────────────────────────────────────────────────
+        hdr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_HEADER_H)
+        hdr.pack(fill=tk.X)
+        hdr.pack_propagate(False)
+
+        ava_c = tk.Canvas(hdr, width=22, height=_CARD_HEADER_H,
+                          bg="#0c0c0f", highlightthickness=0)
+        ava_c.pack(side=tk.LEFT, padx=(10, 0))
+        cy = _CARD_HEADER_H // 2
+        ava_c.create_oval(2, cy - 2, 8, cy + 2, fill="#ffffff", outline="")
+        ava_c.create_oval(14, cy - 2, 20, cy + 2, fill="#ffffff", outline="")
+
+        tk.Frame(hdr, bg="#1e1e2c", width=1).pack(
+            side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
+
+        tk.Label(hdr, text="WritHer", bg="#0c0c0f", fg="#3a3a50",
+                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
+
+        close_btn = tk.Label(hdr, text="✕", bg="#0c0c0f", fg="#3a3a50",
+                             font=("Segoe UI", 9), cursor="hand2")
+        close_btn.pack(side=tk.RIGHT, padx=10)
+        close_btn.bind("<Button-1>", lambda e: self.hide())
+        close_btn.bind("<Enter>", lambda e: close_btn.config(fg="#888899"))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#3a3a50"))
+
+        # ── Divider ───────────────────────────────────────────────────────
+        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+
+        # ── Body (scrollable text) ────────────────────────────────────────
+        body = tk.Frame(outer, bg="#0c0c0f", height=_CARD_BODY_MAX_H)
+        body.pack(fill=tk.X)
+        body.pack_propagate(False)
+
+        text_w = tk.Text(
+            body,
+            bg="#0c0c0f", fg="#c8c8d4",
+            font=("Segoe UI", 11),
+            wrap=tk.WORD,
+            relief=tk.FLAT,
+            borderwidth=0,
+            padx=14, pady=10,
+            state=tk.DISABLED,
+            cursor="arrow",
+        )
+        sb = tk.Scrollbar(body, orient=tk.VERTICAL, command=text_w.yview,
+                          width=4, troughcolor="#0c0c0f", bg="#2a2a3a",
+                          activebackground="#3a3a4a", relief=tk.FLAT,
+                          borderwidth=0, highlightthickness=0)
+        text_w.configure(yscrollcommand=sb.set)
+        text_w.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self._text_widget = text_w
+
+        # ── Divider ───────────────────────────────────────────────────────
+        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+
+        # ── Footer ────────────────────────────────────────────────────────
+        ftr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_FOOTER_H)
+        ftr.pack(fill=tk.X)
+        ftr.pack_propagate(False)
+
+        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0c0c0f", fg="#3a3a50",
+                            font=("Segoe UI", 9), cursor="hand2")
+        copy_btn.pack(side=tk.LEFT, padx=14)
+        copy_btn.bind("<Button-1>", lambda e: self._copy_to_clipboard())
+        copy_btn.bind("<Enter>", lambda e: copy_btn.config(fg="#888899"))
+        copy_btn.bind("<Leave>", lambda e: copy_btn.config(fg="#3a3a50"))
+
+        self._footer_label = tk.Label(ftr, text="", bg="#0c0c0f", fg="#252535",
+                                      font=("Segoe UI", 9))
+        self._footer_label.pack(side=tk.RIGHT, padx=14)
+
+        # ── Progress bar ──────────────────────────────────────────────────
+        prog = tk.Canvas(outer, bg="#151520", height=_CARD_PROG_H,
+                         highlightthickness=0)
+        prog.pack(fill=tk.X, side=tk.BOTTOM)
+        self._prog_canvas = prog
+        self._prog_id = prog.create_rectangle(
+            0, 0, _CARD_W, _CARD_PROG_H, fill="#2a2a3a", outline="")
+
+        # ── Smart dismiss bindings ────────────────────────────────────────
+        for w in [win, outer, hdr, body, text_w, ftr]:
+            w.bind("<Enter>", self._pause_countdown)
+            w.bind("<Leave>", self._on_leave)
+            w.bind("<MouseWheel>", self._reset_countdown)
+            w.bind("<Button-4>", self._reset_countdown)
+            w.bind("<Button-5>", self._reset_countdown)
+
+        self._win = win
+
+    def _calc_position(self, card_h: int) -> tuple[int, int]:
+        sw = self._root.winfo_screenwidth()
+        sh = self._root.winfo_screenheight()
+        pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
+        pill_top_y = sh - _H - 52
+
+        if pos == "bottom-center":
+            x = (sw - _CARD_W) // 2
+            y = pill_top_y - _CARD_GAP - card_h
+        elif pos == "bottom-right":
+            x = sw - _CARD_W - _CARD_MARGIN
+            y = sh - _H - _CARD_MARGIN - _CARD_GAP - card_h
+        elif pos == "top-right":
+            x = sw - _CARD_W - _CARD_MARGIN
+            y = _CARD_MARGIN
+        else:
+            x = (sw - _CARD_W) // 2
+            y = pill_top_y - _CARD_GAP - card_h
+        return x, y
+
+    # ── typewriter ────────────────────────────────────────────────────────
+
+    def _typewriter_tick(self):
+        if self._token_idx >= len(self._tokens):
+            self._after_type = None
+            return
+        chunk = self._tokens[self._token_idx]
+        self._token_idx += 1
+        self._text_widget.config(state=tk.NORMAL)
+        self._text_widget.insert(tk.END, chunk)
+        self._text_widget.config(state=tk.DISABLED)
+        self._text_widget.see(tk.END)
+        self._after_type = self._root.after(_TYPEWRITER_MS, self._typewriter_tick)
+
+    # ── countdown ─────────────────────────────────────────────────────────
+
+    def _countdown_tick(self):
+        if self._paused:
+            self._after_countdown = self._root.after(100, self._countdown_tick)
+            return
+        now = time.monotonic()
+        remaining = self._countdown_dur - (now - self._countdown_start)
+        if remaining <= 0:
+            self._start_fade_out()
+            return
+        secs = max(1, int(remaining) + 1)
+        if self._footer_label:
+            self._footer_label.config(text=f"ferme dans {secs}s")
+        if self._prog_canvas and self._prog_id is not None:
+            ratio = max(0.0, remaining / self._countdown_dur)
+            self._prog_canvas.coords(
+                self._prog_id, 0, 0, int(_CARD_W * ratio), _CARD_PROG_H)
+        self._after_countdown = self._root.after(100, self._countdown_tick)
+
+    def _pause_countdown(self, event=None):
+        self._paused = True
+
+    def _on_leave(self, event=None):
+        self._root.after(50, self._check_resume)
+
+    def _check_resume(self):
+        if self._win is None:
+            self._paused = False
+            return
+        try:
+            mx = self._win.winfo_pointerx()
+            my = self._win.winfo_pointery()
+            wx = self._win.winfo_rootx()
+            wy = self._win.winfo_rooty()
+            ww = self._win.winfo_width()
+            wh = self._win.winfo_height()
+            if not (wx <= mx <= wx + ww and wy <= my <= wy + wh):
+                self._paused = False
+        except Exception:
+            self._paused = False
+
+    def _reset_countdown(self, event=None):
+        self._countdown_start = time.monotonic()
+
+    # ── copy ──────────────────────────────────────────────────────────────
+
+    def _copy_to_clipboard(self):
+        try:
+            import pyperclip
+            pyperclip.copy(self._full_text)
+        except Exception as exc:
+            log.warning("AnswerCard copy failed: %s", exc)
+
+    # ── fade ──────────────────────────────────────────────────────────────
+
+    def _start_fade_in(self):
+        self._fading = "in"
+        self._cancel_fade()
+        self._fade_step()
+
+    def _start_fade_out(self):
+        self._cancel_all_timers()
+        if self._win is None or self._alpha <= 0.0:
+            self._do_hide()
+            return
+        self._fading = "out"
+        self._cancel_fade()
+        self._fade_step()
+
+    def _fade_step(self):
+        step = _ALPHA_MAX / _FADE_STEPS
+        if self._fading == "in":
+            new_a = self._alpha + step
+            if new_a >= _ALPHA_MAX:
+                self._alpha = _ALPHA_MAX
+                try:
+                    self._win.wm_attributes("-alpha", _ALPHA_MAX)
+                except Exception:
+                    pass
+                self._fading = None
+                return
+            self._alpha = new_a
+        elif self._fading == "out":
+            new_a = self._alpha - step
+            if new_a <= 0.0:
+                self._alpha = 0.0
+                self._fading = None
+                self._do_hide()
+                return
+            self._alpha = new_a
+        else:
+            return
+        try:
+            self._win.wm_attributes("-alpha", self._alpha)
+        except Exception:
+            pass
+        self._after_fade = self._root.after(_FADE_INTERVAL, self._fade_step)
+
+    def _do_hide(self):
+        if self._win:
+            try:
+                self._win.withdraw()
+            except Exception:
+                pass
+
+    def _cancel_fade(self):
+        if self._after_fade is not None:
+            try:
+                self._root.after_cancel(self._after_fade)
+            except Exception:
+                pass
+            self._after_fade = None
+
+    def _cancel_all_timers(self):
+        for attr in ("_after_type", "_after_countdown"):
+            after_id = getattr(self, attr, None)
+            if after_id is not None:
+                try:
+                    self._root.after_cancel(after_id)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
+
 class RecordingWidget:
     RECORDING  = "recording"
     PROCESSING = "processing"
@@ -216,6 +555,8 @@ class RecordingWidget:
         self._ava_tk     = None
         # Cached pill backgrounds per state
         self._pill_cache = {}
+        # Answer card (separate Toplevel, shown after LLM response)
+        self._answer_card: AnswerCard | None = None
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -233,6 +574,15 @@ class RecordingWidget:
 
     def hide(self):
         self._root.after(0, self._start_fade_out)
+
+    def show_answer(self, text: str):
+        if self._answer_card is None:
+            self._answer_card = AnswerCard(self._root)
+        self._answer_card.show(text)
+
+    def hide_answer(self):
+        if self._answer_card is not None:
+            self._answer_card.hide()
 
     def update_level(self, level: float):
         with self._level_lock:
@@ -537,6 +887,9 @@ class RecordingWidget:
         self._canvas = c
         self._win    = win
         win.after(30, lambda: _no_activate(win.winfo_id()))
+
+        if self._answer_card is None:
+            self._answer_card = AnswerCard(self._root)
 
     # ── avatar rendering: Pandora Blackboard eyes ────────────────────────
 
