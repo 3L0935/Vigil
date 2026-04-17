@@ -5,10 +5,10 @@ from pynput.keyboard import Key
 # Wayland KDE: KGlobalAccel uses WAYLAND_HOTKEY / WAYLAND_ASSISTANT_HOTKEY instead
 #              (modifier-only keys like AltGr/ctrl_r cannot be registered with KGlobalAccel).
 
-# Hold AltGr to dictate (paste text directly)
+# Press AltGr to toggle dictation (paste text directly)
 HOTKEY = Key.alt_gr
 
-# Hold Ctrl+R to activate assistant mode (notes, agenda, reminders)
+# Press Ctrl+R to toggle assistant mode (notes, agenda, reminders)
 ASSISTANT_HOTKEY = Key.ctrl_r
 
 # Wayland KDE overrides (KGlobalAccel-compatible combos)

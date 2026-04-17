@@ -120,6 +120,7 @@ def _on_assist_release():
     else:
         if widget:
             widget.hide()
+        log.info("Empty audio, skipping.")
 
 
 # ── Pipeline workers ──────────────────────────────────────────────────────
