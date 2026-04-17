@@ -31,9 +31,13 @@ _BG        = "#0c0c0f"      # near-black pill fill
 _BG_INNER  = "#101016"      # subtle inner tone for avatar area
 _BORDER    = "#1c1c26"      # default subtle border
 
-# Widget dimensions — pill shape
+# On Linux, -transparentcolor doesn't work so we use _BG as the window
+# background — corner pixels blend with it instead of showing as near-black.
+_WIN_BG = _CHROMAKEY if sys.platform == "win32" else _BG
+
+# Widget dimensions
 _W, _H   = 220, 44
-_RADIUS  = _H // 2          # full pill (borderRadius: height/2 in JSX)
+_RADIUS  = 8                # rounded rectangle (was full-pill radius _H//2)
 
 # ── avatar / eye area ───────────────────────────────────────────────────
 _AVA_CX     = 28             # center-x of eye area (left side of pill)
@@ -788,7 +792,7 @@ class RecordingWidget:
             self._bg_tk = self._pill_cache[cache_key]
         else:
             fill_rgb = _hex_to_rgb(_BG)
-            ck_rgb   = _hex_to_rgb(_CHROMAKEY)
+            ck_rgb   = _hex_to_rgb(_WIN_BG)
             pill = _render_pill(
                 _W, _H, _RADIUS,
                 fill_rgb=fill_rgb,
@@ -811,7 +815,7 @@ class RecordingWidget:
         win.wm_attributes("-alpha", _ALPHA_MIN)
         if sys.platform == "win32":
             win.wm_attributes("-transparentcolor", _CHROMAKEY)
-        win.configure(bg=_CHROMAKEY)
+        win.configure(bg=_WIN_BG)
         self._alpha = _ALPHA_MIN
 
         sw = win.winfo_screenwidth()
@@ -828,13 +832,13 @@ class RecordingWidget:
             py = sh - _H - 52
         win.geometry(f"{_W}x{_H}+{px}+{py}")
 
-        c = tk.Canvas(win, width=_W, height=_H, bg=_CHROMAKEY,
+        c = tk.Canvas(win, width=_W, height=_H, bg=_WIN_BG,
                       highlightthickness=0)
         c.pack()
 
         # ── Pill background ───────────────────────────────────────
         fill_rgb = _hex_to_rgb(_BG)
-        ck_rgb   = _hex_to_rgb(_CHROMAKEY)
+        ck_rgb   = _hex_to_rgb(_WIN_BG)
         style = _STATE_STYLE.get(self._expression, _IDLE_STYLE)
         bg_img = _render_pill(
             _W, _H, _RADIUS,
