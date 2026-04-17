@@ -13,7 +13,7 @@ class LlamaServerManager:
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._timer: threading.Timer | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     # ── DB-backed properties (read at call time) ──────────────────────────
 
@@ -48,21 +48,22 @@ class LlamaServerManager:
                     self._spawn()
             else:
                 self._wait_health(timeout=5)
-        self._reset_timer()
+            self._reset_timer()
 
     def shutdown(self):
         """Immediately stop the managed server process."""
-        if self._timer is not None:
-            self._timer.cancel()
-            self._timer = None
-        if self._process is not None:
-            self._process.terminate()
-            try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-            self._process = None
-            log.info("llama-server stopped.")
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+            if self._process is not None:
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
+                self._process = None
+                log.info("llama-server stopped.")
 
     # ── Internal ──────────────────────────────────────────────────────────
 
@@ -80,7 +81,16 @@ class LlamaServerManager:
         self._process = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        self._wait_health(timeout=30)
+        try:
+            self._wait_health(timeout=30)
+        except RuntimeError:
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+            self._process = None
+            raise
         log.info("llama-server ready.")
 
     def _wait_health(self, timeout: int):
@@ -108,8 +118,9 @@ class LlamaServerManager:
 
     def _auto_shutdown(self):
         with self._lock:
-            self.shutdown()
-        log.info("llama-server auto-unloaded after inactivity.")
+            if self._process is not None:
+                log.info("llama-server auto-unloaded after inactivity.")
+                self.shutdown()
 
 
 # Module-level singleton
