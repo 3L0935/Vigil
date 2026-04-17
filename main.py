@@ -64,6 +64,18 @@ def _load_settings():
     pos = db.get_setting("overlay_position", "")
     if pos:
         config.OVERLAY_POSITION = pos
+    whisper = db.get_setting("whisper_model", "")
+    if whisper:
+        config.MODEL_SIZE = whisper
+
+
+def _on_whisper_model_change(model_name: str):
+    global transcriber
+    config.MODEL_SIZE = model_name
+    db.save_setting("whisper_model", model_name)
+    log.info("Whisper model changed to %s, reloading...", model_name)
+    transcriber = Transcriber()
+    log.info("Whisper model reloaded.")
 
 
 # ── Dictation callbacks (AltGr) ──────────────────────────────────────────
@@ -279,7 +291,7 @@ def main():
 
     widget = RecordingWidget(root)
     notes_win = NotesWindow(root)
-    settings_win = SettingsWindow(root)
+    settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change)
 
     recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)

@@ -1,8 +1,8 @@
 """Settings window — CustomTkinter + Pandora Blackboard theme.
 
 Allows the user to configure:
-  - Recording mode: hold-to-record vs toggle (press to start/stop)
-  - Max recording duration in seconds (toggle mode only)
+  - Whisper model selection (tiny / base / small / medium / large-v3)
+  - LLM model path (.gguf file) and unload timeout
   - LLM server URL (llama-server endpoint)
   - Obsidian vault path (optional, enables vault search tool)
   - Language (en / it / fr)
@@ -20,22 +20,21 @@ import locales
 from brand import make_title_bar_image
 import theme as T
 
-_WIN_W, _WIN_H = 480, 600
+_WIN_W, _WIN_H = 480, 680
 _TITLE_H = 40
 
 
 class SettingsWindow:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: tk.Tk, on_whisper_change=None):
         self._root = root
         self._win = None
         self._drag_x = 0
         self._drag_y = 0
         self._title_eye_tk = None
-        self._hold_btn = None
-        self._toggle_btn = None
-        self._slider = None
-        self._slider_val_label = None
-        self._slider_section = None
+        self._on_whisper_change_cb = on_whisper_change
+        self._whisper_var = None
+        self._llm_model_var = None
+        self._llm_timeout_var = None
         self._llm_url_var = None
         self._vault_path_var = None
         self._lang_var = None
@@ -119,66 +118,64 @@ class SettingsWindow:
         pad = ctk.CTkFrame(content, fg_color="transparent")
         pad.pack(fill="both", expand=True, padx=T.PAD_XL, pady=T.PAD_L)
 
-        # Recording mode label
-        ctk.CTkLabel(pad, text=locales.get("setting_record_mode"),
+        # ── Whisper Model ──────────────────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
+            fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(pad, text="Whisper model",
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._whisper_var = tk.StringVar(value=getattr(config, "MODEL_SIZE", "base"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["tiny", "base", "small", "medium", "large-v3"],
+            variable=self._whisper_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_whisper_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
 
-        # Mode buttons
-        btn_row = ctk.CTkFrame(pad, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(0, T.PAD_L))
-
-        self._hold_btn = ctk.CTkButton(
-            btn_row, text=locales.get("setting_hold"),
-            font=T.FONT_SMALL, height=36, corner_radius=6,
-            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
-            border_color=T.BORDER, border_width=1,
-            text_color=T.FG, command=lambda: self._set_mode(True),
-        )
-        self._hold_btn.pack(side="left", padx=(0, T.PAD_M))
-
-        self._toggle_btn = ctk.CTkButton(
-            btn_row, text=locales.get("setting_toggle"),
-            font=T.FONT_SMALL, height=36, corner_radius=6,
-            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
-            border_color=T.BORDER, border_width=1,
-            text_color=T.FG, command=lambda: self._set_mode(False),
-        )
-        self._toggle_btn.pack(side="left")
-
-        # Separator
-        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
-                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_L))
-
-        # Max duration section (toggle mode only)
-        self._slider_section = ctk.CTkFrame(pad, fg_color="transparent")
-        self._slider_section.pack(fill="x")
-
-        lbl_row = ctk.CTkFrame(self._slider_section, fg_color="transparent")
-        lbl_row.pack(fill="x", pady=(0, T.PAD_M))
-
-        ctk.CTkLabel(lbl_row, text=locales.get("setting_max_duration"),
+        # ── LLM Model ──────────────────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
+            fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(pad, text="Modèle LLM (.gguf)",
                      font=T.FONT_TITLE, text_color=T.FG,
-                     anchor="w").pack(side="left")
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        llm_row = ctk.CTkFrame(pad, fg_color="transparent")
+        llm_row.pack(fill="x", pady=(0, T.PAD_L))
+        self._llm_model_var = tk.StringVar(value=db.get_setting("llama_model", ""))
+        ctk.CTkEntry(llm_row, textvariable=self._llm_model_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(
+            side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+        ctk.CTkButton(llm_row, text="Browse", width=80, height=32,
+                      fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+                      border_color=T.BORDER, border_width=1,
+                      text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+                      command=self._browse_model).pack(side="right")
 
-        self._slider_val_label = ctk.CTkLabel(
-            lbl_row, text="120s", font=T.FONT_TITLE,
-            text_color=T.ACCENT, anchor="e",
-        )
-        self._slider_val_label.pack(side="right")
-
-        self._slider = ctk.CTkSlider(
-            self._slider_section, from_=30, to=300,
-            fg_color=T.BG_INPUT, progress_color=T.ACCENT,
-            button_color=T.ACCENT, button_hover_color=T.ACCENT_HOVER,
-            height=18, corner_radius=9,
-            command=self._on_slider_change,
-        )
-        self._slider.pack(fill="x")
-
-        # Separator
-        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
-                     corner_radius=0).pack(fill="x", pady=(T.PAD_L, T.PAD_M))
+        # ── LLM Unload Timeout ────────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
+            fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(pad, text="Déchargement LLM (inactivité)",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._llm_timeout_var = tk.StringVar(
+            value=db.get_setting("llama_unload_timeout", "120"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["60", "120", "300", "0"],
+            variable=self._llm_timeout_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_llm_timeout_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── LLM Server URL ────────────────────────────────────────────
         ctk.CTkLabel(pad, text="LLM Server URL",
@@ -297,51 +294,39 @@ class SettingsWindow:
     # ── UI sync ───────────────────────────────────────────────────────────
 
     def _sync_ui(self):
-        hold = getattr(config, "HOLD_TO_RECORD", True)
-        self._update_mode_buttons(hold)
-        max_sec = getattr(config, "MAX_RECORD_SECONDS", 120)
-        if self._slider:
-            self._slider.set(max_sec)
-        if self._slider_val_label:
-            self._slider_val_label.configure(text=f"{max_sec}s")
-        self._update_slider_visibility(hold)
-
-    def _update_mode_buttons(self, hold: bool):
-        if self._hold_btn:
-            self._hold_btn.configure(
-                fg_color=T.FG if hold else T.BG_CARD,
-                text_color=T.BG_DEEP if hold else T.FG,
-                border_color=T.FG if hold else T.BORDER,
-            )
-        if self._toggle_btn:
-            self._toggle_btn.configure(
-                fg_color=T.FG if not hold else T.BG_CARD,
-                text_color=T.BG_DEEP if not hold else T.FG,
-                border_color=T.FG if not hold else T.BORDER,
-            )
-
-    def _update_slider_visibility(self, hold: bool):
-        if self._slider_section:
-            if hold:
-                self._slider_section.pack_forget()
-            else:
-                self._slider_section.pack(fill="x")
+        if self._whisper_var:
+            self._whisper_var.set(
+                db.get_setting("whisper_model", getattr(config, "MODEL_SIZE", "base")))
+        if self._llm_model_var:
+            self._llm_model_var.set(db.get_setting("llama_model", ""))
+        if self._llm_timeout_var:
+            self._llm_timeout_var.set(db.get_setting("llama_unload_timeout", "120"))
+        if self._llm_url_var:
+            self._llm_url_var.set(getattr(config, "LLAMA_SERVER_URL", ""))
+        if self._vault_path_var:
+            self._vault_path_var.set(getattr(config, "OBSIDIAN_VAULT_PATH", ""))
+        if self._lang_var:
+            self._lang_var.set(getattr(config, "LANGUAGE", "en"))
+        if self._overlay_pos_var:
+            self._overlay_pos_var.set(getattr(config, "OVERLAY_POSITION", "bottom-center"))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
-    def _set_mode(self, hold: bool):
-        config.HOLD_TO_RECORD = hold
-        db.save_setting("hold_to_record", "1" if hold else "0")
-        self._update_mode_buttons(hold)
-        self._update_slider_visibility(hold)
-        log.info("Recording mode set to %s", "hold" if hold else "toggle")
+    def _on_whisper_change(self, value: str):
+        if self._on_whisper_change_cb:
+            self._on_whisper_change_cb(value)
 
-    def _on_slider_change(self, value):
-        seconds = int(float(value))
-        config.MAX_RECORD_SECONDS = seconds
-        db.save_setting("max_record_seconds", str(seconds))
-        if self._slider_val_label:
-            self._slider_val_label.configure(text=f"{seconds}s")
+    def _browse_model(self):
+        path = fd.askopenfilename(
+            title="Select GGUF model",
+            filetypes=[("GGUF files", "*.gguf"), ("All files", "*")],
+        )
+        if path and self._llm_model_var:
+            self._llm_model_var.set(path)
+
+    def _on_llm_timeout_change(self, value: str):
+        db.save_setting("llama_unload_timeout", value)
+        log.info("LLM unload timeout set to %ss", value)
 
     def _browse_vault(self):
         path = fd.askdirectory(title="Select Obsidian Vault")
@@ -364,6 +349,14 @@ class SettingsWindow:
             if url:
                 config.LLAMA_SERVER_URL = url
                 db.save_setting("llama_server_url", url)
+        if self._llm_model_var:
+            model = self._llm_model_var.get().strip()
+            if model:
+                old = db.get_setting("llama_model", "")
+                db.save_setting("llama_model", model)
+                if model != old:
+                    from llm_manager import manager as _mgr
+                    _mgr.shutdown()
         if self._vault_path_var:
             path = self._vault_path_var.get().strip()
             config.OBSIDIAN_VAULT_PATH = path
@@ -376,4 +369,4 @@ class SettingsWindow:
             pos = self._overlay_pos_var.get()
             config.OVERLAY_POSITION = pos
             db.save_setting("overlay_position", pos)
-        log.info("Linux settings saved.")
+        log.info("Settings saved.")
