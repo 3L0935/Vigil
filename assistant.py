@@ -7,6 +7,7 @@ import config
 import locales
 import database as db
 from llm_backend import LlamaServerBackend
+from llm_manager import manager as _llm_manager
 
 _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
 
@@ -303,6 +304,7 @@ def process(text: str) -> str:
     Special return values starting with '__show_' signal the caller
     to open the notes/agenda window.
     """
+    _llm_manager.ensure_running()
     log.info("Assistant input: %r", text)
 
     data = _backend.chat(

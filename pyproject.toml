@@ -23,3 +23,9 @@ writher = "main:main"
 [build-system]
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "requests>=2.33.1",
+]

@@ -27,6 +27,7 @@ from hotkey import HotkeyListener
 from tray_qt import TrayIcon
 from widget import RecordingWidget
 import assistant
+from llm_manager import manager as _llm_manager
 import config
 import database as db
 import locales
@@ -239,6 +240,7 @@ def _tray_toggle_assistant():
 
 def _quit():
     log.info("Quitting...")
+    _llm_manager.shutdown()
     _pipeline_queue.put(_STOP)
     _assistant_queue.put(_STOP)
     if scheduler:
