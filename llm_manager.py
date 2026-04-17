@@ -1,7 +1,9 @@
+import os
 import subprocess
 import threading
 import time
 import urllib.parse
+from pathlib import Path
 
 import httpx
 
@@ -78,8 +80,20 @@ class LlamaServerManager:
         cmd = [bin_path, "--model", model_path,
                "--port", str(port), "--host", "127.0.0.1"]
         log.info("Spawning llama-server: %s", " ".join(cmd))
+
+        # Ensure shared libs in the same dir as the binary are found at runtime
+        bin_dir = str(Path(bin_path).parent)
+        env = os.environ.copy()
+        existing = env.get("LD_LIBRARY_PATH", "")
+        if bin_dir not in existing.split(":"):
+            env["LD_LIBRARY_PATH"] = f"{bin_dir}:{existing}" if existing else bin_dir
+
         self._process = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,  # own process group → clean SIGKILL of all children
+            env=env,
         )
         try:
             self._wait_health(timeout=30)

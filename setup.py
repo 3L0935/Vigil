@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """WritHer Linux — first-run setup. Run with: uv run python setup.py"""
 
+import fnmatch
 import os
 import re
 import sys
 import subprocess
+import tarfile
 import urllib.request
 import json
 import zipfile
@@ -51,15 +53,14 @@ MODEL_TIERS = [
     },
 ]
 
-# Substrings that must ALL appear in the asset filename for each backend
-LLAMA_ASSET_PATTERNS = {
-    "cuda":   ["ubuntu", "cuda",   "x64"],
-    "rocm":   ["ubuntu", "rocm",   "x64"],
-    "vulkan": ["ubuntu", "vulkan", "x64"],
-    "cpu":    ["ubuntu",           "x64"],
-}
-LLAMA_ASSET_EXCLUDES = {
-    "cpu": ["cuda", "rocm", "vulkan"],
+# Glob patterns for asset filenames (matched with fnmatch.fnmatch)
+# cuda and cpu share the same base archive — CUDA support is embedded in it.
+# Distinguish cpu from vulkan/rocm via exclude logic in fetch_latest_llama_asset.
+BINARY_PATTERNS = {
+    "cuda":   "llama-*-bin-ubuntu-x64.*",
+    "rocm":   "llama-*-bin-ubuntu-rocm-*-x64.*",
+    "vulkan": "llama-*-bin-ubuntu-vulkan-x64.*",
+    "cpu":    "llama-*-bin-ubuntu-x64.*",
 }
 
 
@@ -89,15 +90,24 @@ def get_total_vram_mb(backend: str) -> int:
                 capture_output=True, text=True, check=True,
             )
             return sum(int(x.strip()) for x in r.stdout.strip().splitlines() if x.strip())
-        if backend == "rocm":
-            r = subprocess.run(
-                ["rocm-smi", "--showmeminfo", "vram"],
-                capture_output=True, text=True,
-            )
-            total = 0
-            for m in re.findall(r"VRAM Total Memory \(B\):\s*(\d+)", r.stdout):
-                total += int(m) // (1024 * 1024)
-            return total
+        if backend in ("rocm", "vulkan"):  # AMD GPU, try sysfs first
+            for vram_file in Path("/sys/class/drm").glob("*/device/mem_info_vram_total"):
+                try:
+                    vram_mb = int(vram_file.read_text().strip()) // (1024 * 1024)
+                    if vram_mb > 0:
+                        return vram_mb
+                except (OSError, ValueError):
+                    pass
+            # Fallback: rocm-smi (rocm only)
+            if backend == "rocm":
+                r = subprocess.run(
+                    ["rocm-smi", "--showmeminfo", "vram"],
+                    capture_output=True, text=True,
+                )
+                total = 0
+                for m in re.findall(r"VRAM Total Memory \(B\):\s*(\d+)", r.stdout):
+                    total += int(m) // (1024 * 1024)
+                return total
     except Exception:
         pass
     return 0
@@ -114,16 +124,19 @@ def fetch_latest_llama_asset(backend: str) -> tuple[str, str]:
     """Return (download_url, filename) for the latest llama.cpp release."""
     with urllib.request.urlopen(LLAMA_RELEASES_API) as resp:
         data = json.load(resp)
-    patterns = LLAMA_ASSET_PATTERNS.get(backend, LLAMA_ASSET_PATTERNS["cpu"])
-    excludes = LLAMA_ASSET_EXCLUDES.get(backend, [])
+    pattern = BINARY_PATTERNS.get(backend, BINARY_PATTERNS["cpu"])
     for asset in data["assets"]:
-        name = asset["name"].lower()
-        if (all(p in name for p in patterns)
-                and not any(e in name for e in excludes)
-                and name.endswith(".zip")):
-            return asset["browser_download_url"], asset["name"]
+        name = asset["name"]
+        if not fnmatch.fnmatch(name, pattern):
+            continue
+        # For cpu: exclude vulkan/rocm builds that also match the base pattern
+        if backend == "cpu" and any(x in name.lower() for x in ("vulkan", "rocm")):
+            continue
+        return asset["browser_download_url"], asset["name"]
+    available = [a["name"] for a in data["assets"]]
     raise RuntimeError(
-        f"No llama.cpp asset found for '{backend}'. "
+        f"No llama.cpp asset found for '{backend}' (pattern: {pattern!r}). "
+        f"Available: {available}. "
         "Use option [5] to point to an existing binary."
     )
 
@@ -136,15 +149,41 @@ def _download(url: str, dest: Path, label: str):
     print()
 
 
-def _extract_llama_server(zip_path: Path, dest_dir: Path) -> Path:
-    with zipfile.ZipFile(zip_path) as zf:
-        for name in zf.namelist():
-            if "llama-server" in name and not name.endswith("/"):
-                zf.extract(name, dest_dir)
-                p = dest_dir / name
-                p.chmod(0o755)
-                return p
-    raise RuntimeError("llama-server binary not found in archive")
+def _extract_llama_server(archive_path: Path, dest_dir: Path) -> Path:
+    _BIN_TARGETS = {"llama-server", "llama-server.exe"}
+
+    def _should_extract(filename: str) -> bool:
+        if filename in _BIN_TARGETS:
+            return True
+        return filename.endswith(".dylib") or ".so" in filename
+
+    if archive_path.suffix == ".zip":
+        with zipfile.ZipFile(archive_path) as zf:
+            for member in zf.namelist():
+                filename = Path(member).name
+                if _should_extract(filename):
+                    dest = dest_dir / filename
+                    dest.write_bytes(zf.read(member))
+                    dest.chmod(0o755)
+    elif archive_path.suffixes[-2:] == [".tar", ".gz"]:
+        with tarfile.open(archive_path) as tf:
+            for member in tf.getmembers():
+                filename = Path(member.name).name
+                if _should_extract(filename):
+                    fobj = tf.extractfile(member)
+                    if fobj is not None:
+                        dest = dest_dir / filename
+                        dest.write_bytes(fobj.read())
+                        dest.chmod(0o755)
+
+    for candidate in ("llama-server", "llama-server.exe"):
+        p = dest_dir / candidate
+        if p.exists():
+            return p
+    raise RuntimeError(
+        f"llama-server binary not found after extraction. "
+        f"Files present: {[f.name for f in dest_dir.iterdir()]}"
+    )
 
 
 def setup_llama_binary() -> tuple[Path, bool]:
