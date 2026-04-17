@@ -15,6 +15,10 @@
 - [ ] Documenter le fallback tray (boutons dictée/assistant) dans l'UI settings quand Wayland sans KDE
 - [ ] Option pour configurer les hotkeys depuis settings_window (actuellement hardcodé dans config.py)
 
+## TTS (Text-to-Speech)
+
+- [ ] **Implémenter le plan TTS** : `docs/superpowers/plans/2026-04-17-tts.md` (7 tâches — config, tts.py, first_run phases 0/2.5/3, main.py wiring, settings_window TTS section)
+
 ## LLM / Assistant
 
 - [ ] Afficher un indicateur visuel quand llama-server est down au démarrage (pas juste un log)

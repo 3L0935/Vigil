@@ -205,6 +205,7 @@ def _assistant_worker():
                 if widget:
                     widget.set_expression("happy")
                     widget.show_answer(result)
+                    widget.hide()
 
         except Exception as exc:
             log.error("Assistant pipeline error: %s", exc)
