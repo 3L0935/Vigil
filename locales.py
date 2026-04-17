@@ -74,7 +74,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         # settings_window.py
         "settings_title":           "Settings",
         "setting_record_mode":      "Recording mode",
-        "setting_hold":             "Hold to record",
         "setting_toggle":           "Press to start / stop",
         "setting_max_duration":     "Max recording (seconds)",
         "setting_saved":            "Settings saved",
@@ -142,7 +141,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         # settings_window.py
         "settings_title":           "Impostazioni",
         "setting_record_mode":      "Modalità registrazione",
-        "setting_hold":             "Tieni premuto per registrare",
         "setting_toggle":           "Premi per avviare / fermare",
         "setting_max_duration":     "Durata max registrazione (secondi)",
         "setting_saved":            "Impostazioni salvate",
@@ -218,7 +216,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         # settings_window.py
         "settings_title":           "Paramètres",
         "setting_record_mode":      "Mode d'enregistrement",
-        "setting_hold":             "Maintenir pour enregistrer",
         "setting_toggle":           "Appuyer pour démarrer / arrêter",
         "setting_max_duration":     "Durée max d'enregistrement (secondes)",
         "setting_saved":            "Paramètres enregistrés",

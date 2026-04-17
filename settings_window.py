@@ -350,6 +350,8 @@ class SettingsWindow:
             if url:
                 config.LLAMA_SERVER_URL = url
                 db.save_setting("llama_server_url", url)
+                import assistant as _assistant
+                _assistant.reload_backend()
         if self._llm_model_var:
             model = self._llm_model_var.get().strip()
             if model:

@@ -30,7 +30,7 @@ COMPUTE_TYPE = "int8"
 # llama-server exposes an OpenAI-compatible API at /v1/chat/completions.
 # Same port as LMAgent-plus default (8080) for easy future integration.
 LLAMA_SERVER_URL = "http://localhost:8080"
-LLAMA_MODEL = "qwen2.5-7b-instruct"  # strong tool-calling support
+LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from DB llama_model
 
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.

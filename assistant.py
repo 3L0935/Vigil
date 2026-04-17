@@ -294,8 +294,10 @@ def ping_llama_server() -> bool:
     return _backend.ping()
 
 
-# Keep old name as alias so existing call in main.py still works
-ping_ollama = ping_llama_server
+def reload_backend():
+    global _backend
+    _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
+    log.info("LLM backend reloaded (URL: %s)", config.LLAMA_SERVER_URL)
 
 
 def process(text: str) -> str:

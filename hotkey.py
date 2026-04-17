@@ -139,21 +139,3 @@ class HotkeyListener:
                 pass
         if self._listener is not None:
             self._listener.stop()
-
-
-def _key_to_str(key) -> str:
-    """Convert a pynput Key or KeyCode to a KGlobalAccel-compatible string."""
-    from pynput.keyboard import Key as K
-    _MAP = {
-        K.alt_gr: "ISO_Level3_Shift",
-        K.ctrl_r: "Ctrl+R",
-        K.ctrl_l: "Ctrl+L",
-        K.alt_l:  "Alt+A",
-        K.alt_r:  "Alt+R",
-    }
-    if key in _MAP:
-        return _MAP[key]
-    # KeyCode (regular key): use its char or vk
-    if hasattr(key, "char") and key.char:
-        return key.char.upper()
-    return str(key)
