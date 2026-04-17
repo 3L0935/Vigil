@@ -141,7 +141,7 @@ def fetch_latest_llama_asset(backend: str) -> tuple[str, str]:
     )
 
 
-def _download(url: str, dest: Path, label: str):
+def _download(url: str, dest: Path):
     def _progress(count, block, total):
         if total > 0:
             print(f"\r  {min(100, int(count * block * 100 / total))}%", end="", flush=True)
@@ -220,10 +220,10 @@ def setup_llama_binary() -> tuple[Path, bool]:
         print(f"\nErreur : {e}")
         return Path(input("Chemin vers llama-server existant : ").strip()), False
 
-    zip_dest = LLAMA_DIR / filename
-    _download(url, zip_dest, filename)
-    bin_path = _extract_llama_server(zip_dest, LLAMA_DIR)
-    zip_dest.unlink()
+    archive_dest = LLAMA_DIR / filename
+    _download(url, archive_dest)
+    bin_path = _extract_llama_server(archive_dest, LLAMA_DIR)
+    archive_dest.unlink()
     print(f"  llama-server installé : {bin_path}")
     return bin_path, True
 
