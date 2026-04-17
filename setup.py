@@ -21,35 +21,41 @@ MODELS_DIR  = WRITHER_DIR / "models"
 LLAMA_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 
 MODEL_TIERS = [
+    # CPU / ≤4 GB VRAM — Qwen3.5 0.8B, smallest with decent tool-calling
     {
-        "name":    "Qwen2.5-1.5B Q4_K_M",
-        "repo":    "bartowski/Qwen2.5-1.5B-Instruct-GGUF",
-        "file":    "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-        "vram_mb": 1024,
+        "name":    "Qwen3.5-0.8B Q4_K_M",
+        "repo":    "bartowski/Qwen_Qwen3.5-0.8B-GGUF",
+        "file":    "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf",
+        "vram_mb": 650,
     },
+    # ≥5 GB VRAM — Qwen3.5 4B, good multilingual + tool-calling
     {
-        "name":    "Qwen2.5-3B Q4_K_M",
-        "repo":    "bartowski/Qwen2.5-3B-Instruct-GGUF",
-        "file":    "Qwen2.5-3B-Instruct-Q4_K_M.gguf",
-        "vram_mb": 2200,
+        "name":    "Qwen3.5-4B Q4_K_M",
+        "repo":    "bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "file":    "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "vram_mb": 2500,
     },
+    # ≥10 GB VRAM — Qwen3.5 9B, sweet spot for assistant workloads
+    # Note: Qwen3.5 may output <think> blocks; add /no_think to system prompt to disable
     {
-        "name":    "Qwen2.5-7B Q4_K_M",
-        "repo":    "bartowski/Qwen2.5-7B-Instruct-GGUF",
-        "file":    "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
-        "vram_mb": 4800,
+        "name":    "Qwen3.5-9B Q4_K_M",
+        "repo":    "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "file":    "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
+        "vram_mb": 5500,
     },
+    # ≥18 GB VRAM — same 9B at full 8-bit precision, noticeably better quality
     {
-        "name":    "Qwen2.5-14B Q4_K_M",
-        "repo":    "bartowski/Qwen2.5-14B-Instruct-GGUF",
-        "file":    "Qwen2.5-14B-Instruct-Q4_K_M.gguf",
-        "vram_mb": 8800,
+        "name":    "Qwen3.5-9B Q8_0",
+        "repo":    "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "file":    "Qwen_Qwen3.5-9B-Q8_0.gguf",
+        "vram_mb": 10000,
     },
+    # ≥24 GB VRAM — Mistral Small 3.2 24B, different model family, excellent tool-calling
     {
-        "name":    "Qwen2.5-14B Q8_0",
-        "repo":    "bartowski/Qwen2.5-14B-Instruct-GGUF",
-        "file":    "Qwen2.5-14B-Instruct-Q8_0.gguf",
-        "vram_mb": 15000,
+        "name":    "Mistral Small 3.2 24B Q4_K_M",
+        "repo":    "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+        "file":    "mistralai_Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
+        "vram_mb": 13000,
     },
 ]
 
