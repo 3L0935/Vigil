@@ -4,6 +4,8 @@ import queue
 import threading
 import time
 import tkinter as tk
+import customtkinter as ctk
+ctk.set_appearance_mode("dark")
 
 # Windows-only: fix DPI awareness before any window is created.
 if sys.platform == "win32":

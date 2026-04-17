@@ -34,7 +34,7 @@ TITLE_BG    = "#000000"
 CLOSE_HOVER = "#ff4444"
 
 # ── Fonts ─────────────────────────────────────────────────────────────────
-FONT_FAMILY = "Segoe UI"
+FONT_FAMILY = "Segoe UI" if __import__("sys").platform == "win32" else "DejaVu Sans"
 FONT_TITLE  = (FONT_FAMILY, 12, "bold")
 FONT_BODY   = (FONT_FAMILY, 11)
 FONT_SMALL  = (FONT_FAMILY, 10)

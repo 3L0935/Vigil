@@ -129,6 +129,26 @@ _BASE_TOOLS = [
     },
 ]
 
+_WEB_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_web",
+        "description": (
+            "Search the web via DuckDuckGo. Use when the user asks about current events, "
+            "facts, prices, news, or anything that requires up-to-date information from the internet. "
+            "Examples: 'cherche sur internet', 'search the web', 'look up', 'what is X', 'latest news about X'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query":       {"type": "string", "description": "Search query"},
+                "max_results": {"type": "integer", "description": "Max results (1-10)", "default": 5},
+            },
+            "required": ["query"],
+        },
+    },
+}
+
 _OBSIDIAN_TOOL = {
     "type": "function",
     "function": {
@@ -151,8 +171,9 @@ _OBSIDIAN_TOOL = {
 
 
 def _get_tools() -> list[dict]:
-    """Return tool list, adding Obsidian tool only if vault path is configured."""
+    """Return tool list, adding optional tools based on config."""
     tools = list(_BASE_TOOLS)
+    tools.append(_WEB_SEARCH_TOOL)
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -227,6 +248,21 @@ def _dispatch(name: str, args: dict) -> str:
 
         elif name == "list_reminders":
             return "__show_reminders__"
+
+        elif name == "search_web":
+            from ddgs import DDGS
+            query = args.get("query", "")
+            max_results = min(int(args.get("max_results", 5)), 10)
+            results = list(DDGS().text(query, max_results=max_results))
+            if not results:
+                return locales.get("web_no_results", query=query)
+            lines = []
+            for r in results:
+                title = r.get("title", "")
+                body  = r.get("body", "")
+                href  = r.get("href", "")
+                lines.append(f"**{title}**\n{body}\n{href}")
+            return "\n\n".join(lines)
 
         elif name == "search_obsidian_vault":
             from obsidian import search_vault

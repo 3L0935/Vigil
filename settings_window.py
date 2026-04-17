@@ -82,6 +82,21 @@ class SettingsWindow:
         title_bar.pack(fill="x")
         title_bar.pack_propagate(False)
 
+        # Close button — canvas draws text immune to GTK theme overrides
+        # 1px separator makes it visible without hover
+        tk.Frame(title_bar, width=1, bg=T.BORDER).pack(side="right", fill="y")
+        close_frame = tk.Frame(title_bar, width=48, bg=T.TITLE_BG)
+        close_frame.pack(side="right", fill="y")
+        close_frame.pack_propagate(False)
+        close_cv = tk.Canvas(close_frame, bg=T.TITLE_BG,
+                             highlightthickness=0, cursor="hand2")
+        close_cv.pack(fill="both", expand=True)
+        close_cv.create_text(24, 20, text="×", fill="#ffffff",
+                             font=(T.FONT_FAMILY, 14, "bold"), anchor="center")
+        close_cv.bind("<Button-1>", lambda e: self._close())
+        close_cv.bind("<Enter>", lambda e: close_cv.configure(bg=T.CLOSE_HOVER))
+        close_cv.bind("<Leave>", lambda e: close_cv.configure(bg=T.TITLE_BG))
+
         eye_img = make_title_bar_image(size=20)
         self._title_eye_tk = ImageTk.PhotoImage(eye_img)
         eye_lbl = tk.Label(title_bar, image=self._title_eye_tk, bg=T.TITLE_BG)
@@ -91,20 +106,8 @@ class SettingsWindow:
                                  font=T.FONT_TITLE, text_color=T.FG)
         title_lbl.pack(side="left")
 
-        close_btn = ctk.CTkButton(
-            title_bar, text="✕", width=44, height=_TITLE_H,
-            fg_color="transparent", hover_color=T.CLOSE_HOVER,
-            text_color=T.FG, font=(T.FONT_FAMILY, 15),
-            corner_radius=0, command=self._close,
-        )
-        close_btn.pack(side="right")
-
         win.bind("<Escape>", lambda e: self._close())
 
-        # Bind drag only on the label/icon — NOT on title_bar itself.
-        # Binding on the parent frame would cover the close button area too,
-        # and even a tiny mouse move during click triggers _on_drag which shifts
-        # the window so the ButtonRelease lands off the button.
         for w in (eye_lbl, title_lbl):
             w.bind("<Button-1>", self._start_drag)
             w.bind("<B1-Motion>", self._on_drag)

@@ -81,6 +81,9 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # obsidian vault (new)
         "vault_no_results":         "No notes found for '{query}' in the vault",
+
+        # web search
+        "web_no_results":           "No web results found for '{query}'",
     },
 
     "it": {
@@ -146,6 +149,9 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # obsidian vault (new)
         "vault_no_results":         "Nessuna nota trovata per '{query}' nella vault",
+
+        # web search
+        "web_no_results":           "Nessun risultato web per '{query}'",
     },
 
     "fr": {
@@ -219,6 +225,9 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # obsidian vault (new)
         "vault_no_results":         "Aucune note trouvée pour '{query}' dans la vault",
+
+        # web search
+        "web_no_results":           "Aucun résultat web pour '{query}'",
     },
 }
 

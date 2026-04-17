@@ -33,8 +33,6 @@ class NotesWindow:
         self._current_tab = "notes"
         self._drag_x = 0
         self._drag_y = 0
-        self._maximized = False
-        self._restore_geo = None
         self._title_eye_tk = None
         self._tab_buttons = {}
         self._scroll_frame = None
@@ -87,6 +85,21 @@ class NotesWindow:
         title_bar.pack(fill="x")
         title_bar.pack_propagate(False)
 
+        # Close + maximize — packed RIGHT first (Tkinter pack rule)
+        # Canvas draws text immune to GTK theme overrides; separator gives resting visibility
+        tk.Frame(title_bar, width=1, bg=T.BORDER).pack(side="right", fill="y")
+        close_frame = tk.Frame(title_bar, width=48, bg=T.TITLE_BG)
+        close_frame.pack(side="right", fill="y")
+        close_frame.pack_propagate(False)
+        close_cv = tk.Canvas(close_frame, bg=T.TITLE_BG,
+                             highlightthickness=0, cursor="hand2")
+        close_cv.pack(fill="both", expand=True)
+        close_cv.create_text(24, 20, text="×", fill="#ffffff",
+                             font=(T.FONT_FAMILY, 14, "bold"), anchor="center")
+        close_cv.bind("<Button-1>", lambda e: self._close())
+        close_cv.bind("<Enter>", lambda e: close_cv.configure(bg=T.CLOSE_HOVER))
+        close_cv.bind("<Leave>", lambda e: close_cv.configure(bg=T.TITLE_BG))
+
         # Pandora eyes icon
         eye_img = make_title_bar_image(size=20)
         self._title_eye_tk = ImageTk.PhotoImage(eye_img)
@@ -97,29 +110,10 @@ class NotesWindow:
                                  text_color=T.FG)
         title_lbl.pack(side="left")
 
-        # Close button
-        close_btn = ctk.CTkButton(
-            title_bar, text="✕", width=44, height=_TITLE_H,
-            fg_color="transparent", hover_color=T.CLOSE_HOVER,
-            text_color=T.FG_DIM, font=(T.FONT_FAMILY, 15),
-            corner_radius=0, command=self._close,
-        )
-        close_btn.pack(side="right")
-
-        # Maximize / restore button
-        self._max_btn = ctk.CTkButton(
-            title_bar, text="□", width=44, height=_TITLE_H,
-            fg_color="transparent", hover_color=T.BG_HOVER,
-            text_color=T.FG_DIM, font=(T.FONT_FAMILY, 14),
-            corner_radius=0, command=self._toggle_maximize,
-        )
-        self._max_btn.pack(side="right")
-
         # Drag support
         for w in (title_bar, title_lbl):
             w.bind("<Button-1>", self._start_drag)
             w.bind("<B1-Motion>", self._on_drag)
-            w.bind("<Double-Button-1>", lambda e: self._toggle_maximize())
 
         # ── Tab bar ───────────────────────────────────────────────────
         tab_bar = ctk.CTkFrame(outer, fg_color=T.BG, height=48, corner_radius=0)
@@ -165,13 +159,11 @@ class NotesWindow:
     # ── Drag ──────────────────────────────────────────────────────────────
 
     def _start_drag(self, event):
-        if self._maximized:
-            return
         self._drag_x = event.x
         self._drag_y = event.y
 
     def _on_drag(self, event):
-        if self._maximized or not self._win:
+        if not self._win:
             return
         x = self._win.winfo_x() + (event.x - self._drag_x)
         y = self._win.winfo_y() + (event.y - self._drag_y)
@@ -180,53 +172,19 @@ class NotesWindow:
     # ── Resize ────────────────────────────────────────────────────────────
 
     def _start_resize(self, event):
-        if self._maximized:
-            return
         self._resize_x = event.x_root
         self._resize_y = event.y_root
         self._resize_w = self._win.winfo_width()
         self._resize_h = self._win.winfo_height()
 
     def _on_resize(self, event):
-        if self._maximized or not self._win:
+        if not self._win:
             return
         dx = event.x_root - self._resize_x
         dy = event.y_root - self._resize_y
         new_w = max(_MIN_W, self._resize_w + dx)
         new_h = max(_MIN_H, self._resize_h + dy)
         self._win.geometry(f"{new_w}x{new_h}")
-
-    # ── Maximize / Restore ────────────────────────────────────────────────
-
-    def _toggle_maximize(self):
-        if not self._win:
-            return
-        if self._maximized:
-            self._win.geometry(self._restore_geo)
-            self._max_btn.configure(text="□")
-            self._maximized = False
-        else:
-            self._restore_geo = self._win.geometry()
-            import ctypes
-            from ctypes import wintypes
-            # Get the work area (screen minus taskbar)
-            class RECT(ctypes.Structure):
-                _fields_ = [("left", wintypes.LONG), ("top", wintypes.LONG),
-                            ("right", wintypes.LONG), ("bottom", wintypes.LONG)]
-            rect = RECT()
-            ctypes.windll.user32.SystemParametersInfoW(0x0030, 0,
-                                                        ctypes.byref(rect), 0)
-            # Tk applies its own scaling — convert physical px to Tk units
-            scale = self._win.tk.call("tk", "scaling") / (96 / 72)
-            if scale <= 0:
-                scale = 1.0
-            x = int(rect.left / scale)
-            y = int(rect.top / scale)
-            w = int((rect.right - rect.left) / scale)
-            h = int((rect.bottom - rect.top) / scale)
-            self._win.geometry(f"{w}x{h}+{x}+{y}")
-            self._max_btn.configure(text="❐")
-            self._maximized = True
 
     # ── Close ─────────────────────────────────────────────────────────────
 
@@ -237,7 +195,6 @@ class NotesWindow:
             except Exception:
                 pass
             self._win = None
-            self._maximized = False
             self._tab_buttons = {}
 
     # ── Tabs ──────────────────────────────────────────────────────────────

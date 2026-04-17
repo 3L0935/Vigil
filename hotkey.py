@@ -132,9 +132,10 @@ class HotkeyListener:
         """Use KGlobalAccel on Wayland KDE; fall back gracefully if unavailable."""
         import hotkey_kglobalaccel as kga
 
-        # KGlobalAccel needs string key names; convert pynput Key objects
-        dict_key = _key_to_str(config.HOTKEY)
-        assist_key = _key_to_str(config.ASSISTANT_HOTKEY)
+        # Use Wayland-specific combos (modifier-only keys like AltGr/ctrl_r cannot
+        # be registered with KGlobalAccel — KDE filters them at the Qt level).
+        dict_key   = getattr(config, "WAYLAND_HOTKEY", "Ctrl+Alt+D")
+        assist_key = getattr(config, "WAYLAND_ASSISTANT_HOTKEY", "Ctrl+Alt+A")
 
         # On KGlobalAccel, a single press toggles recording (no release event)
         def _on_dictation_toggle():
@@ -175,6 +176,12 @@ class HotkeyListener:
             self._start_x11()
 
     def stop(self):
+        if is_wayland():
+            try:
+                import hotkey_kglobalaccel as kga
+                kga.unregister()
+            except Exception:
+                pass
         if self._listener is not None:
             self._listener.stop()
 
@@ -184,10 +191,10 @@ def _key_to_str(key) -> str:
     from pynput.keyboard import Key as K
     _MAP = {
         K.alt_gr: "ISO_Level3_Shift",
-        K.ctrl_r: "Ctrl+Right",
-        K.ctrl_l: "Ctrl+Left",
-        K.alt_l: "Alt+Left",
-        K.alt_r: "Alt+Right",
+        K.ctrl_r: "Ctrl+R",
+        K.ctrl_l: "Ctrl+L",
+        K.alt_l:  "Alt+A",
+        K.alt_r:  "Alt+R",
     }
     if key in _MAP:
         return _MAP[key]
