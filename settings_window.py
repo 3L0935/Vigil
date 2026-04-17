@@ -20,7 +20,7 @@ import locales
 from brand import make_title_bar_image
 import theme as T
 
-_WIN_W, _WIN_H = 480, 520
+_WIN_W, _WIN_H = 480, 600
 _TITLE_H = 40
 
 
@@ -39,6 +39,7 @@ class SettingsWindow:
         self._llm_url_var = None
         self._vault_path_var = None
         self._lang_var = None
+        self._overlay_pos_var = None
 
     def show(self):
         if self._win is not None:
@@ -231,6 +232,29 @@ class SettingsWindow:
         )
         lang_menu.pack(fill="x", pady=(0, T.PAD_L))
 
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+
+        # ── Overlay Position ──────────────────────────────────────────
+        ctk.CTkLabel(pad, text="Overlay position",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        self._overlay_pos_var = tk.StringVar(
+            value=getattr(config, "OVERLAY_POSITION", "bottom-center"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["bottom-center", "bottom-right", "top-right"],
+            variable=self._overlay_pos_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_overlay_pos_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
         # ── Save button ───────────────────────────────────────────────
         ctk.CTkButton(
             pad, text=locales.get("setting_saved"), height=36,
@@ -318,6 +342,11 @@ class SettingsWindow:
         db.save_setting("language", value)
         log.info("Language changed to %s", value)
 
+    def _on_overlay_pos_change(self, value: str):
+        config.OVERLAY_POSITION = value
+        db.save_setting("overlay_position", value)
+        log.info("Overlay position set to %s", value)
+
     def _save_linux_settings(self):
         if self._llm_url_var:
             url = self._llm_url_var.get().strip()
@@ -332,4 +361,8 @@ class SettingsWindow:
             lang = self._lang_var.get()
             config.LANGUAGE = lang
             db.save_setting("language", lang)
+        if self._overlay_pos_var:
+            pos = self._overlay_pos_var.get()
+            config.OVERLAY_POSITION = pos
+            db.save_setting("overlay_position", pos)
         log.info("Linux settings saved.")
