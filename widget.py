@@ -380,7 +380,7 @@ class AnswerCard:
             y = sh - _H - _CARD_MARGIN - _CARD_GAP - card_h
         elif pos == "top-right":
             x = sw - _CARD_W - _CARD_MARGIN
-            y = _CARD_MARGIN
+            y = _CARD_MARGIN + _H + _CARD_GAP
         else:
             x = (sw - _CARD_W) // 2
             y = pill_top_y - _CARD_GAP - card_h
@@ -816,7 +816,17 @@ class RecordingWidget:
 
         sw = win.winfo_screenwidth()
         sh = win.winfo_screenheight()
-        win.geometry(f"{_W}x{_H}+{(sw - _W) // 2}+{sh - _H - 52}")
+        pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
+        if pos == "bottom-right":
+            px = sw - _W - _CARD_MARGIN
+            py = sh - _H - _CARD_MARGIN
+        elif pos == "top-right":
+            px = sw - _W - _CARD_MARGIN
+            py = _CARD_MARGIN
+        else:  # bottom-center
+            px = (sw - _W) // 2
+            py = sh - _H - 52
+        win.geometry(f"{_W}x{_H}+{px}+{py}")
 
         c = tk.Canvas(win, width=_W, height=_H, bg=_CHROMAKEY,
                       highlightthickness=0)
