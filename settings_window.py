@@ -94,7 +94,7 @@ class SettingsWindow:
         close_btn = ctk.CTkButton(
             title_bar, text="✕", width=44, height=_TITLE_H,
             fg_color="transparent", hover_color=T.CLOSE_HOVER,
-            text_color=T.FG_DIM, font=(T.FONT_FAMILY, 15),
+            text_color=T.FG, font=(T.FONT_FAMILY, 15),
             corner_radius=0, command=self._close,
         )
         close_btn.pack(side="right")
