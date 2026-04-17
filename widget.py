@@ -744,7 +744,8 @@ class RecordingWidget:
             self._after_msg = None
         if self._win is not None:
             try:
-                self._win.withdraw()
+                self._win.wm_attributes("-alpha", 0.0)
+                self._alpha = 0.0
             except Exception:
                 pass
 
@@ -761,6 +762,7 @@ class RecordingWidget:
 
         if self._fading == "out":
             self._cancel_fade()
+        self._reposition()
         if self._win:
             self._win.deiconify()
 
