@@ -66,8 +66,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "appointment_toast_body":   "📅 {title} — in {minutes} min",
         "appointment_toast_now":    "📅 {title} — now!",
 
-        # tray_icon.py — settings menu
+        # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Settings",
+        "tray_dictate":             "Dictate (AltGr)",
+        "tray_assist":              "Assistant (Ctrl+R)",
 
         # settings_window.py
         "settings_title":           "Settings",
@@ -129,8 +131,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "appointment_toast_body":   "📅 {title} — tra {minutes} min",
         "appointment_toast_now":    "📅 {title} — adesso!",
 
-        # tray_icon.py — settings menu
+        # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Impostazioni",
+        "tray_dictate":             "Ditta (AltGr)",
+        "tray_assist":              "Assistente (Ctrl+R)",
 
         # settings_window.py
         "settings_title":           "Impostazioni",
@@ -200,8 +204,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "appointment_toast_body":   "📅 {title} — dans {minutes} min",
         "appointment_toast_now":    "📅 {title} — maintenant !",
 
-        # tray_icon.py — settings menu
+        # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Paramètres",
+        "tray_dictate":             "Dicter (AltGr)",
+        "tray_assist":              "Assistant (Ctrl+R)",
 
         # settings_window.py
         "settings_title":           "Paramètres",

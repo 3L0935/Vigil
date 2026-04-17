@@ -6,10 +6,13 @@ from brand import make_tray_icon
 
 
 class TrayIcon:
-    def __init__(self, on_quit, on_show_notes=None, on_show_settings=None):
+    def __init__(self, on_quit, on_show_notes=None, on_show_settings=None,
+                 on_dictate=None, on_assist=None):
         self._on_quit = on_quit
         self._on_show_notes = on_show_notes
         self._on_show_settings = on_show_settings
+        self._on_dictate = on_dictate
+        self._on_assist = on_assist
         self._icon = None
 
     def _build_menu(self):
@@ -17,6 +20,14 @@ class TrayIcon:
             pystray.MenuItem("Writher", None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
+        if self._on_dictate:
+            items.append(pystray.MenuItem(locales.get("tray_dictate"),
+                                          self._dictate))
+        if self._on_assist:
+            items.append(pystray.MenuItem(locales.get("tray_assist"),
+                                          self._assist))
+        if self._on_dictate or self._on_assist:
+            items.append(pystray.Menu.SEPARATOR)
         if self._on_show_notes:
             items.append(pystray.MenuItem(locales.get("tray_notes_agenda"),
                                           self._show_notes))
@@ -27,6 +38,14 @@ class TrayIcon:
             items.append(pystray.Menu.SEPARATOR)
         items.append(pystray.MenuItem(locales.get("tray_quit"), self._quit))
         return pystray.Menu(*items)
+
+    def _dictate(self, icon, item):
+        if self._on_dictate:
+            self._on_dictate()
+
+    def _assist(self, icon, item):
+        if self._on_assist:
+            self._on_assist()
 
     def _show_notes(self, icon, item):
         if self._on_show_notes:

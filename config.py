@@ -10,7 +10,7 @@ ASSISTANT_HOTKEY = Key.ctrl_r
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
 # Supported values: "en" (English), "it" (Italian), "fr" (French).
-LANGUAGE = "en"
+LANGUAGE = "fr"
 
 # ── Whisper ───────────────────────────────────────────────────────────────
 MODEL_SIZE = "base"
@@ -27,7 +27,7 @@ LLAMA_MODEL = "qwen2.5-7b-instruct"  # strong tool-calling support
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.
 # Leave empty to disable the feature.
-OBSIDIAN_VAULT_PATH = ""
+OBSIDIAN_VAULT_PATH = "/home/elo/.obsidian-vault/wiki/"
 
 # ── Recording mode ────────────────────────────────────────────────────────
 # True = hold key to record (release stops).  False = toggle (press start, press stop).

@@ -22,7 +22,7 @@ from recorder import Recorder
 from transcriber import Transcriber
 from injector import inject
 from hotkey import HotkeyListener
-from tray_icon import TrayIcon
+from tray_qt import TrayIcon
 from widget import RecordingWidget
 import assistant
 import config
@@ -267,15 +267,38 @@ def _assistant_worker():
 # ── Quit & Main ───────────────────────────────────────────────────────────
 
 def _show_notes():
-    """Open notes window from tray menu."""
     if notes_win:
         root.after(0, lambda: notes_win.show("notes"))
 
 
 def _show_settings():
-    """Open settings window from tray menu."""
     if settings_win:
         root.after(0, lambda: settings_win.show())
+
+
+# Tray fallback for Wayland (no global hotkeys available)
+_tray_dict_recording = False
+_tray_assist_recording = False
+
+
+def _tray_toggle_dictation():
+    global _tray_dict_recording
+    if not _tray_dict_recording:
+        _tray_dict_recording = True
+        _on_hotkey_press()
+    else:
+        _tray_dict_recording = False
+        _on_hotkey_release()
+
+
+def _tray_toggle_assistant():
+    global _tray_assist_recording
+    if not _tray_assist_recording:
+        _tray_assist_recording = True
+        _on_assist_press()
+    else:
+        _tray_assist_recording = False
+        _on_assist_release()
 
 
 def _quit():
@@ -326,7 +349,9 @@ def main():
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
 
     tray = TrayIcon(on_quit=_quit, on_show_notes=_show_notes,
-                    on_show_settings=_show_settings)
+                    on_show_settings=_show_settings,
+                    on_dictate=_tray_toggle_dictation,
+                    on_assist=_tray_toggle_assistant)
     tray.start()
 
     # Check llama-server connectivity at startup
@@ -352,7 +377,13 @@ def main():
     )
     hotkey_listener.start()
 
+    def _pump_qt():
+        if tray:
+            tray.process_events()
+        root.after(50, _pump_qt)
+
     log.info("Ready. AltGr=dictate, Ctrl+R=assistant.")
+    root.after(50, _pump_qt)
     root.mainloop()
 
 

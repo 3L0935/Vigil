@@ -14,9 +14,9 @@ from logger import log
 
 def register(
     dictation_key: str,
-    on_dictation: callable,
+    on_dictation,
     assistant_key: str | None = None,
-    on_assistant: callable | None = None,
+    on_assistant=None,
 ) -> bool:
     """Register global hotkeys with KGlobalAccel.
 

@@ -13,8 +13,8 @@ Redesigned to match the JSX floating pill widget:
    error, alert, surprised, wink, sleep, sad, love, loading
 """
 
-import ctypes
 import math
+import sys
 import threading
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
@@ -115,7 +115,10 @@ def _lerp_rgb(c1: tuple, c2: tuple, t: float) -> tuple:
 # ── Windows helpers ───────────────────────────────────────────────────────
 
 def _no_activate(hwnd: int) -> None:
+    if sys.platform != "win32":
+        return
     try:
+        import ctypes
         GWL_EXSTYLE      = -20
         WS_EX_NOACTIVATE = 0x08000000
         WS_EX_TOOLWINDOW = 0x00000080
@@ -451,7 +454,8 @@ class RecordingWidget:
         win.overrideredirect(True)
         win.wm_attributes("-topmost", True)
         win.wm_attributes("-alpha", _ALPHA_MIN)
-        win.wm_attributes("-transparentcolor", _CHROMAKEY)
+        if sys.platform == "win32":
+            win.wm_attributes("-transparentcolor", _CHROMAKEY)
         win.configure(bg=_CHROMAKEY)
         self._alpha = _ALPHA_MIN
 
