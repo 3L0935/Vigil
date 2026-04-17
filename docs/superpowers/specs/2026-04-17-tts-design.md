@@ -110,6 +110,27 @@ Language / Langue :
 Saves `save_setting("language", value)` + sets `config.LANGUAGE = value` immediately.
 All subsequent first_run.py output stays in English regardless of choice.
 
+### Phase 2.5 — Whisper model (new, inserted between LLM model and TTS)
+
+```
+=== Whisper (speech recognition) ===
+
+Choose a model size (downloaded automatically on first use):
+
+  [1] tiny    — ~75 MB,  fastest, lower accuracy
+  [2] base    — ~145 MB, fast, decent accuracy       <- recommended
+  [3] small   — ~466 MB, good balance
+  [4] medium  — ~1.5 GB, high accuracy
+  [5] large-v3— ~3 GB,   best accuracy, slow on CPU
+
+Choice [2]:
+```
+
+Saves `save_setting("whisper_model", value)` + sets `config.MODEL_SIZE = value`.
+Default if skipped: `"base"`.
+
+---
+
 ### Phase 3 — TTS (new, appended after existing phases)
 
 ```
