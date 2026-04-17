@@ -3,7 +3,7 @@ import threading
 import time
 import urllib.parse
 
-import requests
+import httpx
 
 import database as db
 from logger import log
@@ -71,7 +71,7 @@ class LlamaServerManager:
         model_path = self._model_path()
         if not bin_path or not model_path:
             raise RuntimeError(
-                "llama_server_bin or llama_model not configured — run setup.py first."
+                "llama_server_bin or llama_model not configured — configure llama_server_bin and llama_model in settings."
             )
         port = urllib.parse.urlparse(self._server_url()).port or 8080
         cmd = [bin_path, "--model", model_path,
@@ -88,7 +88,7 @@ class LlamaServerManager:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                r = requests.get(health_url, timeout=2)
+                r = httpx.get(health_url, timeout=2)
                 if r.status_code == 200:
                     return
             except Exception:
