@@ -242,6 +242,12 @@ def setup_llama_binary() -> tuple[Path, bool]:
 
 def setup_model(total_vram_mb: int) -> Path:
     """Ask user to pick/download a model. Returns path to .gguf."""
+    import database as db
+    existing = db.get_setting("llama_model", "")
+    if existing and Path(existing).exists():
+        print(f"\n  Model already installed: {existing}")
+        return Path(existing)
+
     recommended = select_model_tier(total_vram_mb)
     budget = int(total_vram_mb * 0.55)
 
