@@ -1221,20 +1221,21 @@ class RecordingWidget:
             eye_rgb  = (255, g_b, g_b)
             glow_rgb = eye_rgb
 
-        sz    = 28
+        sz    = 38
         scale = 6
-        s_sz  = sz * scale    # 168
-        s_cx  = s_sz // 2     # 84
-        s_cy  = s_sz // 2     # 84
+        s_sz  = sz * scale    # 228
+        s_cx  = s_sz // 2     # 114
+        s_cy  = s_sz // 2     # 114
 
-        # Iris geometry (scaled internal coordinates)
-        ig_r  = int(0.22 * sz * scale)           # glow radius ≈ 37
-        ir_r  = int(0.14 * sz * scale)           # iris ring radius ≈ 23
-        ir_st = max(3, int(0.03 * sz * scale))   # ring stroke ≈ 5
-        ip_r  = int(0.08 * sz * scale)           # pupil radius ≈ 13
-        is_r  = max(2, int(0.03 * sz * scale))   # shine radius ≈ 5
-        is_dx = int(-0.05 * sz * scale)          # shine x offset ≈ -8
-        is_dy = int(-0.05 * sz * scale)          # shine y offset ≈ -8
+        # Iris geometry (scaled internal coordinates).
+        # ir_st / is_r use scale*2 floor so ring and shine survive LANCZOS to ~38px.
+        ig_r  = int(0.22 * sz * scale)                    # glow radius ≈ 50
+        ir_r  = int(0.14 * sz * scale)                    # iris ring radius ≈ 31
+        ir_st = max(int(scale * 2), int(0.03 * sz * scale))  # ring stroke ≥ 2px output
+        ip_r  = int(0.08 * sz * scale)                    # pupil radius ≈ 18
+        is_r  = max(int(scale * 1.5), int(0.03 * sz * scale))  # shine radius ≥ 1.5px output
+        is_dx = int(-0.05 * sz * scale)                   # shine x offset ≈ -11
+        is_dy = int(-0.05 * sz * scale)                   # shine y offset ≈ -11
 
         img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)

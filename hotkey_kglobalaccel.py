@@ -85,7 +85,7 @@ _APP_ID = "vigil"
 _KGLOBAL_CONFIG = os.path.expanduser("~/.config/kglobalshortcutsrc")
 
 # Stale component IDs from previous debug sessions — removed on each run.
-_STALE_SECTIONS = ("writher_test", "vigil_test", "diag")
+_STALE_SECTIONS = ("writher", "writher_test", "vigil_test", "diag")
 
 
 def _sync_shortcuts_to_config(dict_key: str, assist_key: str | None) -> None:
@@ -152,6 +152,16 @@ def register(
 
         kga_obj   = bus.get_object("org.kde.kglobalaccel", "/kglobalaccel")
         kga_iface = dbus.Interface(kga_obj, dbus_interface="org.kde.KGlobalAccel")
+
+        # Release stale "writher" component from KDE runtime if it exists.
+        try:
+            old_path = str(kga_iface.getComponent("writher"))
+            old_obj  = bus.get_object("org.kde.kglobalaccel", old_path)
+            old_iface = dbus.Interface(old_obj, dbus_interface="org.kde.kglobalaccel.Component")
+            old_iface.cleanUp()
+            log.info("KGlobalAccel: released stale 'writher' component")
+        except Exception:
+            pass  # component not registered — fine
 
         app_name = "Vigil"
 
