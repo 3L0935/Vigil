@@ -68,6 +68,8 @@ class SettingsWindow:
                 pass
         self._build()
         self._sync_ui()
+        if self._win and self._win.winfo_exists():
+            self._win.after(100, self._win.focus_force)
 
     # ── Build ─────────────────────────────────────────────────────────────
 

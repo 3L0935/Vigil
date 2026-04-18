@@ -52,6 +52,8 @@ class NotesWindow:
                 pass
         self._build()
         self._switch_tab(tab)
+        if self._win and self._win.winfo_exists():
+            self._win.after(100, self._win.focus_force)
 
     # ── Build ─────────────────────────────────────────────────────────────
 
