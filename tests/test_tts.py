@@ -143,7 +143,7 @@ def test_speak_piper_dispatches(monkeypatch):
     mock_speak = MagicMock()
     monkeypatch.setattr(tts, "_speak_piper", mock_speak)
     tts.speak("bonjour")
-    mock_speak.assert_called_once_with("bonjour", "fr_FR-siwis-medium", 1.0)
+    mock_speak.assert_called_once_with("bonjour", "fr_FR-siwis-medium", 1.0, None)
 
 
 # ── fetch_voices ──────────────────────────────────────────────────────────
