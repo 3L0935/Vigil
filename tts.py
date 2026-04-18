@@ -48,12 +48,22 @@ def list_voices(lang: str) -> list:
     if _engine == "off":
         return []
     if _engine == "piper":
-        return [
-            {"name": v, "engine": "piper",
-             "path": str(_PIPER_DIR / f"{v}.onnx")}
-            for v in _BUILTIN_VOICES.get(lang, [])
-            if (_PIPER_DIR / f"{v}.onnx").exists()
-        ]
+        prefix = "fr_" if lang == "fr" else "en_"
+        seen: set[str] = set()
+        voices: list[dict] = []
+        # Builtin voices first (preferred order)
+        for v in _BUILTIN_VOICES.get(lang, []):
+            if (_PIPER_DIR / f"{v}.onnx").exists():
+                voices.append({"name": v, "engine": "piper",
+                                "path": str(_PIPER_DIR / f"{v}.onnx")})
+                seen.add(v)
+        # Any other downloaded voices in the piper dir
+        for f in sorted(_PIPER_DIR.glob(f"{prefix}*.onnx")):
+            name = f.stem
+            if name not in seen:
+                voices.append({"name": name, "engine": "piper", "path": str(f)})
+                seen.add(name)
+        return voices
     return []
 
 
