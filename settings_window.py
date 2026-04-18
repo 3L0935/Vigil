@@ -45,8 +45,8 @@ class SettingsWindow:
         self._tts_speaker_en_var = None
         self._tts_speaker_fr_row = None
         self._tts_speaker_en_row = None
-        self._tts_speaker_fr_range = None
-        self._tts_speaker_en_range = None
+        self._tts_speaker_fr_menu = None
+        self._tts_speaker_en_menu = None
         self._tts_fr_row = None
         self._tts_en_row = None
         self._hotkey_dict_var = None
@@ -418,22 +418,26 @@ class SettingsWindow:
 
         # FR speaker row (hidden when voice is single-speaker)
         self._tts_speaker_fr_row = ctk.CTkFrame(pad, fg_color="transparent")
-        ctk.CTkLabel(self._tts_speaker_fr_row, text="Speaker ID",
-                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left")
+        ctk.CTkLabel(self._tts_speaker_fr_row, text="Speaker",
+                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left",
+                     padx=(0, T.PAD_M))
         _fr_n = tts.get_num_speakers(self._tts_voice_fr_var.get())
-        self._tts_speaker_fr_range = ctk.CTkLabel(
-            self._tts_speaker_fr_row, text=f"(0\u2013{_fr_n - 1})",
-            font=T.FONT_SMALL, text_color=T.FG_DIM)
-        self._tts_speaker_fr_range.pack(side="left", padx=(T.PAD_S, T.PAD_M))
-        self._tts_speaker_fr_var = tk.StringVar(
-            master=self._win, value=db.get_setting("tts_speaker_fr", "0"))
-        ctk.CTkEntry(
+        _fr_values = [str(i) for i in range(max(1, _fr_n))]
+        _fr_saved = db.get_setting("tts_speaker_fr", "0")
+        if _fr_saved not in _fr_values:
+            _fr_saved = "0"
+        self._tts_speaker_fr_var = tk.StringVar(master=self._win, value=_fr_saved)
+        self._tts_speaker_fr_menu = ctk.CTkOptionMenu(
             self._tts_speaker_fr_row,
-            textvariable=self._tts_speaker_fr_var,
-            width=60, height=32,
-            fg_color=T.BG_CARD, border_color=T.BORDER,
-            text_color=T.FG, font=T.FONT_SMALL,
-        ).pack(side="left", padx=(0, T.PAD_M))
+            values=_fr_values,
+            variable=self._tts_speaker_fr_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        )
+        self._tts_speaker_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
             self._tts_speaker_fr_row, text="\u25b6 Sample", width=90, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
@@ -475,22 +479,26 @@ class SettingsWindow:
 
         # EN speaker row (hidden when voice is single-speaker)
         self._tts_speaker_en_row = ctk.CTkFrame(pad, fg_color="transparent")
-        ctk.CTkLabel(self._tts_speaker_en_row, text="Speaker ID",
-                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left")
+        ctk.CTkLabel(self._tts_speaker_en_row, text="Speaker",
+                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left",
+                     padx=(0, T.PAD_M))
         _en_n = tts.get_num_speakers(self._tts_voice_en_var.get())
-        self._tts_speaker_en_range = ctk.CTkLabel(
-            self._tts_speaker_en_row, text=f"(0\u2013{_en_n - 1})",
-            font=T.FONT_SMALL, text_color=T.FG_DIM)
-        self._tts_speaker_en_range.pack(side="left", padx=(T.PAD_S, T.PAD_M))
-        self._tts_speaker_en_var = tk.StringVar(
-            master=self._win, value=db.get_setting("tts_speaker_en", "0"))
-        ctk.CTkEntry(
+        _en_values = [str(i) for i in range(max(1, _en_n))]
+        _en_saved = db.get_setting("tts_speaker_en", "0")
+        if _en_saved not in _en_values:
+            _en_saved = "0"
+        self._tts_speaker_en_var = tk.StringVar(master=self._win, value=_en_saved)
+        self._tts_speaker_en_menu = ctk.CTkOptionMenu(
             self._tts_speaker_en_row,
-            textvariable=self._tts_speaker_en_var,
-            width=60, height=32,
-            fg_color=T.BG_CARD, border_color=T.BORDER,
-            text_color=T.FG, font=T.FONT_SMALL,
-        ).pack(side="left", padx=(0, T.PAD_M))
+            values=_en_values,
+            variable=self._tts_speaker_en_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        )
+        self._tts_speaker_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
             self._tts_speaker_en_row, text="\u25b6 Sample", width=90, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
@@ -688,15 +696,19 @@ class SettingsWindow:
         log.info("TTS mode set to %s", value)
 
     def _update_speaker_row(self, lang: str) -> None:
-        voice_var  = self._tts_voice_fr_var   if lang == "fr" else self._tts_voice_en_var
-        row        = self._tts_speaker_fr_row  if lang == "fr" else self._tts_speaker_en_row
-        range_lbl  = self._tts_speaker_fr_range if lang == "fr" else self._tts_speaker_en_range
-        ref_row    = self._tts_fr_row           if lang == "fr" else self._tts_en_row
-        if not voice_var or not row:
+        voice_var = self._tts_voice_fr_var    if lang == "fr" else self._tts_voice_en_var
+        row       = self._tts_speaker_fr_row   if lang == "fr" else self._tts_speaker_en_row
+        menu      = self._tts_speaker_fr_menu  if lang == "fr" else self._tts_speaker_en_menu
+        spkr_var  = self._tts_speaker_fr_var   if lang == "fr" else self._tts_speaker_en_var
+        ref_row   = self._tts_fr_row           if lang == "fr" else self._tts_en_row
+        if not voice_var or not row or not menu:
             return
         n = tts.get_num_speakers(voice_var.get())
         if n > 1:
-            range_lbl.configure(text=f"(0\u2013{n - 1})")
+            values = [str(i) for i in range(n)]
+            menu.configure(values=values)
+            cur = spkr_var.get() if spkr_var.get() in values else "0"
+            spkr_var.set(cur)
             row.pack(fill="x", pady=(0, T.PAD_M), after=ref_row)
         else:
             row.pack_forget()
@@ -711,10 +723,7 @@ class SettingsWindow:
             return
         speaker_id = None
         if speaker_var and tts.get_num_speakers(voice) > 1:
-            try:
-                speaker_id = int(speaker_var.get())
-            except ValueError:
-                speaker_id = 0
+            speaker_id = int(speaker_var.get())
         tts.preview(voice, speaker_id)
 
     def _show_more_voices(self, lang: str):
