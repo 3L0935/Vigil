@@ -79,6 +79,7 @@ _STATE_STYLE = {
     "idle":       {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.04, "label": ""},
     "listening":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Listening..."},
     "thinking":   {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Thinking..."},
+    "writing":    {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Writing..."},
     "coding":     {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Writing code..."},
     "happy":      {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Done!"},
     "error":      {"accent": (255, 68, 68),   "glow": (255, 68, 68),   "border": (255, 68, 68),   "border_a": 0.12, "label": "Error"},
@@ -100,6 +101,7 @@ _EYE_THEME = {
     "idle":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "listening":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "thinking":   {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "writing":    {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "coding":     {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "happy":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "error":      {"eye": (255, 68, 68),   "glow": (255, 68, 68)},
@@ -902,14 +904,18 @@ class RecordingWidget:
             except Exception:
                 pass
 
+        prev_mode  = self._mode
         self._mode = mode
         self._tick = 0
 
-        # Auto-set expression based on mode
+        # Auto-set expression based on mode and the transition it came from.
+        # PROCESSING is shared by dictation (RECORDING → PROCESSING) and
+        # assistant (ASSISTANT → PROCESSING); use prev_mode to label them
+        # differently — "Writing..." for dictation, "Thinking..." for assistant.
         if mode == self.RECORDING:
             self._expression = "listening"
         elif mode == self.PROCESSING:
-            self._expression = "thinking"
+            self._expression = "writing" if prev_mode == self.RECORDING else "thinking"
         elif mode == self.ASSISTANT:
             self._expression = "assistant"
 

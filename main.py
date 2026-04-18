@@ -196,11 +196,18 @@ def _dictation_worker():
             if text:
                 log.info("Transcribed: %r", text)
                 inject(text)
+                if widget:
+                    widget.set_expression("happy")
+                    # Hold "Done!" briefly so the state is visible for short
+                    # dictations where transcription+injection finish faster
+                    # than the pill's fade-in.
+                    root.after(1000, widget.hide)
             else:
                 log.info("No speech detected.")
+                if widget:
+                    widget.hide()
         except Exception as exc:
             log.error("Dictation pipeline error: %s", exc)
-        finally:
             if widget:
                 widget.hide()
 
@@ -245,7 +252,10 @@ def _assistant_worker():
                     if widget:
                         widget.show_answer(result)
                 if widget:
-                    widget.hide()
+                    # Keep the pill on "Done!" briefly — tts.speak is now async
+                    # (commit 7ac42cd) so it no longer blocks here, meaning the
+                    # happy state would otherwise be invisible.
+                    root.after(1500, widget.hide)
 
         except Exception as exc:
             log.error("Assistant pipeline error: %s", exc)
