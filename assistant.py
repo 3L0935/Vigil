@@ -155,7 +155,9 @@ _LAUNCH_APP_TOOL = {
         "description": (
             "Launch an installed application by name. Use when the user asks to open or launch "
             "a program: 'lance Kitty', 'ouvre Firefox', 'open Thunderbird', 'lancia Gimp', "
-            "'démarre VLC', 'start Steam', etc."
+            "'démarre VLC', 'start Steam', etc. "
+            "If you are not certain of the exact name, try your best guess — if not found, "
+            "the system will suggest matching installed apps so you can retry."
         ),
         "parameters": {
             "type": "object",
@@ -200,10 +202,41 @@ _CLEAR_CONTEXT_TOOL = {
     },
 }
 
+_ASK_USER_CHOICE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "ask_user_choice",
+        "description": (
+            "Ask the user to pick between 2-4 similar installed apps when the request is "
+            "genuinely ambiguous. The user replies with a number (1, 2, 3, ...) and the "
+            "chosen app is then launched or closed. Use this ONLY after a launch_app retry "
+            "when several candidates fit the user's intent equally well. "
+            "Do NOT use for single-best-match cases — call launch_app directly instead."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "2-4 app names to present to the user, copied exactly from the installed-apps list.",
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["launch", "close"],
+                    "description": "What to do with the chosen app.",
+                },
+            },
+            "required": ["options", "action"],
+        },
+    },
+}
+
 
 def _get_tools() -> list[dict]:
     tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-             _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL, _CLEAR_CONTEXT_TOOL]
+             _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL, _CLEAR_CONTEXT_TOOL,
+             _ASK_USER_CHOICE_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -224,8 +257,37 @@ def _system_prompt() -> str:
 
 # ── Function dispatcher ───────────────────────────────────────────────────
 
-def _dispatch(name: str, args: dict) -> str:
-    """Execute a search tool and return the raw results string."""
+def _build_launch_retry_context(app_name: str, user_text: str) -> str:
+    """Build retry feedback for the LLM after a launch_app failure.
+
+    Combines fuzzy candidates from both the failed name and the original user
+    text so the LLM sees apps that match the user's intent, not just the (often
+    mistranscribed) name it passed. Language follows config.LANGUAGE so the
+    model's plain-text fallback ends up in the user's language.
+    """
+    import app_launcher
+    c1 = app_launcher.find_candidates(app_name, n=5, cutoff=0.3)
+    c2 = app_launcher.find_candidates(user_text, n=8, cutoff=0.3) if user_text else []
+    seen: set[str] = set()
+    cands: list[str] = []
+    for c in c2 + c1:  # user-intent matches first (more relevant than failed name matches)
+        if c not in seen:
+            seen.add(c)
+            cands.append(c)
+    cands = cands[:8]
+    if not cands:
+        return locales.get("retry_launch_ctx_empty", name=app_name)
+    generics = {a["name"]: a.get("generic", "") for a in app_launcher.list_all_apps()}
+    lines = [f"- {c}" + (f" ({generics[c]})" if generics.get(c) else "") for c in cands]
+    return locales.get("retry_launch_ctx", name=app_name, list="\n".join(lines))
+
+
+def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | None]:
+    """Execute a tool and return (user_facing_text, retry_context_or_None).
+
+    If retry_context is non-None, the caller (process) should re-query the LLM
+    with this as a tool result so it can correct a failed launch_app call.
+    """
     global _waiting_for_reply, _pending_candidates, _pending_action
     log.info("Assistant dispatch: %s(%s)", name, args)
 
@@ -236,30 +298,30 @@ def _dispatch(name: str, args: dict) -> str:
             max_results = min(int(args.get("max_results", 5)), 10)
             results = list(DDGS().text(query, max_results=max_results))
             if not results:
-                return locales.get("web_no_results", query=query)
+                return (locales.get("web_no_results", query=query), None)
             lines = []
             for r in results:
                 title = r.get("title", "")
                 body  = r.get("body", "")
                 href  = r.get("href", "")
                 lines.append(f"**{title}**\n{body}\n{href}")
-            return "\n\n".join(lines)
+            return ("\n\n".join(lines), None)
 
         elif name == "open_settings":
             cb = _action_callbacks.get("open_settings")
             if cb:
                 cb()
-            return locales.get("settings_opened")
+            return (locales.get("settings_opened"), None)
 
         elif name == "close_settings":
             cb = _action_callbacks.get("close_settings")
             if cb:
                 cb()
-            return locales.get("settings_closed")
+            return (locales.get("settings_closed"), None)
 
         elif name == "search_obsidian_vault":
             if not config.OBSIDIAN_VAULT_PATH or not Path(config.OBSIDIAN_VAULT_PATH).is_dir():
-                return locales.get("vault_not_configured")
+                return (locales.get("vault_not_configured"), None)
             from obsidian import search_vault
             results = search_vault(
                 query=args.get("query", ""),
@@ -267,62 +329,81 @@ def _dispatch(name: str, args: dict) -> str:
                 max_results=args.get("max_results", 5),
             )
             if not results:
-                return locales.get("vault_no_results", query=args.get("query", ""))
+                return (locales.get("vault_no_results", query=args.get("query", "")), None)
             lines = []
             for r in results:
                 lines.append(f"**{r['title']}**\n{r['excerpt']}")
-            return "\n\n".join(lines)
+            return ("\n\n".join(lines), None)
 
         elif name == "launch_app":
             import app_launcher
             app_name = args.get("app_name", "")
             ok, label = app_launcher.launch(app_name)
             if ok:
-                return locales.get("app_launched", name=label)
+                return (locales.get("app_launched", name=label), None)
             # Exact match failed — try fuzzy
             candidates = app_launcher.find_candidates(app_name)
             if len(candidates) == 1:
                 ok2, label2 = app_launcher.launch(candidates[0])
-                return locales.get("app_launched", name=label2) if ok2 else locales.get("app_not_found", name=label2)
+                text = locales.get("app_launched", name=label2) if ok2 else locales.get("app_not_found", name=label2)
+                return (text, None)
             if len(candidates) > 1:
                 with _context_lock:
                     _waiting_for_reply  = True
                     _pending_candidates = candidates
                     _pending_action     = "launch"
                 lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
-                return locales.get("app_candidates", list=lines)
-            return locales.get("app_not_found", name=app_name)
+                return (locales.get("app_candidates", list=lines), None)
+            # Zero candidates — ask the LLM to retry with installed-app hints
+            retry_ctx = _build_launch_retry_context(app_name, user_text)
+            return (locales.get("app_not_found", name=app_name), retry_ctx)
 
         elif name == "close_app":
             import app_launcher
             app_name = args.get("app_name", "")
             ok, label = app_launcher.close(app_name)
             if ok:
-                return locales.get("app_closed", name=label)
+                return (locales.get("app_closed", name=label), None)
             # Exact match failed — try fuzzy
             candidates = app_launcher.find_candidates(app_name)
             if len(candidates) == 1:
                 ok2, label2 = app_launcher.close(candidates[0])
-                return locales.get("app_closed", name=label2) if ok2 else locales.get("app_close_failed", name=label2)
+                text = locales.get("app_closed", name=label2) if ok2 else locales.get("app_close_failed", name=label2)
+                return (text, None)
             if len(candidates) > 1:
                 with _context_lock:
                     _waiting_for_reply  = True
                     _pending_candidates = candidates
                     _pending_action     = "close"
                 lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
-                return locales.get("app_candidates", list=lines)
-            return locales.get("app_close_failed", name=app_name)
+                return (locales.get("app_candidates", list=lines), None)
+            return (locales.get("app_close_failed", name=app_name), None)
+
+        elif name == "ask_user_choice":
+            options = args.get("options") or []
+            action  = args.get("action", "launch")
+            if action not in ("launch", "close"):
+                action = "launch"
+            opts = [str(o) for o in options if o][:4]
+            if not opts:
+                return (locales.get("app_not_found", name=""), None)
+            with _context_lock:
+                _waiting_for_reply  = True
+                _pending_candidates = opts
+                _pending_action     = action
+            lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(opts))
+            return (locales.get("app_candidates", list=lines), None)
 
         elif name == "clear_context":
             reset_context()
-            return locales.get("context_cleared")
+            return (locales.get("context_cleared"), None)
 
         else:
-            return locales.get("unknown_command", name=name)
+            return (locales.get("unknown_command", name=name), None)
 
     except Exception as exc:
         log.error("Dispatch error: %s", exc)
-        return locales.get("error", detail=str(exc))
+        return (locales.get("error", detail=str(exc)), None)
 
 
 # ── Public API ────────────────────────────────────────────────────────────
@@ -427,10 +508,50 @@ def process(text: str) -> str:
             else:
                 args = raw_args
 
-            raw_result = _dispatch(fn_name, args)
+            raw_result, retry_ctx = _dispatch(fn_name, args, user_text=text)
+
+            # Launch retry: LLM hit a not-found — give it candidate apps and
+            # let it try again once. No further retry from that second call.
+            if retry_ctx is not None:
+                log.info("launch_app retry: feeding %d chars of context back to LLM", len(retry_ctx))
+                tool_call_id = tc.get("id", "tc_0")
+                retry_messages = messages + [
+                    {"role": "assistant", "tool_calls": [tc]},
+                    {"role": "tool", "tool_call_id": tool_call_id, "content": retry_ctx},
+                ]
+                retry_data = _backend.chat(messages=retry_messages, tools=_get_tools())
+                if retry_data:
+                    try:
+                        retry_msg = retry_data.get("choices", [{}])[0].get("message", {})
+                        retry_tcs = retry_msg.get("tool_calls")
+                        if retry_tcs:
+                            rtc = retry_tcs[0]
+                            retry_fn = rtc["function"]["name"]
+                            retry_raw = rtc["function"].get("arguments", "{}")
+                            if isinstance(retry_raw, str):
+                                try:
+                                    retry_args = json.loads(retry_raw)
+                                except json.JSONDecodeError:
+                                    from json_repair import repair_json
+                                    retry_args = repair_json(retry_raw) or {}
+                            else:
+                                retry_args = retry_raw
+                            # Execute once, ignore any further retry_ctx to avoid loops
+                            retry_text, _ = _dispatch(retry_fn, retry_args, user_text=text)
+                            if retry_text:
+                                raw_result = retry_text
+                        else:
+                            retry_content = retry_msg.get("content", "").strip()
+                            if retry_content:
+                                log.info("Retry text response: %s", retry_content[:120])
+                                raw_result = retry_content
+                    except (KeyError, IndexError, TypeError) as exc:
+                        log.error("Retry parsing error: %s", exc)
+                else:
+                    log.warning("Retry returned None — using original not-found message")
 
             # Search tools: feed results back to LLM for a concise synthesis
-            if fn_name in _SEARCH_TOOLS:
+            elif fn_name in _SEARCH_TOOLS:
                 tool_call_id = tc.get("id", "tc_0")
                 synthesis_messages = messages + [
                     {"role": "assistant", "tool_calls": [tc]},

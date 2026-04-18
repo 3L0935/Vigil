@@ -75,7 +75,7 @@ def _list_apps() -> list[dict]:
     return apps
 
 
-def find_candidates(query: str, n: int = 4) -> list[str]:
+def find_candidates(query: str, n: int = 4, cutoff: float = 0.55) -> list[str]:
     """Return up to n app display names that fuzzy-match query.
 
     Searches name, GenericName, Comment, and Keywords so spoken descriptions
@@ -102,7 +102,7 @@ def find_candidates(query: str, n: int = 4) -> list[str]:
                 pairs.append((s, display))
 
     search_strings = [p[0] for p in pairs]
-    raw = difflib.get_close_matches(q, search_strings, n=n * 3, cutoff=0.55)
+    raw = difflib.get_close_matches(q, search_strings, n=n * 3, cutoff=cutoff)
 
     # Map back to display names, deduplicate, preserve relevance order
     seen_display: set[str] = set()
@@ -116,6 +116,12 @@ def find_candidates(query: str, n: int = 4) -> list[str]:
             if len(result) >= n:
                 break
     return result
+
+
+def list_all_apps() -> list[dict]:
+    """Return [{name, generic}] for every installed app (for LLM retry context)."""
+    return [{"name": a["name"], "generic": a.get("generic", "")}
+            for a in _list_apps()]
 
 
 def _find_app(query: str) -> dict | None:

@@ -53,6 +53,21 @@ _STRINGS: dict[str, dict[str, str]] = {
         # multi-turn context
         "context_cleared":      "Conversation cleared.",
         "app_candidates":       "Multiple apps found:\n{list}\nReply with the number.",
+        "retry_launch_ctx": (
+            "Application \"{name}\" was not found on this system.\n\n"
+            "Installed apps that may match the user's request:\n{list}\n\n"
+            "Pick the single best match for the user's intent and call launch_app with "
+            "its exact name copied from the list above. "
+            "If two or more apps fit the user's intent equally well, call ask_user_choice "
+            "with those candidates so the user can pick. "
+            "If nothing in the list fits, reply in plain text (in English) that the app "
+            "is not installed — do not call any tool."
+        ),
+        "retry_launch_ctx_empty": (
+            "Application \"{name}\" was not found on this system, and no similar apps "
+            "are installed. Reply in plain text (in English) that the app is not "
+            "installed. Do not call any tool."
+        ),
 
         # obsidian vault
         "vault_not_configured": "Obsidian vault is not configured. Set the vault path in Settings.",
@@ -126,6 +141,22 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         "context_cleared":      "Conversazione cancellata.",
         "app_candidates":       "Più applicazioni trovate:\n{list}\nRispondi con il numero.",
+        "retry_launch_ctx": (
+            "L'applicazione \"{name}\" non è stata trovata su questo sistema.\n\n"
+            "Applicazioni installate che potrebbero corrispondere alla richiesta:\n{list}\n\n"
+            "Scegli la singola corrispondenza migliore per l'intento dell'utente e chiama "
+            "launch_app con il nome esatto copiato dalla lista sopra. "
+            "Se due o più applicazioni corrispondono all'intento dell'utente in modo "
+            "equivalente, chiama ask_user_choice con quei candidati per far scegliere "
+            "all'utente. "
+            "Se nulla nella lista corrisponde, rispondi in testo normale (in italiano) "
+            "che l'applicazione non è installata — non chiamare alcuno strumento."
+        ),
+        "retry_launch_ctx_empty": (
+            "L'applicazione \"{name}\" non è stata trovata su questo sistema, e nessuna "
+            "applicazione simile è installata. Rispondi in testo normale (in italiano) "
+            "che l'applicazione non è installata. Non chiamare alcuno strumento."
+        ),
 
         "vault_not_configured": "La vault Obsidian non è configurata. Imposta il percorso nelle Impostazioni.",
         "vault_no_results":     "Nessuna nota trovata per '{query}' nella vault",
@@ -203,6 +234,22 @@ _STRINGS: dict[str, dict[str, str]] = {
         # multi-turn context
         "context_cleared":      "Conversation effacée.",
         "app_candidates":       "Plusieurs applications trouvées :\n{list}\nRépondez par le numéro.",
+        "retry_launch_ctx": (
+            "L'application \"{name}\" n'a pas été trouvée sur ce système.\n\n"
+            "Applications installées pouvant correspondre à la demande de l'utilisateur :\n{list}\n\n"
+            "Choisis la meilleure correspondance unique pour l'intention de l'utilisateur et "
+            "appelle launch_app avec son nom exact copié depuis la liste ci-dessus. "
+            "Si deux applications ou plus correspondent à l'intention de l'utilisateur de façon "
+            "équivalente, appelle ask_user_choice avec ces candidats pour que l'utilisateur "
+            "puisse choisir. "
+            "Si rien dans la liste ne convient, réponds en texte simple (en français) que "
+            "l'application n'est pas installée — n'appelle aucun outil."
+        ),
+        "retry_launch_ctx_empty": (
+            "L'application \"{name}\" n'a pas été trouvée sur ce système, et aucune "
+            "application similaire n'est installée. Réponds en texte simple (en français) "
+            "que l'application n'est pas installée. N'appelle aucun outil."
+        ),
 
         # obsidian vault
         "vault_not_configured": "La vault Obsidian n'est pas configurée. Définis le chemin dans les Paramètres.",
