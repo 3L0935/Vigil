@@ -154,9 +154,25 @@ def _no_activate(hwnd: int) -> None:
 def _monitor_rect(root) -> tuple[int, int, int, int]:
     """Return (left, top, w, h) of the monitor that contains the mouse cursor.
 
-    Uses xrandr on X11/XWayland.  Falls back to the full virtual screen so
-    single-monitor and pure-Wayland setups still work.
+    Tries Qt (Wayland-native) first, falls back to xrandr for pure X11.
     """
+    try:
+        from PyQt6.QtGui import QCursor
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            pos = QCursor.pos()
+            cx, cy = pos.x(), pos.y()
+            screen = app.screenAt(pos)
+            if screen is None:
+                screen = app.primaryScreen()
+            if screen is not None:
+                geo = screen.geometry()
+                log.debug("pill Qt monitor=(%d,%d %dx%d) cursor=(%d,%d)",
+                          geo.x(), geo.y(), geo.width(), geo.height(), cx, cy)
+                return geo.x(), geo.y(), geo.width(), geo.height()
+    except Exception:
+        pass
     try:
         cx = root.winfo_pointerx()
         cy = root.winfo_pointery()
