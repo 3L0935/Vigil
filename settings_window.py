@@ -20,7 +20,6 @@ import locales
 from brand import make_title_bar_image
 import theme as T
 import tts
-
 _WIN_W, _WIN_H = 480, 680
 _TITLE_H = 40
 
@@ -48,10 +47,9 @@ class SettingsWindow:
         self._tts_volume_var = None
         self._tts_voice_fr_menu = None
         self._tts_voice_en_menu = None
-        self._hotkey_x11_dict_var = None
-        self._hotkey_x11_asst_var = None
-        self._hotkey_wl_dict_var = None
-        self._hotkey_wl_asst_var = None
+        self._hotkey_dict_var = None
+        self._hotkey_asst_var = None
+        self._answer_timeout_var = None
 
     def show(self):
         if self._win is not None:
@@ -136,7 +134,7 @@ class SettingsWindow:
         # ── Whisper Model ──────────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
             fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text="Whisper model",
+        ctk.CTkLabel(pad, text=locales.get("setting_whisper_model"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._whisper_var = tk.StringVar(master=self._win, value=getattr(config, "MODEL_SIZE", "base"))
@@ -155,7 +153,7 @@ class SettingsWindow:
         # ── LLM Model ──────────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
             fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text="Modèle LLM (.gguf)",
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_model"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         llm_row = ctk.CTkFrame(pad, fg_color="transparent")
@@ -166,7 +164,7 @@ class SettingsWindow:
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(
             side="left", fill="x", expand=True, padx=(0, T.PAD_M))
-        ctk.CTkButton(llm_row, text="Browse", width=80, height=32,
+        ctk.CTkButton(llm_row, text=locales.get("setting_browse"), width=80, height=32,
                       fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
                       border_color=T.BORDER, border_width=1,
                       text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -175,7 +173,7 @@ class SettingsWindow:
         # ── LLM Unload Timeout ────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
             fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text="Déchargement LLM (inactivité)",
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_unload"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_timeout_var = tk.StringVar(
@@ -193,7 +191,7 @@ class SettingsWindow:
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── LLM Server URL ────────────────────────────────────────────
-        ctk.CTkLabel(pad, text="LLM Server URL",
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_url"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -208,7 +206,7 @@ class SettingsWindow:
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
 
         # ── Obsidian Vault Path ───────────────────────────────────────
-        ctk.CTkLabel(pad, text="Obsidian Vault",
+        ctk.CTkLabel(pad, text=locales.get("setting_obsidian_vault"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -223,7 +221,7 @@ class SettingsWindow:
                      height=32, corner_radius=6).pack(side="left", fill="x",
                                                        expand=True, padx=(0, T.PAD_M))
 
-        ctk.CTkButton(vault_row, text="Browse", width=80, height=32,
+        ctk.CTkButton(vault_row, text=locales.get("setting_browse"), width=80, height=32,
                       fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
                       border_color=T.BORDER, border_width=1,
                       text_color=T.FG, font=T.FONT_SMALL,
@@ -235,7 +233,7 @@ class SettingsWindow:
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
 
         # ── Language ──────────────────────────────────────────────────
-        ctk.CTkLabel(pad, text="Language",
+        ctk.CTkLabel(pad, text=locales.get("setting_language"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -258,7 +256,7 @@ class SettingsWindow:
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
 
         # ── Overlay Position ──────────────────────────────────────────
-        ctk.CTkLabel(pad, text="Overlay position",
+        ctk.CTkLabel(pad, text=locales.get("setting_overlay_position"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -279,7 +277,7 @@ class SettingsWindow:
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── Lock to screen ────────────────────────────────────────────
-        ctk.CTkLabel(pad, text="Lock to screen",
+        ctk.CTkLabel(pad, text=locales.get("setting_overlay_screen"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -303,66 +301,56 @@ class SettingsWindow:
             command=self._on_overlay_screen_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
+        # ── Answer card timeout ───────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(pad, text=locales.get("setting_answer_timeout"),
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._answer_timeout_var = tk.StringVar(
+            master=self._win,
+            value=str(db.get_setting("overlay_answer_timeout", "8")))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["5", "8", "10", "15", "20", "30"],
+            variable=self._answer_timeout_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
         # Separator
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
 
         # ── Hotkeys ──────────────────────────────────────────────────────────
-        ctk.CTkLabel(pad, text="Hotkeys",
+        ctk.CTkLabel(pad, text=locales.get("setting_hotkeys"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
-        ctk.CTkLabel(pad, text="X11 — Dictation", font=T.FONT_SMALL,
-                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
-        self._hotkey_x11_dict_var = tk.StringVar(
-            master=self._win, value=db.get_setting("hotkey_x11_dict", "alt_gr"))
-        ctk.CTkOptionMenu(
-            pad,
-            values=config._KEY_DISPLAY,
-            variable=self._hotkey_x11_dict_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
-        ).pack(fill="x", pady=(0, T.PAD_M))
-
-        ctk.CTkLabel(pad, text="X11 — Assistant", font=T.FONT_SMALL,
-                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
-        self._hotkey_x11_asst_var = tk.StringVar(
-            master=self._win, value=db.get_setting("hotkey_x11_assist", "ctrl_r"))
-        ctk.CTkOptionMenu(
-            pad,
-            values=config._KEY_DISPLAY,
-            variable=self._hotkey_x11_asst_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
-        ).pack(fill="x", pady=(0, T.PAD_M))
-
-        ctk.CTkLabel(pad, text="Wayland — Dictation", font=T.FONT_SMALL,
-                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
-        self._hotkey_wl_dict_var = tk.StringVar(
-            master=self._win,
-            value=db.get_setting("hotkey_wayland_dict", getattr(config, "WAYLAND_HOTKEY", "Ctrl+Alt+W")))
-        ctk.CTkEntry(pad, textvariable=self._hotkey_wl_dict_var,
+        ctk.CTkLabel(pad, text=locales.get("setting_hotkey_dict_hint"),
+                     font=T.FONT_SMALL, text_color=T.FG_DIM,
+                     anchor="w").pack(fill="x")
+        self._hotkey_dict_var = tk.StringVar(
+            master=self._win, value=getattr(config, "HOTKEY", "Ctrl+Alt+W"))
+        ctk.CTkEntry(pad, textvariable=self._hotkey_dict_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_M))
 
-        ctk.CTkLabel(pad, text="Wayland — Assistant", font=T.FONT_SMALL,
-                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
-        self._hotkey_wl_asst_var = tk.StringVar(
-            master=self._win,
-            value=db.get_setting("hotkey_wayland_assist", getattr(config, "WAYLAND_ASSISTANT_HOTKEY", "Ctrl+Alt+R")))
-        ctk.CTkEntry(pad, textvariable=self._hotkey_wl_asst_var,
+        ctk.CTkLabel(pad, text=locales.get("setting_hotkey_asst_hint"),
+                     font=T.FONT_SMALL, text_color=T.FG_DIM,
+                     anchor="w").pack(fill="x")
+        self._hotkey_asst_var = tk.StringVar(
+            master=self._win, value=getattr(config, "ASSISTANT_HOTKEY", "Ctrl+Alt+R"))
+        ctk.CTkEntry(pad, textvariable=self._hotkey_asst_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
-                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_M))
 
-        ctk.CTkLabel(pad, text="Changes apply immediately (listener restarts on save).",
+        ctk.CTkLabel(pad, text=locales.get("setting_hotkey_hint"),
                      font=T.FONT_SMALL, text_color=T.FG_DIM,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_L))
 
@@ -390,14 +378,14 @@ class SettingsWindow:
 
         engine_row = ctk.CTkFrame(pad, fg_color="transparent")
         engine_row.pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(engine_row, text="Engine", font=T.FONT_SMALL,
+        ctk.CTkLabel(engine_row, text=locales.get("setting_tts_engine"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(side="left")
         ctk.CTkLabel(engine_row,
                      text=db.get_setting("tts_engine", "off"),
                      font=T.FONT_SMALL, text_color=T.FG,
                      anchor="e").pack(side="right")
 
-        ctk.CTkLabel(pad, text="Voice (FR)", font=T.FONT_SMALL,
+        ctk.CTkLabel(pad, text=locales.get("setting_tts_voice_fr"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(fill="x")
         fr_voices = [v["name"] for v in tts.list_voices("fr")] or ["(none)"]
         self._tts_voice_fr_var = tk.StringVar(
@@ -418,14 +406,14 @@ class SettingsWindow:
         )
         self._tts_voice_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            fr_row, text="More voices...", width=110, height=32,
+            fr_row, text=locales.get("setting_more_voices"), width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
             command=lambda: self._show_more_voices("fr"),
         ).pack(side="right")
 
-        ctk.CTkLabel(pad, text="Voice (EN)", font=T.FONT_SMALL,
+        ctk.CTkLabel(pad, text=locales.get("setting_tts_voice_en"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(fill="x")
         en_voices = [v["name"] for v in tts.list_voices("en")] or ["(none)"]
         self._tts_voice_en_var = tk.StringVar(
@@ -446,7 +434,7 @@ class SettingsWindow:
         )
         self._tts_voice_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            en_row, text="More voices...", width=110, height=32,
+            en_row, text=locales.get("setting_more_voices"), width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -456,7 +444,7 @@ class SettingsWindow:
         # ── Volume ───────────────────────────────────────────────────
         vol_row = ctk.CTkFrame(pad, fg_color="transparent")
         vol_row.pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(vol_row, text="Volume", font=T.FONT_SMALL,
+        ctk.CTkLabel(vol_row, text=locales.get("setting_tts_volume"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(side="left")
         self._tts_volume_label = ctk.CTkLabel(vol_row, text="100%",
                                                font=T.FONT_SMALL, text_color=T.FG)
@@ -489,6 +477,24 @@ class SettingsWindow:
             text_color=T.BG_DEEP, font=T.FONT_TITLE,
             corner_radius=6, command=self._save_linux_settings,
         ).pack(fill="x")
+
+        # ── Maintenance ───────────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(T.PAD_L, T.PAD_M))
+        ctk.CTkButton(
+            pad, text=locales.get("setting_rerun_setup"), height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG_DIM, font=T.FONT_SMALL,
+            corner_radius=6, command=self._rerun_setup,
+        ).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkButton(
+            pad, text=locales.get("setting_uninstall"), height=32,
+            fg_color=T.BG_CARD, hover_color="#5a0000",
+            border_color="#8B0000", border_width=1,
+            text_color="#FF6B6B", font=T.FONT_SMALL,
+            corner_radius=6, command=self._uninstall,
+        ).pack(fill="x", pady=(0, T.PAD_L))
 
     # ── Drag ──────────────────────────────────────────────────────────────
 
@@ -545,16 +551,13 @@ class SettingsWindow:
                 v = 1.0
             self._tts_volume_var.set(v)
             self._tts_volume_label.configure(text=f"{int(v * 100)}%")
-        if self._hotkey_x11_dict_var:
-            self._hotkey_x11_dict_var.set(db.get_setting("hotkey_x11_dict", "alt_gr"))
-        if self._hotkey_x11_asst_var:
-            self._hotkey_x11_asst_var.set(db.get_setting("hotkey_x11_assist", "ctrl_r"))
-        if self._hotkey_wl_dict_var:
-            self._hotkey_wl_dict_var.set(
-                db.get_setting("hotkey_wayland_dict", getattr(config, "WAYLAND_HOTKEY", "Ctrl+Alt+W")))
-        if self._hotkey_wl_asst_var:
-            self._hotkey_wl_asst_var.set(
-                db.get_setting("hotkey_wayland_assist", getattr(config, "WAYLAND_ASSISTANT_HOTKEY", "Ctrl+Alt+R")))
+        if self._hotkey_dict_var:
+            self._hotkey_dict_var.set(getattr(config, "HOTKEY", "Ctrl+Alt+W"))
+        if self._hotkey_asst_var:
+            self._hotkey_asst_var.set(getattr(config, "ASSISTANT_HOTKEY", "Ctrl+Alt+R"))
+        if self._answer_timeout_var:
+            self._answer_timeout_var.set(
+                str(db.get_setting("overlay_answer_timeout", "8")))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -611,7 +614,7 @@ class SettingsWindow:
         list_frame = ctk.CTkScrollableFrame(dialog, fg_color=T.BG)
         list_frame.pack(fill="both", expand=True, padx=T.PAD_L, pady=T.PAD_L)
 
-        status_lbl = ctk.CTkLabel(dialog, text="Loading...",
+        status_lbl = ctk.CTkLabel(dialog, text=locales.get("setting_loading"),
                                    font=T.FONT_SMALL, text_color=T.FG_DIM)
         status_lbl.pack(pady=T.PAD_M)
 
@@ -626,7 +629,7 @@ class SettingsWindow:
                              text_color=T.FG, anchor="w").pack(
                     side="left", fill="x", expand=True)
                 ctk.CTkButton(
-                    row, text="Download", width=90, height=28,
+                    row, text=locales.get("setting_download"), width=90, height=28,
                     fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
                     border_color=T.BORDER, border_width=1,
                     text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -713,30 +716,38 @@ class SettingsWindow:
             screen = self._overlay_screen_var.get()
             config.OVERLAY_SCREEN = screen
             db.save_setting("overlay_screen", screen)
-        if self._hotkey_x11_dict_var and self._hotkey_x11_asst_var:
-            if self._hotkey_x11_dict_var.get() == self._hotkey_x11_asst_var.get():
-                log.warning("Dictation and assistant hotkeys cannot be the same key — not saved.")
-                return
-        if self._hotkey_x11_dict_var:
-            v = self._hotkey_x11_dict_var.get()
-            db.save_setting("hotkey_x11_dict", v)
-            if v in config._KEY_MAP:
-                config.HOTKEY = config._KEY_MAP[v]
-        if self._hotkey_x11_asst_var:
-            v = self._hotkey_x11_asst_var.get()
-            db.save_setting("hotkey_x11_assist", v)
-            if v in config._KEY_MAP:
-                config.ASSISTANT_HOTKEY = config._KEY_MAP[v]
-        if self._hotkey_wl_dict_var:
-            v = self._hotkey_wl_dict_var.get().strip()
-            if v:
-                config.WAYLAND_HOTKEY = v
-                db.save_setting("hotkey_wayland_dict", v)
-        if self._hotkey_wl_asst_var:
-            v = self._hotkey_wl_asst_var.get().strip()
-            if v:
-                config.WAYLAND_ASSISTANT_HOTKEY = v
-                db.save_setting("hotkey_wayland_assist", v)
+        hk_dict = self._hotkey_dict_var.get().strip() if self._hotkey_dict_var else ""
+        hk_asst = self._hotkey_asst_var.get().strip() if self._hotkey_asst_var else ""
+        if hk_dict and hk_asst and hk_dict == hk_asst:
+            log.warning("Dictation and assistant hotkeys must differ — not saved.")
+        else:
+            if hk_dict:
+                config.HOTKEY = hk_dict
+                db.save_setting("hotkey_dict", hk_dict)
+            if hk_asst:
+                config.ASSISTANT_HOTKEY = hk_asst
+                db.save_setting("hotkey_assist", hk_asst)
+        if self._answer_timeout_var:
+            t = self._answer_timeout_var.get().strip()
+            try:
+                config.OVERLAY_ANSWER_TIMEOUT = int(t)
+                db.save_setting("overlay_answer_timeout", t)
+            except ValueError:
+                pass
         if self._on_hotkey_change_cb:
             self._on_hotkey_change_cb()
         log.info("Settings saved.")
+
+    def _rerun_setup(self):
+        import setup_utils
+        launched = setup_utils.launch_in_terminal(
+            f'uv run python "{setup_utils.REPO_DIR / "first_run.py"}"'
+        )
+        if not launched:
+            log.error("No terminal emulator found. Run: uv run python first_run.py")
+
+    def _uninstall(self):
+        import setup_utils
+        setup_utils.launch_in_terminal(
+            f'bash "{setup_utils.REPO_DIR / "uninstall.sh"}"'
+        )
