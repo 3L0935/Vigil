@@ -29,9 +29,9 @@ from logger import log
 _CHROMAKEY = "#000001"
 
 # Pandora Blackboard dark palette (matching JSX rgba(0,0,0,0.75))
-_BG        = "#0c0c0f"      # near-black pill fill
-_BG_INNER  = "#101016"      # subtle inner tone for avatar area
-_BORDER    = "#1c1c26"      # default subtle border
+_BG        = "#0a0a12"      # near-black pill fill
+_BG_INNER  = "#0d0d18"      # subtle inner tone for avatar area
+_BORDER    = "#0d1a1f"      # cyan-tinted dark border
 
 # On Linux, -transparentcolor doesn't work so we use _BG as the window
 # background — corner pixels blend with it instead of showing as near-black.
@@ -78,43 +78,43 @@ _TYPEWRITER_MS   = 28   # ms between tokens during typewriter animation
 # ── JSX-matching accent colours per state ────────────────────────────────
 # Format: accent_rgb, glow_rgba_str, border_rgb, border_opacity
 _STATE_STYLE = {
-    "idle":       {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.04, "label": ""},
-    "listening":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Listening..."},
-    "thinking":   {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Thinking..."},
-    "coding":     {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Writing code..."},
-    "happy":      {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Done!"},
+    "idle":       {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.04, "label": ""},
+    "listening":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Listening..."},
+    "thinking":   {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Thinking..."},
+    "coding":     {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Writing code..."},
+    "happy":      {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Done!"},
     "error":      {"accent": (255, 68, 68),   "glow": (255, 68, 68),   "border": (255, 68, 68),   "border_a": 0.12, "label": "Error"},
     "alert":      {"accent": (255, 170, 0),   "glow": (255, 170, 0),   "border": (255, 170, 0),   "border_a": 0.12, "label": "Attention"},
-    "surprised":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "!"},
-    "wink":       {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Tip"},
-    "sleep":      {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.04, "label": ""},
-    "sad":        {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.06, "label": "Not found"},
+    "surprised":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "!"},
+    "wink":       {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Tip"},
+    "sleep":      {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.04, "label": ""},
+    "sad":        {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.06, "label": "Not found"},
     "love":       {"accent": (255, 107, 157), "glow": (255, 107, 157), "border": (255, 107, 157), "border_a": 0.12, "label": "Saved"},
-    "loading":    {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Loading..."},
+    "loading":    {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Loading..."},
     # mode aliases
-    "recording":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Listening..."},
-    "processing": {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Thinking..."},
-    "assistant":  {"accent": (160, 144, 255), "glow": (160, 144, 255), "border": (120, 100, 255), "border_a": 0.15, "label": "Assistant..."},
+    "recording":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Listening..."},
+    "processing": {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Thinking..."},
+    "assistant":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.15, "label": "Assistant..."},
 }
 
 # Eye theme per expression (eye_rgb, glow_rgb for the SVG-like dot rendering)
 _EYE_THEME = {
-    "idle":       {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "listening":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "thinking":   {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "coding":     {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "happy":      {"eye": (255, 255, 255), "glow": (255, 255, 255)},
+    "idle":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "listening":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "thinking":   {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "coding":     {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "happy":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "error":      {"eye": (255, 68, 68),   "glow": (255, 68, 68)},
     "alert":      {"eye": (255, 170, 0),   "glow": (255, 170, 0)},
-    "surprised":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "wink":       {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "sleep":      {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "sad":        {"eye": (255, 255, 255), "glow": (255, 255, 255)},
+    "surprised":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "wink":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "sleep":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "sad":        {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "love":       {"eye": (255, 107, 157), "glow": (255, 107, 157)},
-    "loading":    {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "recording":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "processing": {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "assistant":  {"eye": (160, 144, 255), "glow": (120, 100, 255)},
+    "loading":    {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "recording":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "processing": {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "assistant":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
 }
 
 _IDLE_STYLE = _STATE_STYLE["idle"]
@@ -433,53 +433,58 @@ class AnswerCard:
         win.overrideredirect(True)
         win.wm_attributes("-topmost", True)
         win.wm_attributes("-alpha", 0.0)
-        win.configure(bg="#0c0c0f")
+        win.configure(bg="#0a0a12")
 
         total_h = (_CARD_HEADER_H + 1 + _CARD_BODY_MAX_H
                    + 1 + _CARD_FOOTER_H + _CARD_PROG_H)
         x, y = self._calc_position(total_h)
         win.geometry(f"{_CARD_W}x{total_h}+{x}+{y}")
 
-        outer = tk.Frame(win, bg="#0c0c0f",
-                         highlightbackground="#1e1e2c", highlightthickness=1)
+        outer = tk.Frame(win, bg="#0a0a12",
+                         highlightbackground="#0d1a1f", highlightthickness=1)
         outer.pack(fill=tk.BOTH, expand=True)
 
         # ── Header ────────────────────────────────────────────────────────
-        hdr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_HEADER_H)
+        hdr = tk.Frame(outer, bg="#0a0a12", height=_CARD_HEADER_H)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
 
         ava_c = tk.Canvas(hdr, width=22, height=_CARD_HEADER_H,
-                          bg="#0c0c0f", highlightthickness=0)
+                          bg="#0a0a12", highlightthickness=0)
         ava_c.pack(side=tk.LEFT, padx=(10, 0))
         cy = _CARD_HEADER_H // 2
-        ava_c.create_oval(2, cy - 2, 8, cy + 2, fill="#ffffff", outline="")
-        ava_c.create_oval(14, cy - 2, 20, cy + 2, fill="#ffffff", outline="")
+        # Vigil iris (ring + pupil + shine) at ~18px
+        ava_c.create_oval(2, cy - 9, 20, cy + 9,
+                          fill="#0a0a12", outline="#00d4ff", width=1)
+        ava_c.create_oval(8, cy - 3, 14, cy + 3,
+                          fill="#00d4ff", outline="")
+        ava_c.create_oval(6, cy - 6, 9, cy - 3,
+                          fill="white", outline="")
 
-        tk.Frame(hdr, bg="#1e1e2c", width=1).pack(
+        tk.Frame(hdr, bg="#0d1a1f", width=1).pack(
             side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
 
-        tk.Label(hdr, text="WritHer", bg="#0c0c0f", fg="#3a3a50",
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        tk.Label(hdr, text="Vigil", bg="#0a0a12", fg="#2a3a4a",
+                 font=("DejaVu Sans", 9)).pack(side=tk.LEFT)
 
-        close_btn = tk.Label(hdr, text="×", bg="#0c0c0f", fg="#3a3a50",
+        close_btn = tk.Label(hdr, text="×", bg="#0a0a12", fg="#2a3a4a",
                              font=("Segoe UI", 9), cursor="hand2")
         close_btn.pack(side=tk.RIGHT, padx=10)
         close_btn.bind("<Button-1>", lambda e: self.hide())
         close_btn.bind("<Enter>", lambda e: close_btn.config(fg="#888899"))
-        close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#3a3a50"))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#2a3a4a"))
 
         # ── Divider ───────────────────────────────────────────────────────
-        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+        tk.Frame(outer, bg="#0b0f18", height=1).pack(fill=tk.X)
 
         # ── Body (scrollable text) ────────────────────────────────────────
-        body = tk.Frame(outer, bg="#0c0c0f", height=_CARD_BODY_MAX_H)
+        body = tk.Frame(outer, bg="#0a0a12", height=_CARD_BODY_MAX_H)
         body.pack(fill=tk.X)
         body.pack_propagate(False)
 
         text_w = tk.Text(
             body,
-            bg="#0c0c0f", fg="#c8c8d4",
+            bg="#0a0a12", fg="#c8c8d4",
             font=("Segoe UI", 11),
             wrap=tk.WORD,
             relief=tk.FLAT,
@@ -499,7 +504,7 @@ class AnswerCard:
             return "break"
         text_w.bind("<Key>", _block_typing)
         sb = tk.Scrollbar(body, orient=tk.VERTICAL, command=text_w.yview,
-                          width=4, troughcolor="#0c0c0f", bg="#2a2a3a",
+                          width=4, troughcolor="#0a0a12", bg="#2a2a3a",
                           activebackground="#3a3a4a", relief=tk.FLAT,
                           borderwidth=0, highlightthickness=0)
         text_w.configure(yscrollcommand=sb.set)
@@ -508,26 +513,26 @@ class AnswerCard:
         self._text_widget = text_w
 
         # ── Divider ───────────────────────────────────────────────────────
-        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+        tk.Frame(outer, bg="#0b0f18", height=1).pack(fill=tk.X)
 
         # ── Footer ────────────────────────────────────────────────────────
-        ftr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_FOOTER_H)
+        ftr = tk.Frame(outer, bg="#0a0a12", height=_CARD_FOOTER_H)
         ftr.pack(fill=tk.X)
         ftr.pack_propagate(False)
 
-        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0c0c0f", fg="#3a3a50",
+        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0a0a12", fg="#2a3a4a",
                             font=("Segoe UI", 9), cursor="hand2")
         copy_btn.pack(side=tk.LEFT, padx=14)
         copy_btn.bind("<Button-1>", lambda e: self._copy_to_clipboard())
         copy_btn.bind("<Enter>", lambda e: copy_btn.config(fg="#888899"))
-        copy_btn.bind("<Leave>", lambda e: copy_btn.config(fg="#3a3a50"))
+        copy_btn.bind("<Leave>", lambda e: copy_btn.config(fg="#2a3a4a"))
 
-        self._footer_label = tk.Label(ftr, text="", bg="#0c0c0f", fg="#252535",
+        self._footer_label = tk.Label(ftr, text="", bg="#0a0a12", fg="#252535",
                                       font=("Segoe UI", 9))
         self._footer_label.pack(side=tk.RIGHT, padx=14)
 
         # ── Progress bar ──────────────────────────────────────────────────
-        prog = tk.Canvas(outer, bg="#151520", height=_CARD_PROG_H,
+        prog = tk.Canvas(outer, bg="#0b0f18", height=_CARD_PROG_H,
                          highlightthickness=0)
         prog.pack(fill=tk.X, side=tk.BOTTOM)
         self._prog_canvas = prog
