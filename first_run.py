@@ -219,6 +219,12 @@ def setup_llama_binary() -> tuple[Path, bool]:
     else:
         chosen_backend = detected
 
+    # Return existing binary if already installed
+    existing = LLAMA_DIR / "llama-server"
+    if existing.exists():
+        print(f"  llama-server already installed: {existing}")
+        return existing, True
+
     LLAMA_DIR.mkdir(parents=True, exist_ok=True)
     try:
         url, filename = fetch_latest_llama_asset(chosen_backend)
