@@ -1396,7 +1396,7 @@ class RecordingWidget:
         # Update label
         self._update_label()
 
-        # Indicator dot — red=recording, violet=assistant listen, green=writing
+        # Indicator dot — pulsing red for dictation, violet for assistant
         if self._dot_id is not None:
             if self._mode == self.RECORDING:
                 val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
@@ -1414,21 +1414,18 @@ class RecordingWidget:
                 self._canvas.itemconfig(self._dot_id,
                                         fill=f"#{r:02x}{g:02x}{b:02x}",
                                         state="normal")
-            elif self._mode == self.PROCESSING and self._expression == "writing":
-                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
-                r = int(20 * val)
-                g = int(140 + 115 * val)
-                b = int(40 * val)
-                self._canvas.itemconfig(self._dot_id,
-                                        fill=f"#{r:02x}{g:02x}{b:02x}",
-                                        state="normal")
             else:
                 self._canvas.itemconfig(self._dot_id, state="hidden")
 
-        # Waveform bars (recording + assistant both show animated bars)
-        if self._mode in (self.RECORDING, self.ASSISTANT):
-            with self._level_lock:
-                level = self._level
+        # Waveform bars — live audio level for recording/assistant,
+        # synthetic idle pulse (green) during dictation's "writing" state.
+        writing = (self._mode == self.PROCESSING and self._expression == "writing")
+        if self._mode in (self.RECORDING, self.ASSISTANT) or writing:
+            if writing:
+                level = 0.7
+            else:
+                with self._level_lock:
+                    level = self._level
             max_amp = (_H - 16) / 2
             wave_start_x = _TEXT_X + 90
             t = self._tick * 0.12
@@ -1439,9 +1436,16 @@ class RecordingWidget:
                 cx = wave_start_x + i * (_BAR_W + _BAR_GAP) + _BAR_W // 2
                 self._canvas.coords(bid, cx, mid_y - amp, cx, mid_y + amp)
                 opacity = 0.25 + 0.35 * val
-                c_val = int(255 * opacity)
-                self._canvas.itemconfig(bid, fill=f"#{c_val:02x}{c_val:02x}{c_val:02x}",
-                                        state="normal")
+                if writing:
+                    # green tint: scale G channel full, R/B channels dimmed
+                    r = int(60 * opacity)
+                    g = int(255 * opacity)
+                    b = int(80 * opacity)
+                    fill = f"#{r:02x}{g:02x}{b:02x}"
+                else:
+                    c_val = int(255 * opacity)
+                    fill = f"#{c_val:02x}{c_val:02x}{c_val:02x}"
+                self._canvas.itemconfig(bid, fill=fill, state="normal")
 
         elif self._mode == self.PROCESSING:
             for bid in self._bar_ids:
