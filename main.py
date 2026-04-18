@@ -322,6 +322,16 @@ def main():
                     on_assist=_tray_toggle_assistant)
     tray.start()
 
+    from platform_linux import is_wayland as _is_wayland
+    if _is_wayland():
+        _tray_tip = (f"Writher — {config.WAYLAND_HOTKEY}=dictate, "
+                     f"{config.WAYLAND_ASSISTANT_HOTKEY}=assistant")
+    else:
+        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
+        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
+        _tray_tip = f"Writher — {_hk_d}=dictate, {_hk_a}=assistant"
+    tray.set_tooltip(_tray_tip)
+
     # Check llama-server connectivity at startup
     if not assistant.ping_llama_server():
         log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
@@ -357,7 +367,13 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    log.info("Ready. AltGr=dictate, Ctrl+R=assistant.")
+    if _is_wayland():
+        log.info("Ready. %s=dictate, %s=assistant.",
+                 config.WAYLAND_HOTKEY, config.WAYLAND_ASSISTANT_HOTKEY)
+    else:
+        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
+        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
+        log.info("Ready. %s=dictate, %s=assistant.", _hk_d, _hk_a)
     root.after(50, _pump_qt)
     root.mainloop()
 
