@@ -27,7 +27,7 @@ WritHer sits in your system tray and gives you two modes:
 | Mode | Default hotkey | What it does |
 |---|---|---|
 | **Dictation** | `Ctrl+Alt+W` | Transcribes your voice and pastes text directly into whichever app has focus — editors, browsers, chat windows, anything. |
-| **Assistant** | `Ctrl+Alt+R` | Understands natural-language commands: save notes, schedule appointments, set reminders, search the web or your Obsidian vault — all by voice. |
+| **Assistant** | `Ctrl+Alt+R` | Understands natural-language commands: search the web, query your Obsidian vault, launch or close apps — all by voice. |
 
 Everything runs **locally**: speech recognition via [faster-whisper](https://github.com/SYSTRAN/faster-whisper), LLM via [llama.cpp](https://github.com/ggml-org/llama.cpp), optional TTS via [Piper](https://github.com/rhasspy/piper). No cloud, no API keys, no telemetry.
 
@@ -36,7 +36,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 ## Features
 
 - **Toggle-mode dictation** — press once to start recording, press again to paste
-- **Voice assistant** — notes, lists, appointments, reminders via natural speech
+- **Voice assistant** — natural-language commands handled locally by the LLM
 - **Web search** — ask the assistant to look something up; answer spoken aloud
 - **Obsidian vault search** — query your markdown notes by voice
 - **App launcher** — open or close any installed app by name (searches `.desktop` files + PATH)
