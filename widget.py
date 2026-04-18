@@ -569,12 +569,14 @@ class AnswerCard:
     # ── countdown ─────────────────────────────────────────────────────────
 
     def _countdown_tick(self):
+        now = time.monotonic()
+        remaining = self._countdown_dur - (now - self._countdown_start)
+        log.debug("AC tick: paused=%s remaining=%.1f", self._paused, remaining)
         if self._paused:
             self._after_countdown = self._root.after(100, self._countdown_tick)
             return
-        now = time.monotonic()
-        remaining = self._countdown_dur - (now - self._countdown_start)
         if remaining <= 0:
+            log.info("AC countdown expired -> fade_out")
             self._start_fade_out()
             return
         secs = max(1, int(remaining) + 1)
@@ -628,6 +630,7 @@ class AnswerCard:
         self._fade_step()
 
     def _start_fade_out(self):
+        log.info("AC fade_out: alpha=%.2f win=%s", self._alpha, self._win is not None)
         self._cancel_all_timers()
         if self._win is None or self._alpha <= 0.0:
             self._do_hide()
@@ -705,6 +708,7 @@ class RecordingWidget:
         self._label_id   = None    # status label (JSX-style)
         self._sep_ids    = []      # separator lines
         self._dot_id     = None   # pulsing color dot: red=dictate, violet=assistant
+        self._close_id   = None    # close button × on the right edge
         self._after_anim = None
         self._after_fade = None
         self._after_msg  = None
@@ -889,6 +893,7 @@ class RecordingWidget:
             try:
                 self._win.wm_attributes("-alpha", 0.0)
                 self._alpha = 0.0
+                self._win.withdraw()
             except Exception:
                 pass
 
@@ -1059,6 +1064,19 @@ class RecordingWidget:
             font=("Segoe UI", 10),
             anchor="center", state="hidden",
         )
+
+        # ── Close button ─────────────────────────────────────────────
+        self._close_id = c.create_text(
+            _W - 12, _H // 2,
+            text="×", fill="#33334a",
+            font=("Segoe UI", 11, "bold"),
+            anchor="center",
+        )
+        c.tag_bind(self._close_id, "<Button-1>", lambda e: self.hide())
+        c.tag_bind(self._close_id, "<Enter>",
+                   lambda e: c.itemconfig(self._close_id, fill="#aaaacc"))
+        c.tag_bind(self._close_id, "<Leave>",
+                   lambda e: c.itemconfig(self._close_id, fill="#33334a"))
 
         self._canvas = c
         self._win    = win
