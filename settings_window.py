@@ -21,15 +21,17 @@ import tts
 _WIN_W, _WIN_H = 480, 680
 
 
-class _SpeakerDropdown(ctk.CTkFrame):
+class _ScrollableDropdown(ctk.CTkFrame):
     """CTkOptionMenu replacement with a fixed-height scrollable popup."""
 
     _POPUP_H = 180
 
-    def __init__(self, master, *, values: list[str], variable: tk.StringVar):
+    def __init__(self, master, *, values: list[str], variable: tk.StringVar,
+                 command=None):
         super().__init__(master, fg_color="transparent")
         self._values = list(values)
         self._var = variable
+        self._command = command
         self._popup: ctk.CTkToplevel | None = None
 
         self._btn = ctk.CTkButton(
@@ -107,6 +109,8 @@ class _SpeakerDropdown(ctk.CTkFrame):
     def _pick(self, val: str) -> None:
         self._var.set(val)
         self._close_popup()
+        if self._command:
+            self._command(val)
 
     def _close_popup(self) -> None:
         if self._popup and self._popup.winfo_exists():
@@ -488,15 +492,10 @@ class SettingsWindow:
             value=db.get_setting("tts_voice_fr", fr_voices[0]))
         self._tts_fr_row = ctk.CTkFrame(pad, fg_color="transparent")
         self._tts_fr_row.pack(fill="x", pady=(0, T.PAD_M))
-        self._tts_voice_fr_menu = ctk.CTkOptionMenu(
+        self._tts_voice_fr_menu = _ScrollableDropdown(
             self._tts_fr_row,
             values=fr_voices,
             variable=self._tts_voice_fr_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
             command=lambda v: (db.save_setting("tts_voice_fr", v), tts.init(),
                                self._update_speaker_row("fr")),
         )
@@ -520,7 +519,7 @@ class SettingsWindow:
         if _fr_saved not in _fr_values:
             _fr_saved = "0"
         self._tts_speaker_fr_var = tk.StringVar(master=self._win, value=_fr_saved)
-        self._tts_speaker_fr_menu = _SpeakerDropdown(
+        self._tts_speaker_fr_menu = _ScrollableDropdown(
             self._tts_speaker_fr_row,
             values=_fr_values,
             variable=self._tts_speaker_fr_var,
@@ -544,15 +543,10 @@ class SettingsWindow:
             value=db.get_setting("tts_voice_en", en_voices[0]))
         self._tts_en_row = ctk.CTkFrame(pad, fg_color="transparent")
         self._tts_en_row.pack(fill="x", pady=(0, T.PAD_L))
-        self._tts_voice_en_menu = ctk.CTkOptionMenu(
+        self._tts_voice_en_menu = _ScrollableDropdown(
             self._tts_en_row,
             values=en_voices,
             variable=self._tts_voice_en_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
             command=lambda v: (db.save_setting("tts_voice_en", v), tts.init(),
                                self._update_speaker_row("en")),
         )
@@ -576,7 +570,7 @@ class SettingsWindow:
         if _en_saved not in _en_values:
             _en_saved = "0"
         self._tts_speaker_en_var = tk.StringVar(master=self._win, value=_en_saved)
-        self._tts_speaker_en_menu = _SpeakerDropdown(
+        self._tts_speaker_en_menu = _ScrollableDropdown(
             self._tts_speaker_en_row,
             values=_en_values,
             variable=self._tts_speaker_en_var,
