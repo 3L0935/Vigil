@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="img/logo_vigil.png" width="280" alt="Vigil">
+  <img src="img/logo_vigil.png" alt="Vigil" width="100%">
 </p>
 
 <h1 align="center">Vigil</h1>
