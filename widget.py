@@ -171,40 +171,27 @@ class _ActiveScreenTracker:
 
     def _query(self, d, root, atom, screens):
         # Try to locate the active X11 window on a screen.
-        matched = False
         try:
             prop = root.get_full_property(atom, 0)
-            if prop and prop.value and prop.value[0] != 0:
-                win = d.create_resource_object('window', int(prop.value[0]))
+            wid = int(prop.value[0]) if prop and prop.value else 0
+            log.debug("[tracker] _NET_ACTIVE_WINDOW = 0x%x", wid)
+            if wid != 0:
+                win = d.create_resource_object('window', wid)
                 geom = win.get_geometry()
+                trans = root.translate_coords(win, 0, 0)
+                cx = trans.x + geom.width // 2
+                cy = trans.y + geom.height // 2
+                log.debug("[tracker] win geom=%dx%d trans=(%d,%d) center=(%d,%d)",
+                          geom.width, geom.height, trans.x, trans.y, cx, cy)
                 if geom.width > 0 and geom.height > 0:
-                    trans = root.translate_coords(win, 0, 0)
-                    cx = trans.x + geom.width // 2
-                    cy = trans.y + geom.height // 2
                     for ox, oy, sw, sh in screens:
                         if ox <= cx < ox + sw and oy <= cy < oy + sh:
                             with self._lock:
                                 self._rect = (ox, oy, sw, sh)
-                            log.debug("active win -> screen (%d,%d %dx%d)", ox, oy, sw, sh)
-                            matched = True
-                            break
-        except Exception:
-            pass
-
-        if not matched:
-            # Wayland-native window or bad proxy position: fall back to cursor.
-            # query_pointer() goes through XWayland and returns real coordinates.
-            try:
-                ptr = root.query_pointer()
-                cx, cy = ptr.root_x, ptr.root_y
-                for ox, oy, sw, sh in screens:
-                    if ox <= cx < ox + sw and oy <= cy < oy + sh:
-                        with self._lock:
-                            self._rect = (ox, oy, sw, sh)
-                        log.debug("active cursor -> screen (%d,%d %dx%d)", ox, oy, sw, sh)
-                        break
-            except Exception:
-                pass
+                            log.debug("[tracker] win -> screen (%d,%d %dx%d)", ox, oy, sw, sh)
+                            return
+        except Exception as e:
+            log.debug("[tracker] win lookup error: %s", e)
 
     def _run(self):
         try:
@@ -257,12 +244,35 @@ def _pill_xy(ox: int, oy: int, sw: int, sh: int, pos: str) -> tuple[int, int]:
     return px, py
 
 
+def _get_screen_rect_by_name(name: str) -> tuple[int, int, int, int] | None:
+    """Return (ox, oy, w, h) for the xrandr output named *name*, or None."""
+    try:
+        out = subprocess.check_output(
+            ["xrandr", "--query"], text=True, stderr=subprocess.DEVNULL, timeout=2)
+        for line in out.splitlines():
+            if not line.startswith(name + " "):
+                continue
+            m = re.search(r"\bconnected\b.*?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
+            if m:
+                w, h, ox, oy = (int(m.group(i)) for i in (1, 2, 3, 4))
+                return ox, oy, w, h
+    except Exception:
+        pass
+    return None
+
+
 def _monitor_rect(root) -> tuple[int, int, int, int]:
     """Return (left, top, w, h) of the monitor that holds the active window.
 
     Uses _NET_ACTIVE_WINDOW (X11/XWayland, works on KDE Wayland via bridge)
     as primary source. Falls back to Qt primary screen, then xrandr+cursor.
     """
+    locked = getattr(config, "OVERLAY_SCREEN", "auto")
+    if locked and locked != "auto":
+        rect = _get_screen_rect_by_name(locked)
+        if rect:
+            return rect
+
     if _active_screen_tracker is not None:
         rect = _active_screen_tracker.get_rect()
         if rect:

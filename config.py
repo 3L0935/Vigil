@@ -43,4 +43,5 @@ APPOINTMENT_REMIND_MINUTES = 15
 
 # ── Overlay ───────────────────────────────────────────────────────────────
 OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}
+OVERLAY_SCREEN   = "auto"            # "auto" or xrandr output name e.g. "DP-2"
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes

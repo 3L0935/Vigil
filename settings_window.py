@@ -39,6 +39,7 @@ class SettingsWindow:
         self._vault_path_var = None
         self._lang_var = None
         self._overlay_pos_var = None
+        self._overlay_screen_var = None
 
     def show(self):
         if self._win is not None:
@@ -263,6 +264,31 @@ class SettingsWindow:
             command=self._on_overlay_pos_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
+        # ── Lock to screen ────────────────────────────────────────────
+        ctk.CTkLabel(pad, text="Lock to screen",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        try:
+            from platform_linux import get_xrandr_screens
+            _screen_choices = ["auto"] + get_xrandr_screens()
+        except Exception:
+            _screen_choices = ["auto"]
+
+        self._overlay_screen_var = tk.StringVar(
+            master=self._win, value=getattr(config, "OVERLAY_SCREEN", "auto"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=_screen_choices,
+            variable=self._overlay_screen_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_overlay_screen_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
         # ── Save button ───────────────────────────────────────────────
         ctk.CTkButton(
             pad, text=locales.get("setting_saved"), height=36,
@@ -311,6 +337,8 @@ class SettingsWindow:
             self._lang_var.set(getattr(config, "LANGUAGE", "en"))
         if self._overlay_pos_var:
             self._overlay_pos_var.set(getattr(config, "OVERLAY_POSITION", "bottom-center"))
+        if self._overlay_screen_var:
+            self._overlay_screen_var.set(getattr(config, "OVERLAY_SCREEN", "auto"))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -346,6 +374,11 @@ class SettingsWindow:
         db.save_setting("overlay_position", value)
         log.info("Overlay position set to %s", value)
 
+    def _on_overlay_screen_change(self, value: str):
+        config.OVERLAY_SCREEN = value
+        db.save_setting("overlay_screen", value)
+        log.info("Overlay screen set to %s", value)
+
     def _save_linux_settings(self):
         if self._llm_url_var:
             url = self._llm_url_var.get().strip()
@@ -374,4 +407,8 @@ class SettingsWindow:
             pos = self._overlay_pos_var.get()
             config.OVERLAY_POSITION = pos
             db.save_setting("overlay_position", pos)
+        if self._overlay_screen_var:
+            screen = self._overlay_screen_var.get()
+            config.OVERLAY_SCREEN = screen
+            db.save_setting("overlay_screen", screen)
         log.info("Settings saved.")

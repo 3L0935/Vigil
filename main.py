@@ -67,6 +67,9 @@ def _load_settings():
     whisper = db.get_setting("whisper_model", "")
     if whisper:
         config.MODEL_SIZE = whisper
+    screen = db.get_setting("overlay_screen", "")
+    if screen:
+        config.OVERLAY_SCREEN = screen
 
 
 def _on_whisper_model_change(model_name: str):
