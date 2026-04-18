@@ -60,7 +60,12 @@ git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 
 # ── 3. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."
-uv --directory "$INSTALL_DIR" sync
+# Preserve TTS if it was installed (piper-tts is an optional dep — uv sync drops it without --extra)
+SYNC_EXTRAS=""
+if uv --directory "$INSTALL_DIR" run python -c "import piper" 2>/dev/null; then
+    SYNC_EXTRAS="--extra tts-piper"
+fi
+uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
 
 # ── 4. Restart if it was running ─────────────────────────────────────────────
 if [[ "$WAS_RUNNING" == true ]]; then
