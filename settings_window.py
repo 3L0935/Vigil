@@ -251,7 +251,9 @@ class SettingsWindow:
             master=self._win, value=getattr(config, "OVERLAY_POSITION", "bottom-center"))
         ctk.CTkOptionMenu(
             pad,
-            values=["bottom-center", "bottom-right", "top-right"],
+            values=["bottom-center", "bottom-left", "bottom-right",
+                    "middle-center", "middle-left", "middle-right",
+                    "top-center", "top-left", "top-right"],
             variable=self._overlay_pos_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
             button_hover_color=T.BG_HOVER, text_color=T.FG,

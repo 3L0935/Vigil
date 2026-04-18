@@ -151,30 +151,114 @@ def _no_activate(hwnd: int) -> None:
 
 # ── multi-monitor helper ──────────────────────────────────────────────────
 
-def _monitor_rect(root) -> tuple[int, int, int, int]:
-    """Return (left, top, w, h) of the monitor that contains the mouse cursor.
+class _ActiveScreenTracker:
+    """Watches _NET_ACTIVE_WINDOW via X11/XWayland to know which xrandr
+    monitor holds the focused window. KDE Plasma maintains this property
+    even for Wayland-native windows via its X11 compatibility bridge."""
 
-    Tries Qt (Wayland-native) first, falls back to xrandr for pure X11.
+    def __init__(self):
+        self._rect: tuple | None = None
+        self._lock = threading.Lock()
+        self._thread = threading.Thread(target=self._run, daemon=True,
+                                        name="ActiveScreenTracker")
+
+    def start(self):
+        self._thread.start()
+
+    def get_rect(self):
+        with self._lock:
+            return self._rect
+
+    def _query(self, d, root, atom, screens):
+        try:
+            prop = root.get_full_property(atom, 0)
+            if not prop or not prop.value or prop.value[0] == 0:
+                return
+            win = d.create_resource_object('window', int(prop.value[0]))
+            geom = win.get_geometry()
+            if geom.width == 0 or geom.height == 0:
+                return
+            # translate (0,0) from win coords into root/global coords
+            trans = root.translate_coords(win, 0, 0)
+            cx = trans.x + geom.width // 2
+            cy = trans.y + geom.height // 2
+            for ox, oy, sw, sh in screens:
+                if ox <= cx < ox + sw and oy <= cy < oy + sh:
+                    with self._lock:
+                        self._rect = (ox, oy, sw, sh)
+                    log.debug("active screen -> (%d,%d %dx%d)", ox, oy, sw, sh)
+                    return
+        except Exception:
+            pass
+
+    def _run(self):
+        try:
+            from Xlib import display as _xd, X
+            d = _xd.Display()
+            root = d.screen().root
+            screens = []
+            try:
+                out = subprocess.check_output(
+                    ["xrandr", "--query"], text=True,
+                    stderr=subprocess.DEVNULL, timeout=2)
+                for line in out.splitlines():
+                    m = re.search(r"\bconnected\b.*?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
+                    if m:
+                        w, h, ox, oy = (int(m.group(i)) for i in (1, 2, 3, 4))
+                        screens.append((ox, oy, w, h))
+            except Exception:
+                pass
+            if not screens:
+                return
+            atom = d.intern_atom('_NET_ACTIVE_WINDOW')
+            root.change_attributes(event_mask=X.PropertyChangeMask)
+            d.flush()
+            self._query(d, root, atom, screens)
+            while True:
+                ev = d.next_event()
+                if (ev.type == X.PropertyNotify
+                        and hasattr(ev, 'atom') and ev.atom == atom):
+                    self._query(d, root, atom, screens)
+        except Exception as exc:
+            log.debug("ActiveScreenTracker stopped: %s", exc)
+
+
+_active_screen_tracker: _ActiveScreenTracker | None = None
+
+
+def _pill_xy(ox: int, oy: int, sw: int, sh: int, pos: str) -> tuple[int, int]:
+    """Return pill top-left (x, y) for a monitor rect and position key.
+
+    pos format: "<vert>-<horiz>"  e.g. "bottom-center", "top-left", "middle-right"
     """
+    m = _CARD_MARGIN
+    parts = pos.split("-")
+    vert  = parts[0] if parts[0] in ("top", "middle", "bottom") else "bottom"
+    horiz = parts[1] if len(parts) > 1 and parts[1] in ("left", "center", "right") else "center"
+    px = {"left": ox + m, "center": ox + (sw - _W) // 2,
+          "right": ox + sw - _W - m}[horiz]
+    py = {"top": oy + m, "middle": oy + (sh - _H) // 2,
+          "bottom": oy + sh - _H - m}[vert]
+    return px, py
+
+
+def _monitor_rect(root) -> tuple[int, int, int, int]:
+    """Return (left, top, w, h) of the monitor that holds the active window.
+
+    Uses _NET_ACTIVE_WINDOW (X11/XWayland, works on KDE Wayland via bridge)
+    as primary source. Falls back to Qt primary screen, then xrandr+cursor.
+    """
+    if _active_screen_tracker is not None:
+        rect = _active_screen_tracker.get_rect()
+        if rect:
+            return rect
     try:
-        from PyQt6.QtGui import QCursor
         from PyQt6.QtWidgets import QApplication
         app = QApplication.instance()
         if app is not None:
-            pos = QCursor.pos()
-            cx, cy = pos.x(), pos.y()
-            # Wayland doesn't expose global cursor pos without pointer focus —
-            # QCursor.pos() returns (0,0) in that case. Fall back to primary.
-            if cx == 0 and cy == 0:
-                screen = app.primaryScreen()
-            else:
-                screen = app.screenAt(pos)
-                if screen is None:
-                    screen = app.primaryScreen()
+            screen = app.primaryScreen()
             if screen is not None:
                 geo = screen.geometry()
-                log.debug("pill Qt monitor=(%d,%d %dx%d) cursor=(%d,%d)",
-                          geo.x(), geo.y(), geo.width(), geo.height(), cx, cy)
                 return geo.x(), geo.y(), geo.width(), geo.height()
     except Exception:
         pass
@@ -419,21 +503,29 @@ class AnswerCard:
     def _calc_position(self, card_h: int) -> tuple[int, int]:
         ox, oy, sw, sh = _monitor_rect(self._root)
         pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
-        pill_top_y = oy + sh - _H - 52
+        px, py = _pill_xy(ox, oy, sw, sh, pos)
+        m = _CARD_MARGIN
+        parts = pos.split("-")
+        vert  = parts[0] if parts[0] in ("top", "middle", "bottom") else "bottom"
+        horiz = parts[1] if len(parts) > 1 else "center"
 
-        if pos == "bottom-center":
-            x = ox + (sw - _CARD_W) // 2
-            y = pill_top_y - _CARD_GAP - card_h
-        elif pos == "bottom-right":
-            x = ox + sw - _CARD_W - _CARD_MARGIN
-            y = oy + sh - _H - _CARD_MARGIN - _CARD_GAP - card_h
-        elif pos == "top-right":
-            x = ox + sw - _CARD_W - _CARD_MARGIN
-            y = oy + _CARD_MARGIN + _H + _CARD_GAP
+        # horizontal: align with pill, clamped to screen
+        if horiz == "left":
+            cx = px
+        elif horiz == "right":
+            cx = px + _W - _CARD_W
         else:
-            x = ox + (sw - _CARD_W) // 2
-            y = pill_top_y - _CARD_GAP - card_h
-        return x, y
+            cx = ox + (sw - _CARD_W) // 2
+        cx = max(ox + m, min(ox + sw - _CARD_W - m, cx))
+
+        # vertical: above pill for bottom/middle-low, below for top/middle-high
+        if vert == "bottom" or (vert == "middle" and py >= oy + sh // 2):
+            cy = py - _CARD_GAP - card_h
+        else:
+            cy = py + _H + _CARD_GAP
+        cy = max(oy + m, min(oy + sh - card_h - m, cy))
+
+        return cx, cy
 
     # ── typewriter ────────────────────────────────────────────────────────
 
@@ -606,6 +698,11 @@ class RecordingWidget:
         self._pill_cache = {}
         # Answer card (separate Toplevel, shown after LLM response)
         self._answer_card: AnswerCard | None = None
+        # Start active-screen tracker once (shared across all instances)
+        global _active_screen_tracker
+        if _active_screen_tracker is None:
+            _active_screen_tracker = _ActiveScreenTracker()
+            _active_screen_tracker.start()
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -951,15 +1048,7 @@ class RecordingWidget:
             return
         ox, oy, sw, sh = _monitor_rect(self._root)
         pos = getattr(config, "OVERLAY_POSITION", "bottom-center")
-        if pos == "bottom-right":
-            px = ox + sw - _W - _CARD_MARGIN
-            py = oy + sh - _H - _CARD_MARGIN
-        elif pos == "top-right":
-            px = ox + sw - _W - _CARD_MARGIN
-            py = oy + _CARD_MARGIN
-        else:  # bottom-center
-            px = ox + (sw - _W) // 2
-            py = oy + sh - _H - 52
+        px, py = _pill_xy(ox, oy, sw, sh, pos)
         log.debug("pill pos=%s monitor=(%d,%d %dx%d) -> +%d+%d", pos, ox, oy, sw, sh, px, py)
         self._win.geometry(f"{_W}x{_H}+{px}+{py}")
 

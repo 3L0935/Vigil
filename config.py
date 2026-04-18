@@ -42,5 +42,5 @@ OBSIDIAN_VAULT_PATH = "/home/elo/.obsidian-vault/wiki/"
 APPOINTMENT_REMIND_MINUTES = 15
 
 # ── Overlay ───────────────────────────────────────────────────────────────
-OVERLAY_POSITION = "bottom-center"   # bottom-center | bottom-right | top-right
+OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes
