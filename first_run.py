@@ -445,6 +445,7 @@ def main():
     db.save_setting("llama_server_managed", "true" if managed else "false")
     db.save_setting("llama_model",          str(model_path))
     db.save_setting("llama_unload_timeout", "120")
+    db.save_setting("setup_complete",       "1")
 
     print("\n=== Configuration saved ===")
     print(f"  llama-server : {bin_path}")
