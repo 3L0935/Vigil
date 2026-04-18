@@ -14,33 +14,37 @@ step()  { echo -e "${GREEN}==> ${BOLD}$1${NC}"; }
 warn()  { echo -e "${YELLOW}WARN:${NC} $1"; }
 die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
 
+# Restore stdin from terminal when piped via curl | bash
+[[ -t 0 ]] || exec </dev/tty
+
 # ── Detect source directory ──────────────────────────────────────────────────
-# If install.sh is run from inside the repo, use that directory directly.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
+_IN_REPO=false
 if [[ -f "$SCRIPT_DIR/main.py" && -f "$SCRIPT_DIR/pyproject.toml" ]]; then
     INSTALL_DIR="$SCRIPT_DIR"
+    _IN_REPO=true
     step "Using existing source: $INSTALL_DIR"
 fi
-
-# ── Check git ────────────────────────────────────────────────────────────────
-command -v git >/dev/null 2>&1 || die "git is required. Install it with your package manager."
 
 # ── Install uv if missing ────────────────────────────────────────────────────
 if ! command -v uv >/dev/null 2>&1; then
     step "Installing uv (Python package manager)..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Add uv to PATH for this script session
     export PATH="$HOME/.local/bin:$PATH"
 fi
 command -v uv >/dev/null 2>&1 || die "uv not found after install. Re-open your terminal and re-run."
 
-# ── Clone or update repo ─────────────────────────────────────────────────────
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-    step "Updating existing installation..."
-    git -C "$INSTALL_DIR" pull --ff-only
-elif [[ ! -f "$INSTALL_DIR/main.py" ]]; then
-    step "Cloning WritHer..."
-    git clone "$REPO_URL" "$INSTALL_DIR"
+# ── Download source (curl/remote install only) ───────────────────────────────
+if [[ "$_IN_REPO" == false ]]; then
+    command -v git >/dev/null 2>&1 || die "git is required. Install it with your package manager."
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+        step "Updating existing installation..."
+        git -C "$INSTALL_DIR" pull --ff-only
+    else
+        step "Downloading WritHer..."
+        rm -rf "$INSTALL_DIR"
+        git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
+    fi
 fi
 
 # ── Install Python dependencies ──────────────────────────────────────────────
@@ -98,6 +102,12 @@ echo "(This will download llama-server, a model, and optionally Piper TTS voices
 echo ""
 uv --directory "$INSTALL_DIR" run python first_run.py
 
+# ── Clean up git metadata (curl installs only) ────────────────────────────────
+if [[ "$_IN_REPO" == false && -d "$INSTALL_DIR/.git" ]]; then
+    step "Cleaning up download artifacts..."
+    rm -rf "$INSTALL_DIR/.git"
+fi
+
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${NC}"
@@ -105,4 +115,4 @@ echo ""
 echo "  Run WritHer:  writher"
 echo "  Or launch from your application menu."
 echo ""
-echo "  To uninstall: bash $INSTALL_DIR/uninstall.sh"
+echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash"
