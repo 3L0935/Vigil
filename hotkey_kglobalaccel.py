@@ -32,17 +32,54 @@ _MOD_SHIFT = 0x02000000
 _MOD_ALT   = 0x08000000
 _MOD_META  = 0x10000000
 
-_KEY_CODES: dict[str, int] = {
-    "ISO_Level3_Shift": 0x01001103,
-    "Ctrl+R":           82 | _MOD_CTRL,
-    "Ctrl+D":           68 | _MOD_CTRL,
-    "Ctrl+Alt+D":       68 | _MOD_CTRL | _MOD_ALT,
-    "Ctrl+Alt+A":       65 | _MOD_CTRL | _MOD_ALT,
-    "Ctrl+Alt+W":       87 | _MOD_CTRL | _MOD_ALT,
-    "Ctrl+Alt+R":       82 | _MOD_CTRL | _MOD_ALT,
-    "Meta+V":           86 | _MOD_META,
-    "Meta+A":           65 | _MOD_META,
-}
+def _parse_combo(combo: str) -> int | None:
+    """Parse 'Ctrl+Alt+W' → Qt keycode int, or None if unrecognised."""
+    parts = [p.strip() for p in combo.split("+")]
+    modifiers = 0
+    base = None
+    for part in parts:
+        upper = part.upper()
+        if upper == "CTRL":
+            modifiers |= _MOD_CTRL
+        elif upper == "SHIFT":
+            modifiers |= _MOD_SHIFT
+        elif upper in ("ALT", "ALTGR"):
+            modifiers |= _MOD_ALT
+        elif upper in ("META", "SUPER", "WIN"):
+            modifiers |= _MOD_META
+        elif len(part) == 1 and part.upper().isalpha():
+            base = ord(part.upper())
+        elif len(part) == 1 and part.isdigit():
+            base = ord(part)
+        elif upper.startswith("F") and upper[1:].isdigit():
+            n = int(upper[1:])
+            if 1 <= n <= 35:
+                base = 0x01000030 + (n - 1)
+        elif upper == "SPACE":
+            base = 0x20
+        elif upper == "TAB":
+            base = 0x01000001
+        elif upper in ("RETURN", "ENTER"):
+            base = 0x01000005
+        elif upper in ("DELETE", "DEL"):
+            base = 0x01000007
+        elif upper == "INSERT":
+            base = 0x01000006
+        elif upper == "HOME":
+            base = 0x01000010
+        elif upper == "END":
+            base = 0x01000011
+        elif upper in ("PAGEUP", "PGUP"):
+            base = 0x01000016
+        elif upper in ("PAGEDOWN", "PGDN"):
+            base = 0x01000017
+        else:
+            log.warning("_parse_combo: unrecognised part '%s' in combo '%s'", part, combo)
+            return None
+    if base is None:
+        log.warning("_parse_combo: no base key found in combo '%s'", combo)
+        return None
+    return base | modifiers
 
 _APP_ID = "writher"
 _KGLOBAL_CONFIG = os.path.expanduser("~/.config/kglobalshortcutsrc")
@@ -98,11 +135,11 @@ def register(
         log.warning("dbus-python or PyGObject not installed — KGlobalAccel unavailable.")
         return False
 
-    dict_code   = _KEY_CODES.get(dictation_key)
-    assist_code = _KEY_CODES.get(assistant_key) if assistant_key else None
+    dict_code   = _parse_combo(dictation_key)
+    assist_code = _parse_combo(assistant_key) if assistant_key else None
 
     if dict_code is None:
-        log.warning("KGlobalAccel: no Qt keycode mapping for '%s'", dictation_key)
+        log.warning("KGlobalAccel: could not parse combo '%s'", dictation_key)
         return False
 
     try:

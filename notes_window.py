@@ -121,9 +121,8 @@ class NotesWindow:
         tab_bar.pack_propagate(False)
 
         tabs = [
-            ("notes",        locales.get("tab_notes")),
-            ("appointments", locales.get("tab_agenda")),
-            ("reminders",    locales.get("tab_reminders")),
+            ("notes",     locales.get("tab_notes")),
+            ("reminders", locales.get("tab_reminders")),
         ]
 
         for key, label in tabs:

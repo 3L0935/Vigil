@@ -4,12 +4,13 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _reset(engine="off", mode="overlay", vfr="", ven=""):
+def _reset(engine="off", mode="overlay", vfr="", ven="", volume=1.0):
     import tts
     tts._engine = engine
     tts._mode = mode
     tts._voice_fr = vfr
     tts._voice_en = ven
+    tts._volume = volume
 
 
 # ── is_enabled ────────────────────────────────────────────────────────────
@@ -47,13 +48,27 @@ def test_init_reads_db():
         "tts_mode": "both",
         "tts_voice_fr": "fr_FR-siwis-medium",
         "tts_voice_en": "en_US-ryan-high",
+        "tts_volume": "0.8",
     }
     with patch("database.get_setting", side_effect=lambda k, d="": settings.get(k, d)):
-        tts.init()
+        with patch("database.save_setting"):
+            tts.init()
     assert tts._engine == "piper"
     assert tts._mode == "both"
     assert tts._voice_fr == "fr_FR-siwis-medium"
     assert tts._voice_en == "en_US-ryan-high"
+    assert tts._volume == 0.8
+
+
+def test_init_migrates_kokoro_to_off():
+    import tts
+    settings = {"tts_engine": "kokoro", "tts_mode": "overlay",
+                "tts_voice_fr": "", "tts_voice_en": "", "tts_volume": "1.0"}
+    with patch("database.get_setting", side_effect=lambda k, d="": settings.get(k, d)):
+        with patch("database.save_setting") as mock_save:
+            tts.init()
+    assert tts._engine == "off"
+    mock_save.assert_called_with("tts_engine", "off")
 
 
 # ── list_voices ───────────────────────────────────────────────────────────
@@ -63,26 +78,6 @@ def test_list_voices_engine_off():
     import tts
     assert tts.list_voices("fr") == []
     assert tts.list_voices("en") == []
-
-
-def test_list_voices_kokoro_fr():
-    _reset(engine="kokoro")
-    import tts
-    voices = tts.list_voices("fr")
-    names = [v["name"] for v in voices]
-    assert "fr_0" in names
-    assert all(v["engine"] == "kokoro" for v in voices)
-    assert all(v["path"] is None for v in voices)
-
-
-def test_list_voices_kokoro_en():
-    _reset(engine="kokoro")
-    import tts
-    voices = tts.list_voices("en")
-    names = [v["name"] for v in voices]
-    assert "af_heart" in names
-    assert "af_bella" in names
-    assert "bm_george" in names
 
 
 def test_list_voices_piper_no_files(tmp_path):
@@ -140,37 +135,18 @@ def test_stop_calls_sounddevice():
 
 
 def test_speak_piper_dispatches(monkeypatch):
-    _reset(engine="piper", mode="tts", vfr="fr_FR-siwis-medium", ven="en_US-ryan-high")
+    _reset(engine="piper", mode="tts", vfr="fr_FR-siwis-medium", ven="en_US-ryan-high",
+           volume=1.0)
     import tts
     import config as _cfg
     _cfg.LANGUAGE = "fr"
     mock_speak = MagicMock()
     monkeypatch.setattr(tts, "_speak_piper", mock_speak)
     tts.speak("bonjour")
-    mock_speak.assert_called_once_with("bonjour", "fr_FR-siwis-medium")
-
-
-def test_speak_kokoro_dispatches(monkeypatch):
-    _reset(engine="kokoro", mode="tts", vfr="fr_0", ven="af_heart")
-    import tts
-    import config as _cfg
-    _cfg.LANGUAGE = "en"
-    mock_speak = MagicMock()
-    monkeypatch.setattr(tts, "_speak_kokoro", mock_speak)
-    tts.speak("hello")
-    mock_speak.assert_called_once_with("hello", "af_heart", "en")
+    mock_speak.assert_called_once_with("bonjour", "fr_FR-siwis-medium", 1.0)
 
 
 # ── fetch_voices ──────────────────────────────────────────────────────────
-
-def test_fetch_voices_kokoro_en():
-    _reset(engine="kokoro")
-    import tts
-    voices = tts.fetch_voices("en")
-    names = [v["name"] for v in voices]
-    assert "af_heart" in names
-    assert all(v["engine"] == "kokoro" for v in voices)
-
 
 def test_fetch_voices_engine_off():
     _reset(engine="off")

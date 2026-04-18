@@ -1,34 +1,11 @@
-from pynput.keyboard import Key
-
 # ── Hotkeys ───────────────────────────────────────────────────────────────
-# X11: pynput intercepts these directly.
-# Wayland KDE: KGlobalAccel uses WAYLAND_HOTKEY / WAYLAND_ASSISTANT_HOTKEY instead
-#              (modifier-only keys like AltGr/ctrl_r cannot be registered with KGlobalAccel).
+# Unified "Modifier+Key" format used on both X11 and Wayland.
+# X11:    pynput GlobalHotKeys parses these at runtime.
+# Wayland: KGlobalAccel D-Bus registers them dynamically.
+# Examples: "Ctrl+Alt+W", "Ctrl+Shift+D", "Alt+F9"
 
-# Press AltGr to toggle dictation (paste text directly)
-HOTKEY = Key.alt_gr
-
-# Press Ctrl+R to toggle assistant mode (notes, agenda, reminders)
-ASSISTANT_HOTKEY = Key.ctrl_r
-
-# Wayland KDE overrides (KGlobalAccel-compatible combos)
-WAYLAND_HOTKEY = "Ctrl+Alt+W"
-WAYLAND_ASSISTANT_HOTKEY = "Ctrl+Alt+R"
-
-# String → pynput Key mapping for persisted X11 hotkey selection
-_KEY_MAP = {
-    "alt_gr":      Key.alt_gr,
-    "ctrl_r":      Key.ctrl_r,
-    "ctrl_l":      Key.ctrl_l,
-    "alt_l":       Key.alt_l,
-    "alt_r":       Key.alt_r,
-    "scroll_lock": Key.scroll_lock,
-    "pause":       Key.pause,
-    "insert":      Key.insert,
-    "home":        Key.home,
-    "end":         Key.end,
-}
-_KEY_DISPLAY = list(_KEY_MAP)  # ordered list for UI dropdowns
+HOTKEY           = "Ctrl+Alt+W"   # dictation
+ASSISTANT_HOTKEY = "Ctrl+Alt+R"   # assistant
 
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
@@ -51,10 +28,6 @@ LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from 
 # Set to your vault path to enable the search_obsidian_vault tool.
 # Leave empty to disable the feature.
 OBSIDIAN_VAULT_PATH = "/home/elo/.obsidian-vault/wiki/"
-
-# ── Appointment notifications ─────────────────────────────────────────────
-# How many minutes before an appointment to send a toast notification.
-APPOINTMENT_REMIND_MINUTES = 15
 
 # ── Overlay ───────────────────────────────────────────────────────────────
 OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}

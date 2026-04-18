@@ -61,7 +61,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh -o /tmp/install-writher.sh && bash /tmp/install-writher.sh
 ```
 
 Or, if you already have the repo cloned:

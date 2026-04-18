@@ -21,6 +21,7 @@ import threading
 import time
 import tkinter as tk
 import config
+import tts
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
 from logger import log
 
@@ -383,6 +384,7 @@ class AnswerCard:
         self._root.after(0, lambda: self._show(text))
 
     def hide(self):
+        tts.stop()
         self._root.after(0, self._start_fade_out)
 
     # ── internal ──────────────────────────────────────────────────────────
@@ -453,7 +455,7 @@ class AnswerCard:
         tk.Label(hdr, text="WritHer", bg="#0c0c0f", fg="#3a3a50",
                  font=("Segoe UI", 9)).pack(side=tk.LEFT)
 
-        close_btn = tk.Label(hdr, text="✕", bg="#0c0c0f", fg="#3a3a50",
+        close_btn = tk.Label(hdr, text="×", bg="#0c0c0f", fg="#3a3a50",
                              font=("Segoe UI", 9), cursor="hand2")
         close_btn.pack(side=tk.RIGHT, padx=10)
         close_btn.bind("<Button-1>", lambda e: self.hide())
@@ -569,6 +571,10 @@ class AnswerCard:
     # ── countdown ─────────────────────────────────────────────────────────
 
     def _countdown_tick(self):
+        if tts.is_playing():
+            self._countdown_start = time.monotonic()
+            self._after_countdown = self._root.after(100, self._countdown_tick)
+            return
         now = time.monotonic()
         remaining = self._countdown_dur - (now - self._countdown_start)
         log.debug("AC tick: paused=%s remaining=%.1f", self._paused, remaining)
