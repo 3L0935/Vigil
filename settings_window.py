@@ -21,18 +21,19 @@ from brand import make_title_bar_image
 import theme as T
 import tts
 
-_WIN_W, _WIN_H = 480, 940
+_WIN_W, _WIN_H = 480, 680
 _TITLE_H = 40
 
 
 class SettingsWindow:
-    def __init__(self, root: tk.Tk, on_whisper_change=None):
+    def __init__(self, root: tk.Tk, on_whisper_change=None, on_hotkey_change=None):
         self._root = root
         self._win = None
         self._drag_x = 0
         self._drag_y = 0
         self._title_eye_tk = None
         self._on_whisper_change_cb = on_whisper_change
+        self._on_hotkey_change_cb = on_hotkey_change
         self._whisper_var = None
         self._llm_model_var = None
         self._llm_timeout_var = None
@@ -44,6 +45,13 @@ class SettingsWindow:
         self._tts_mode_var = None
         self._tts_voice_fr_var = None
         self._tts_voice_en_var = None
+        self._tts_volume_var = None
+        self._tts_voice_fr_menu = None
+        self._tts_voice_en_menu = None
+        self._hotkey_x11_dict_var = None
+        self._hotkey_x11_asst_var = None
+        self._hotkey_wl_dict_var = None
+        self._hotkey_wl_asst_var = None
 
     def show(self):
         if self._win is not None:
@@ -120,7 +128,9 @@ class SettingsWindow:
         content = ctk.CTkFrame(outer, fg_color=T.BG, corner_radius=0)
         content.pack(fill="both", expand=True, padx=1, pady=(0, 1))
 
-        pad = ctk.CTkFrame(content, fg_color="transparent")
+        pad = ctk.CTkScrollableFrame(content, fg_color="transparent", corner_radius=0,
+                                     scrollbar_button_color=T.BG_HOVER,
+                                     scrollbar_button_hover_color=T.ACCENT)
         pad.pack(fill="both", expand=True, padx=T.PAD_XL, pady=T.PAD_L)
 
         # ── Whisper Model ──────────────────────────────────────────────────────
@@ -293,6 +303,69 @@ class SettingsWindow:
             command=self._on_overlay_screen_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+
+        # ── Hotkeys ──────────────────────────────────────────────────────────
+        ctk.CTkLabel(pad, text="Hotkeys",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        ctk.CTkLabel(pad, text="X11 — Dictation", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        self._hotkey_x11_dict_var = tk.StringVar(
+            master=self._win, value=db.get_setting("hotkey_x11_dict", "alt_gr"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=config._KEY_DISPLAY,
+            variable=self._hotkey_x11_dict_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        ).pack(fill="x", pady=(0, T.PAD_M))
+
+        ctk.CTkLabel(pad, text="X11 — Assistant", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        self._hotkey_x11_asst_var = tk.StringVar(
+            master=self._win, value=db.get_setting("hotkey_x11_assist", "ctrl_r"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=config._KEY_DISPLAY,
+            variable=self._hotkey_x11_asst_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        ).pack(fill="x", pady=(0, T.PAD_M))
+
+        ctk.CTkLabel(pad, text="Wayland — Dictation", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        self._hotkey_wl_dict_var = tk.StringVar(
+            master=self._win,
+            value=db.get_setting("hotkey_wayland_dict", getattr(config, "WAYLAND_HOTKEY", "Ctrl+Alt+W")))
+        ctk.CTkEntry(pad, textvariable=self._hotkey_wl_dict_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_M))
+
+        ctk.CTkLabel(pad, text="Wayland — Assistant", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        self._hotkey_wl_asst_var = tk.StringVar(
+            master=self._win,
+            value=db.get_setting("hotkey_wayland_assist", getattr(config, "WAYLAND_ASSISTANT_HOTKEY", "Ctrl+Alt+R")))
+        ctk.CTkEntry(pad, textvariable=self._hotkey_wl_asst_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        ctk.CTkLabel(pad, text="Redémarre l'app après changement de hotkeys Wayland.",
+                     font=T.FONT_SMALL, text_color=T.FG_DIM,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_L))
+
         # ── TTS ───────────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
@@ -332,7 +405,7 @@ class SettingsWindow:
             value=db.get_setting("tts_voice_fr", fr_voices[0]))
         fr_row = ctk.CTkFrame(pad, fg_color="transparent")
         fr_row.pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkOptionMenu(
+        self._tts_voice_fr_menu = ctk.CTkOptionMenu(
             fr_row,
             values=fr_voices,
             variable=self._tts_voice_fr_var,
@@ -342,7 +415,8 @@ class SettingsWindow:
             dropdown_hover_color=T.BG_HOVER,
             font=T.FONT_SMALL, corner_radius=6,
             command=lambda v: (db.save_setting("tts_voice_fr", v), tts.init()),
-        ).pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+        )
+        self._tts_voice_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
             fr_row, text="More voices...", width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
@@ -359,7 +433,7 @@ class SettingsWindow:
             value=db.get_setting("tts_voice_en", en_voices[0]))
         en_row = ctk.CTkFrame(pad, fg_color="transparent")
         en_row.pack(fill="x", pady=(0, T.PAD_L))
-        ctk.CTkOptionMenu(
+        self._tts_voice_en_menu = ctk.CTkOptionMenu(
             en_row,
             values=en_voices,
             variable=self._tts_voice_en_var,
@@ -369,7 +443,8 @@ class SettingsWindow:
             dropdown_hover_color=T.BG_HOVER,
             font=T.FONT_SMALL, corner_radius=6,
             command=lambda v: (db.save_setting("tts_voice_en", v), tts.init()),
-        ).pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+        )
+        self._tts_voice_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
             en_row, text="More voices...", width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
@@ -377,6 +452,35 @@ class SettingsWindow:
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
             command=lambda: self._show_more_voices("en"),
         ).pack(side="right")
+
+        # ── Volume ───────────────────────────────────────────────────
+        vol_row = ctk.CTkFrame(pad, fg_color="transparent")
+        vol_row.pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(vol_row, text="Volume", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(side="left")
+        self._tts_volume_label = ctk.CTkLabel(vol_row, text="100%",
+                                               font=T.FONT_SMALL, text_color=T.FG)
+        self._tts_volume_label.pack(side="right")
+        try:
+            _vol_init = float(db.get_setting("tts_volume", "1.0"))
+        except (ValueError, TypeError):
+            _vol_init = 1.0
+        self._tts_volume_var = tk.DoubleVar(master=self._win, value=_vol_init)
+
+        def _on_volume_slide(v):
+            val = round(float(v), 2)
+            self._tts_volume_label.configure(text=f"{int(val * 100)}%")
+            db.save_setting("tts_volume", str(val))
+            tts.init()
+
+        ctk.CTkSlider(
+            pad,
+            from_=0.0, to=1.0,
+            variable=self._tts_volume_var,
+            fg_color=T.BG_HOVER, progress_color=T.ACCENT,
+            button_color=T.ACCENT, button_hover_color=T.ACCENT_HOVER,
+            command=_on_volume_slide,
+        ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── Save button ───────────────────────────────────────────────
         ctk.CTkButton(
@@ -434,6 +538,23 @@ class SettingsWindow:
             self._tts_voice_fr_var.set(db.get_setting("tts_voice_fr", ""))
         if self._tts_voice_en_var:
             self._tts_voice_en_var.set(db.get_setting("tts_voice_en", ""))
+        if self._tts_volume_var:
+            try:
+                v = float(db.get_setting("tts_volume", "1.0"))
+            except (ValueError, TypeError):
+                v = 1.0
+            self._tts_volume_var.set(v)
+            self._tts_volume_label.configure(text=f"{int(v * 100)}%")
+        if self._hotkey_x11_dict_var:
+            self._hotkey_x11_dict_var.set(db.get_setting("hotkey_x11_dict", "alt_gr"))
+        if self._hotkey_x11_asst_var:
+            self._hotkey_x11_asst_var.set(db.get_setting("hotkey_x11_assist", "ctrl_r"))
+        if self._hotkey_wl_dict_var:
+            self._hotkey_wl_dict_var.set(
+                db.get_setting("hotkey_wayland_dict", getattr(config, "WAYLAND_HOTKEY", "Ctrl+Alt+W")))
+        if self._hotkey_wl_asst_var:
+            self._hotkey_wl_asst_var.set(
+                db.get_setting("hotkey_wayland_assist", getattr(config, "WAYLAND_ASSISTANT_HOTKEY", "Ctrl+Alt+R")))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -498,25 +619,18 @@ class SettingsWindow:
             status_lbl.configure(text=f"{len(voices)} voices available")
             for w in list_frame.winfo_children():
                 w.destroy()
-            engine = tts._engine
             for v in voices:
                 row = ctk.CTkFrame(list_frame, fg_color="transparent")
                 row.pack(fill="x", pady=2)
                 ctk.CTkLabel(row, text=v["name"], font=T.FONT_SMALL,
                              text_color=T.FG, anchor="w").pack(
                     side="left", fill="x", expand=True)
-                if engine == "piper":
-                    cmd = lambda voice=v: self._download_piper_voice(voice, lang, dialog)
-                    btn_text = "Download"
-                else:
-                    cmd = lambda voice=v: self._select_kokoro_voice(voice, lang, dialog)
-                    btn_text = "Use"
                 ctk.CTkButton(
-                    row, text=btn_text, width=90, height=28,
+                    row, text="Download", width=90, height=28,
                     fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
                     border_color=T.BORDER, border_width=1,
                     text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
-                    command=cmd,
+                    command=lambda voice=v: self._download_piper_voice(voice, lang, dialog),
                 ).pack(side="right")
 
         def _fetch():
@@ -553,19 +667,19 @@ class SettingsWindow:
 
         threading.Thread(target=_do, daemon=True).start()
 
-    def _select_kokoro_voice(self, voice: dict, lang: str, dialog):
-        db.save_setting(f"tts_voice_{lang}", voice["name"])
-        tts.init()
-        self._refresh_voice_dropdown(lang)
-        dialog.destroy()
-
     def _refresh_voice_dropdown(self, lang: str):
         voices = [v["name"] for v in tts.list_voices(lang)] or ["(none)"]
         current = db.get_setting(f"tts_voice_{lang}", voices[0])
-        if lang == "fr" and self._tts_voice_fr_var:
-            self._tts_voice_fr_var.set(current)
-        elif lang == "en" and self._tts_voice_en_var:
-            self._tts_voice_en_var.set(current)
+        if lang == "fr":
+            if self._tts_voice_fr_menu:
+                self._tts_voice_fr_menu.configure(values=voices)
+            if self._tts_voice_fr_var:
+                self._tts_voice_fr_var.set(current)
+        elif lang == "en":
+            if self._tts_voice_en_menu:
+                self._tts_voice_en_menu.configure(values=voices)
+            if self._tts_voice_en_var:
+                self._tts_voice_en_var.set(current)
 
     def _save_linux_settings(self):
         if self._llm_url_var:
@@ -599,4 +713,26 @@ class SettingsWindow:
             screen = self._overlay_screen_var.get()
             config.OVERLAY_SCREEN = screen
             db.save_setting("overlay_screen", screen)
+        if self._hotkey_x11_dict_var:
+            v = self._hotkey_x11_dict_var.get()
+            db.save_setting("hotkey_x11_dict", v)
+            if v in config._KEY_MAP:
+                config.HOTKEY = config._KEY_MAP[v]
+        if self._hotkey_x11_asst_var:
+            v = self._hotkey_x11_asst_var.get()
+            db.save_setting("hotkey_x11_assist", v)
+            if v in config._KEY_MAP:
+                config.ASSISTANT_HOTKEY = config._KEY_MAP[v]
+        if self._hotkey_wl_dict_var:
+            v = self._hotkey_wl_dict_var.get().strip()
+            if v:
+                config.WAYLAND_HOTKEY = v
+                db.save_setting("hotkey_wayland_dict", v)
+        if self._hotkey_wl_asst_var:
+            v = self._hotkey_wl_asst_var.get().strip()
+            if v:
+                config.WAYLAND_ASSISTANT_HOTKEY = v
+                db.save_setting("hotkey_wayland_assist", v)
+        if self._on_hotkey_change_cb:
+            self._on_hotkey_change_cb()
         log.info("Settings saved.")

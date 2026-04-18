@@ -35,6 +35,7 @@ import locales
 from notifier import ReminderScheduler
 from notes_window import NotesWindow
 from settings_window import SettingsWindow
+from platform_linux import is_wayland as _is_wayland
 
 _pipeline_queue   = queue.Queue()
 _assistant_queue  = queue.Queue()
@@ -75,6 +76,18 @@ def _load_settings():
     config.TTS_MODE     = db.get_setting("tts_mode",     "overlay")
     config.TTS_VOICE_FR = db.get_setting("tts_voice_fr", "")
     config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
+    hk_dict = db.get_setting("hotkey_x11_dict", "")
+    if hk_dict and hk_dict in config._KEY_MAP:
+        config.HOTKEY = config._KEY_MAP[hk_dict]
+    hk_asst = db.get_setting("hotkey_x11_assist", "")
+    if hk_asst and hk_asst in config._KEY_MAP:
+        config.ASSISTANT_HOTKEY = config._KEY_MAP[hk_asst]
+    wl_dict = db.get_setting("hotkey_wayland_dict", "")
+    if wl_dict:
+        config.WAYLAND_HOTKEY = wl_dict
+    wl_asst = db.get_setting("hotkey_wayland_assist", "")
+    if wl_asst:
+        config.WAYLAND_ASSISTANT_HOTKEY = wl_asst
 
 
 def _on_whisper_model_change(model_name: str):
@@ -269,6 +282,22 @@ def _tray_toggle_assistant():
         _on_assist_release()
 
 
+def _restart_hotkeys():
+    global hotkey_listener
+    if hotkey_listener:
+        try:
+            hotkey_listener.stop()
+        except Exception:
+            pass
+    hotkey_listener = HotkeyListener(
+        on_press_cb=_on_hotkey_press,
+        on_release_cb=_on_hotkey_release,
+        on_assist_press_cb=_on_assist_press,
+        on_assist_release_cb=_on_assist_release,
+    )
+    hotkey_listener.start()
+
+
 def _quit():
     log.info("Quitting...")
     _llm_manager.shutdown()
@@ -311,7 +340,8 @@ def main():
 
     widget = RecordingWidget(root)
     notes_win = NotesWindow(root)
-    settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change)
+    settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change,
+                                   on_hotkey_change=_restart_hotkeys)
 
     recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
@@ -322,7 +352,6 @@ def main():
                     on_assist=_tray_toggle_assistant)
     tray.start()
 
-    from platform_linux import is_wayland as _is_wayland
     if _is_wayland():
         _tray_tip = (f"Writher — {config.WAYLAND_HOTKEY}=dictate, "
                      f"{config.WAYLAND_ASSISTANT_HOTKEY}=assistant")
@@ -371,8 +400,6 @@ def main():
         log.info("Ready. %s=dictate, %s=assistant.",
                  config.WAYLAND_HOTKEY, config.WAYLAND_ASSISTANT_HOTKEY)
     else:
-        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
-        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
         log.info("Ready. %s=dictate, %s=assistant.", _hk_d, _hk_a)
     root.after(50, _pump_qt)
     root.mainloop()

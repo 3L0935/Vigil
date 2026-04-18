@@ -15,6 +15,21 @@ ASSISTANT_HOTKEY = Key.ctrl_r
 WAYLAND_HOTKEY = "Ctrl+Alt+W"
 WAYLAND_ASSISTANT_HOTKEY = "Ctrl+Alt+R"
 
+# String → pynput Key mapping for persisted X11 hotkey selection
+_KEY_MAP = {
+    "alt_gr":      Key.alt_gr,
+    "ctrl_r":      Key.ctrl_r,
+    "ctrl_l":      Key.ctrl_l,
+    "alt_l":       Key.alt_l,
+    "alt_r":       Key.alt_r,
+    "scroll_lock": Key.scroll_lock,
+    "pause":       Key.pause,
+    "insert":      Key.insert,
+    "home":        Key.home,
+    "end":         Key.end,
+}
+_KEY_DISPLAY = list(_KEY_MAP)  # ordered list for UI dropdowns
+
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
 # Supported values: "en" (English), "it" (Italian), "fr" (French).
@@ -47,7 +62,7 @@ OVERLAY_SCREEN   = "auto"            # "auto" or xrandr output name e.g. "DP-2"
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes
 
 # ── TTS ───────────────────────────────────────────────────────────────────
-TTS_ENGINE   = "off"      # "off" | "piper" | "kokoro"
+TTS_ENGINE   = "off"      # "off" | "piper"
 TTS_MODE     = "overlay"  # "off" | "overlay" | "tts" | "both"
 TTS_VOICE_FR = ""
 TTS_VOICE_EN = ""
