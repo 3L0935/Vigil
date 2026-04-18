@@ -8,6 +8,7 @@ Allows the user to configure:
   - Language (en / it / fr)
 """
 
+import sys
 import tkinter as tk
 import tkinter.filedialog as fd
 import customtkinter as ctk
@@ -19,6 +20,30 @@ import locales
 import theme as T
 import tts
 _WIN_W, _WIN_H = 480, 680
+
+
+# ── CustomTkinter 5.2.2 Linux scroll fix ─────────────────────────────────────
+# Upstream bug: on Linux, _set_scroll_increments leaves yscrollincrement=0
+# (canvas default ≈ viewport/10 per "unit"), and _mouse_wheel_all scrolls by
+# raw event.delta (±120 from XI2). Result: one wheel tick ≈ 12 viewports →
+# jumps straight to the end. Mirror the Windows behavior on Linux.
+if sys.platform.startswith("linux"):
+    def _vigil_set_scroll_increments(self):
+        self._parent_canvas.configure(xscrollincrement=1, yscrollincrement=1)
+
+    def _vigil_mouse_wheel_all(self, event):
+        if not self.check_if_master_is_canvas(event.widget):
+            return
+        step = -int(event.delta / 6) if abs(event.delta) >= 6 else -int(event.delta)
+        if self._shift_pressed:
+            if self._parent_canvas.xview() != (0.0, 1.0):
+                self._parent_canvas.xview("scroll", step, "units")
+        else:
+            if self._parent_canvas.yview() != (0.0, 1.0):
+                self._parent_canvas.yview("scroll", step, "units")
+
+    ctk.CTkScrollableFrame._set_scroll_increments = _vigil_set_scroll_increments
+    ctk.CTkScrollableFrame._mouse_wheel_all = _vigil_mouse_wheel_all
 
 
 class _ScrollableDropdown(ctk.CTkFrame):
