@@ -28,3 +28,8 @@ assets/
 
 # Landing page (hosted separately)
 site/
+
+# Dev-internal files (not for public repo)
+docs/
+CLAUDE.md
+TODO.md

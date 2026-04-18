@@ -31,4 +31,6 @@ read -rp "Continue? [y/N] " confirm
 [[ -f "$LAUNCHER" ]]    && { rm -f  "$LAUNCHER";     echo "Removed: $LAUNCHER"; }
 
 echo ""
-echo "Done. The WritHer source directory is NOT removed — delete it manually if needed."
+echo "Done. The WritHer source directory is NOT removed."
+echo "  If you installed via curl, delete it manually:"
+echo "    rm -rf \"\${XDG_DATA_HOME:-\$HOME/.local/share}/writher-src\""
