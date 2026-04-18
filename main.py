@@ -400,6 +400,8 @@ def main():
         log.info("Ready. %s=dictate, %s=assistant.",
                  config.WAYLAND_HOTKEY, config.WAYLAND_ASSISTANT_HOTKEY)
     else:
+        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
+        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
         log.info("Ready. %s=dictate, %s=assistant.", _hk_d, _hk_a)
     root.after(50, _pump_qt)
     root.mainloop()
