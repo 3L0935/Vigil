@@ -26,6 +26,10 @@ writher = "main:main"
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
+[project.optional-dependencies]
+tts-piper  = ["piper-tts"]
+tts-kokoro = ["kokoro"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

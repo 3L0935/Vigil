@@ -18,7 +18,7 @@ WAYLAND_ASSISTANT_HOTKEY = "Ctrl+Alt+R"
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls both Whisper transcription and all UI / assistant strings.
 # Supported values: "en" (English), "it" (Italian), "fr" (French).
-LANGUAGE = "fr"
+LANGUAGE = "en"   # first_run.py sets the real value; DB overrides at startup
 
 # ── Whisper ───────────────────────────────────────────────────────────────
 MODEL_SIZE = "base"
@@ -45,3 +45,9 @@ APPOINTMENT_REMIND_MINUTES = 15
 OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}
 OVERLAY_SCREEN   = "auto"            # "auto" or xrandr output name e.g. "DP-2"
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes
+
+# ── TTS ───────────────────────────────────────────────────────────────────
+TTS_ENGINE   = "off"      # "off" | "piper" | "kokoro"
+TTS_MODE     = "overlay"  # "off" | "overlay" | "tts" | "both"
+TTS_VOICE_FR = ""
+TTS_VOICE_EN = ""
