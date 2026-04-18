@@ -1,5 +1,5 @@
 [project]
-name = "writher-linux"
+name = "vigil"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-writher = "main:main"
+vigil = "main:main"
 
 [build-system]
 requires = ["setuptools>=42"]
