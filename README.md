@@ -52,11 +52,11 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 
 ## Requirements
 
-- Linux (tested on KDE Plasma 6, GNOME 46)
+- Linux (tested on KDE Plasma 6)
 - Microphone
 - `git` and `curl`
 - Internet connection for first-run model download (~500 MB minimum)
-- No GPU required (CPU-only works; GPU strongly recommended for larger models)
+- GPU required (CPU-only works; GPU strongly recommended for larger models)
 
 ---
 
