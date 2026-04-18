@@ -111,6 +111,8 @@ def _on_whisper_model_change(model_name: str):
 # ── Dictation callbacks (AltGr) ──────────────────────────────────────────
 
 def _on_hotkey_press():
+    if _shutting_down:
+        return
     tts.stop()
     if not recorder.start():
         return
@@ -123,6 +125,8 @@ def _on_hotkey_press():
 
 
 def _on_hotkey_release():
+    if _shutting_down:
+        return
     audio = recorder.stop()
     if tray:
         tray.set_recording(False)
@@ -141,6 +145,8 @@ def _on_hotkey_release():
 # ── Assistant callbacks (Ctrl+R) ──────────────────────────────────────────
 
 def _on_assist_press():
+    if _shutting_down:
+        return
     tts.stop()
     if not recorder.start():
         return
@@ -154,6 +160,8 @@ def _on_assist_press():
 
 
 def _on_assist_release():
+    if _shutting_down:
+        return
     audio = recorder.stop()
     if tray:
         tray.set_recording(False)
@@ -256,6 +264,7 @@ assistant.register_action("close_settings", _hide_settings)
 # Tray fallback for Wayland (no global hotkeys available)
 _tray_dict_recording = False
 _tray_assist_recording = False
+_shutting_down = False
 
 
 def _tray_toggle_dictation():
@@ -305,15 +314,17 @@ def _restart_hotkeys():
 
 
 def _quit():
-    log.info("Quitting...")
-    _llm_manager.shutdown()
-    _pipeline_queue.put(_STOP)
-    _assistant_queue.put(_STOP)
+    global _shutting_down
+    _shutting_down = True
     if hotkey_listener:
         try:
             hotkey_listener.stop()
         except Exception:
             pass
+    log.info("Quitting...")
+    _llm_manager.shutdown()
+    _pipeline_queue.put(_STOP)
+    _assistant_queue.put(_STOP)
     if tray:
         try:
             tray.stop()
