@@ -371,6 +371,53 @@ def _download_piper_voice(voice: str) -> None:
     print(f"  {voice} installed.")
 
 
+def setup_gpu_layers(backend: str, total_vram_mb: int) -> str:
+    """Phase 2.7 — Choose GPU offload layers for llama-server (-ngl).
+
+    Returns the chosen value as a string ('off' or a number).
+    """
+    import database as db
+
+    # Recommendation logic:
+    # - CPU-only or no VRAM detected for a GPU backend: "off"
+    # - GPU with <2 GB VRAM (likely integrated / shared RAM): "off"
+    # - GPU with ≥2 GB VRAM: "99" — llama.cpp offloads as many layers as fit
+    if backend == "cpu" or total_vram_mb < 2000:
+        recommended = "off"
+    else:
+        recommended = "99"
+
+    print("\n=== GPU layers (llama-server -ngl) ===\n")
+    if backend == "cpu":
+        print("  CPU mode — GPU offload not available.")
+    elif total_vram_mb:
+        print(f"  VRAM detected: {total_vram_mb} MB ({backend.upper()})")
+    else:
+        print(f"  GPU backend: {backend.upper()} (VRAM could not be detected)")
+    print()
+    print("  How many model layers to offload to GPU.")
+    print("  '99' = offload everything that fits (recommended for most GPUs).")
+    print("  'off' = CPU only.\n")
+    print("  [1] off  (CPU only)")
+    print("  [2] 10")
+    print("  [3] 20")
+    print("  [4] 33")
+    print("  [5] 99   (all layers)")
+
+    options = ["off", "10", "20", "33", "99"]
+    rec_idx = str(options.index(recommended) + 1)
+    choice = input(f"\nChoice [Entrée = {rec_idx} — {recommended}] : ").strip() or rec_idx
+
+    if choice.isdigit() and 1 <= int(choice) <= len(options):
+        value = options[int(choice) - 1]
+    else:
+        value = recommended
+
+    db.save_setting("llm_gpu_layers", value)
+    print(f"  GPU layers: {value}")
+    return value
+
+
 def setup_tts() -> None:
     """Phase 3 — Choose TTS engine, voices, and display mode."""
     import database as db
@@ -445,6 +492,9 @@ def main():
 
     # Phase 2.5 — Whisper model
     setup_whisper()
+
+    # Phase 2.7 — GPU layers
+    setup_gpu_layers(backend, total_vram)
 
     # Phase 3 — TTS
     setup_tts()
