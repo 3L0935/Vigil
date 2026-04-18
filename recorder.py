@@ -28,6 +28,7 @@ class Recorder:
                 return
             self.recording = True  # claim the slot atomically before releasing the lock
         if not self._mic_available:
+            self.recording = False
             log.warning("Microphone not available, cannot start recording.")
             if self.on_mic_error:
                 self.on_mic_error("🎤 No microphone detected")
