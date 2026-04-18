@@ -21,6 +21,99 @@ import tts
 _WIN_W, _WIN_H = 480, 680
 
 
+class _SpeakerDropdown(ctk.CTkFrame):
+    """CTkOptionMenu replacement with a fixed-height scrollable popup."""
+
+    _POPUP_H = 180
+
+    def __init__(self, master, *, values: list[str], variable: tk.StringVar):
+        super().__init__(master, fg_color="transparent")
+        self._values = list(values)
+        self._var = variable
+        self._popup: ctk.CTkToplevel | None = None
+
+        self._btn = ctk.CTkButton(
+            self, textvariable=variable, anchor="w",
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=self._toggle,
+        )
+        self._btn.pack(fill="both", expand=True)
+
+    def configure(self, **kw):
+        if "values" in kw:
+            self._values = list(kw.pop("values"))
+        if kw:
+            super().configure(**kw)
+
+    def _toggle(self):
+        if self._popup and self._popup.winfo_exists():
+            self._close_popup()
+        else:
+            self._open()
+
+    def _open(self):
+        self.update_idletasks()
+        bx = self._btn.winfo_rootx()
+        by = self._btn.winfo_rooty() + self._btn.winfo_height()
+        bw = self._btn.winfo_width()
+
+        p = ctk.CTkToplevel(self)
+        p.overrideredirect(True)
+        p.attributes("-topmost", True)
+        p.geometry(f"{bw}x{self._POPUP_H}+{bx}+{by}")
+        p.configure(fg_color=T.BG_CARD)
+        self._popup = p
+
+        sf = ctk.CTkScrollableFrame(p, fg_color=T.BG_CARD,
+                                     scrollbar_button_color=T.BORDER,
+                                     scrollbar_button_hover_color=T.BORDER_GLOW)
+        sf.pack(fill="both", expand=True, padx=1, pady=1)
+
+        cur = self._var.get()
+        for v in self._values:
+            ctk.CTkButton(
+                sf, text=v, height=26, anchor="w",
+                fg_color=T.BG_HOVER if v == cur else "transparent",
+                hover_color=T.BORDER_GLOW, text_color=T.FG,
+                font=T.FONT_SMALL, corner_radius=0,
+                command=lambda val=v: self._pick(val),
+            ).pack(fill="x")
+
+        if cur in self._values:
+            idx = self._values.index(cur)
+            p.after(80, lambda: self._scroll_to(sf, idx))
+
+        p.after(50, p.focus_set)
+        p.bind("<FocusOut>", lambda e: p.after(100, self._maybe_close))
+
+    def _scroll_to(self, sf: ctk.CTkScrollableFrame, idx: int) -> None:
+        try:
+            sf._parent_canvas.yview_moveto(idx / max(len(self._values), 1))
+        except Exception:
+            pass
+
+    def _maybe_close(self) -> None:
+        if not self._popup or not self._popup.winfo_exists():
+            return
+        try:
+            fw = self._popup.focus_get()
+            if fw is not None and fw.winfo_toplevel() is self._popup:
+                return
+        except Exception:
+            pass
+        self._close_popup()
+
+    def _pick(self, val: str) -> None:
+        self._var.set(val)
+        self._close_popup()
+
+    def _close_popup(self) -> None:
+        if self._popup and self._popup.winfo_exists():
+            self._popup.destroy()
+        self._popup = None
+
+
 class SettingsWindow:
     def __init__(self, root: tk.Tk, on_whisper_change=None, on_hotkey_change=None):
         self._root = root
@@ -427,15 +520,10 @@ class SettingsWindow:
         if _fr_saved not in _fr_values:
             _fr_saved = "0"
         self._tts_speaker_fr_var = tk.StringVar(master=self._win, value=_fr_saved)
-        self._tts_speaker_fr_menu = ctk.CTkOptionMenu(
+        self._tts_speaker_fr_menu = _SpeakerDropdown(
             self._tts_speaker_fr_row,
             values=_fr_values,
             variable=self._tts_speaker_fr_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
         )
         self._tts_speaker_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
@@ -488,15 +576,10 @@ class SettingsWindow:
         if _en_saved not in _en_values:
             _en_saved = "0"
         self._tts_speaker_en_var = tk.StringVar(master=self._win, value=_en_saved)
-        self._tts_speaker_en_menu = ctk.CTkOptionMenu(
+        self._tts_speaker_en_menu = _SpeakerDropdown(
             self._tts_speaker_en_row,
             values=_en_values,
             variable=self._tts_speaker_en_var,
-            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
-            button_hover_color=T.BG_HOVER, text_color=T.FG,
-            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
-            dropdown_hover_color=T.BG_HOVER,
-            font=T.FONT_SMALL, corner_radius=6,
         )
         self._tts_speaker_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
