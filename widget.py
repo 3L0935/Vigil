@@ -371,7 +371,6 @@ class AnswerCard:
         self._after_countdown: str | None = None
         self._countdown_start = 0.0
         self._countdown_dur = 0.0
-        self._paused = False
         self._persistent = False
         self._alpha = 0.0
         self._after_fade: str | None = None
@@ -402,7 +401,6 @@ class AnswerCard:
         self._tokens = re.findall(r'\S+\s*|\n', text)
         self._token_idx = 0
         self._countdown_dur = float(getattr(config, "OVERLAY_ANSWER_TIMEOUT", 8))
-        self._paused = False
 
         needs_build = self._win is None
         if not needs_build:
@@ -538,9 +536,10 @@ class AnswerCard:
             0, 0, _CARD_W, _CARD_PROG_H, fill="#2a2a3a", outline="")
 
         # ── Smart dismiss bindings ────────────────────────────────────────
+        # Hover-pause is polled in _countdown_tick (pointer-over-window check)
+        # rather than event-bound — <Leave> is unreliable on some WMs and would
+        # leave the card stuck paused forever.
         for w in [win, outer, hdr, body, text_w, ftr]:
-            w.bind("<Enter>", self._pause_countdown)
-            w.bind("<Leave>", self._on_leave)
             w.bind("<MouseWheel>", self._reset_countdown)
             w.bind("<Button-4>", self._reset_countdown)
             w.bind("<Button-5>", self._reset_countdown)
@@ -588,6 +587,23 @@ class AnswerCard:
 
     # ── countdown ─────────────────────────────────────────────────────────
 
+    def _is_pointer_over_card(self) -> bool:
+        """Live pointer-position check. More reliable than <Enter>/<Leave>
+        events which miss on some Wayland compositors and can leave the
+        countdown stuck paused."""
+        if self._win is None:
+            return False
+        try:
+            mx = self._win.winfo_pointerx()
+            my = self._win.winfo_pointery()
+            wx = self._win.winfo_rootx()
+            wy = self._win.winfo_rooty()
+            ww = self._win.winfo_width()
+            wh = self._win.winfo_height()
+            return wx <= mx <= wx + ww and wy <= my <= wy + wh
+        except Exception:
+            return False
+
     def _countdown_tick(self):
         if self._persistent:
             self._countdown_start = time.monotonic()
@@ -597,12 +613,13 @@ class AnswerCard:
             self._countdown_start = time.monotonic()
             self._after_countdown = self._root.after(100, self._countdown_tick)
             return
-        now = time.monotonic()
-        remaining = self._countdown_dur - (now - self._countdown_start)
-        log.debug("AC tick: paused=%s remaining=%.1f", self._paused, remaining)
-        if self._paused:
+        if self._is_pointer_over_card():
+            # Hovering — hold the countdown at full duration
+            self._countdown_start = time.monotonic()
             self._after_countdown = self._root.after(100, self._countdown_tick)
             return
+        now = time.monotonic()
+        remaining = self._countdown_dur - (now - self._countdown_start)
         if remaining <= 0:
             log.info("AC countdown expired -> fade_out")
             self._start_fade_out()
@@ -615,28 +632,6 @@ class AnswerCard:
             self._prog_canvas.coords(
                 self._prog_id, 0, 0, int(_CARD_W * ratio), _CARD_PROG_H)
         self._after_countdown = self._root.after(100, self._countdown_tick)
-
-    def _pause_countdown(self, event=None):
-        self._paused = True
-
-    def _on_leave(self, event=None):
-        self._root.after(50, self._check_resume)
-
-    def _check_resume(self):
-        if self._win is None:
-            self._paused = False
-            return
-        try:
-            mx = self._win.winfo_pointerx()
-            my = self._win.winfo_pointery()
-            wx = self._win.winfo_rootx()
-            wy = self._win.winfo_rooty()
-            ww = self._win.winfo_width()
-            wh = self._win.winfo_height()
-            if not (wx <= mx <= wx + ww and wy <= my <= wy + wh):
-                self._paused = False
-        except Exception:
-            self._paused = False
 
     def _reset_countdown(self, event=None):
         self._countdown_start = time.monotonic()
