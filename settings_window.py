@@ -566,15 +566,17 @@ class SettingsWindow:
             self._on_whisper_change_cb(value)
 
     def _browse_model(self):
-        self._win.attributes("-topmost", False)
+        self._win.withdraw()
         try:
             path = fd.askopenfilename(
-                parent=self._win,
+                parent=self._root,
                 title="Select GGUF model",
                 filetypes=[("GGUF files", "*.gguf"), ("All files", "*")],
             )
         finally:
+            self._win.deiconify()
             self._win.attributes("-topmost", True)
+            self._win.lift()
         if path and self._llm_model_var:
             self._llm_model_var.set(path)
 
@@ -583,11 +585,13 @@ class SettingsWindow:
         log.info("LLM unload timeout set to %ss", value)
 
     def _browse_vault(self):
-        self._win.attributes("-topmost", False)
+        self._win.withdraw()
         try:
-            path = fd.askdirectory(parent=self._win, title="Select Obsidian Vault")
+            path = fd.askdirectory(parent=self._root, title="Select Obsidian Vault")
         finally:
+            self._win.deiconify()
             self._win.attributes("-topmost", True)
+            self._win.lift()
         if path and self._vault_path_var:
             self._vault_path_var.set(path)
 
