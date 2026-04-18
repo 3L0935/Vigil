@@ -119,8 +119,9 @@ def find_candidates(query: str, n: int = 4, cutoff: float = 0.55) -> list[str]:
 
 
 def list_all_apps() -> list[dict]:
-    """Return [{name, generic}] for every installed app (for LLM retry context)."""
-    return [{"name": a["name"], "generic": a.get("generic", "")}
+    """Return [{name, generic, keywords}] for every installed app (for LLM retry context)."""
+    return [{"name": a["name"], "generic": a.get("generic", ""),
+             "keywords": a.get("keywords", "")}
             for a in _list_apps()]
 
 

@@ -257,28 +257,69 @@ def _system_prompt() -> str:
 
 # ── Function dispatcher ───────────────────────────────────────────────────
 
+_RETRY_STOPWORDS = frozenset({
+    # action verbs / glue (fr/en/it) — ignored when mining keywords from user_text
+    "lance", "lances", "lancer", "ouvre", "ouvres", "ouvrir", "démarre", "démarrer",
+    "ferme", "fermer", "quitte", "quitter", "arrête", "arrêter", "peux", "peux-tu",
+    "tu", "me", "moi", "stp", "svp",
+    "launch", "open", "start", "run", "close", "quit", "stop", "please", "could", "can",
+    "you", "me", "my",
+    "apri", "avvia", "chiudi", "lancia", "ferma", "puoi",
+    "le", "la", "les", "un", "une", "des", "du", "de", "ton", "ta", "tes", "mon", "ma",
+    "mes", "ce", "cet", "cette", "ces",
+    "the", "a", "an", "your", "my", "this", "that",
+    "il", "lo", "gli", "i", "le", "uno", "una",
+})
+
+
+def _extract_intent_tokens(text: str) -> list[str]:
+    """Strip stopwords from user_text so the remaining tokens are the ones
+    that actually identify the app (e.g. 'musique', 'navigateur')."""
+    if not text:
+        return []
+    import re
+    words = re.findall(r"[\w'’-]+", text.lower())
+    return [w for w in words if w and w not in _RETRY_STOPWORDS and len(w) > 2]
+
+
 def _build_launch_retry_context(app_name: str, user_text: str) -> str:
     """Build retry feedback for the LLM after a launch_app failure.
 
-    Combines fuzzy candidates from both the failed name and the original user
-    text so the LLM sees apps that match the user's intent, not just the (often
-    mistranscribed) name it passed. Language follows config.LANGUAGE so the
-    model's plain-text fallback ends up in the user's language.
+    Mines intent tokens from user_text (minus stopwords) and fuzzy-matches
+    each against installed apps so short significant words like 'musique'
+    surface the right candidates instead of being drowned by the full
+    mistranscribed sentence. Language follows config.LANGUAGE so the model's
+    plain-text fallback ends up in the user's language.
     """
     import app_launcher
-    c1 = app_launcher.find_candidates(app_name, n=5, cutoff=0.3)
-    c2 = app_launcher.find_candidates(user_text, n=8, cutoff=0.3) if user_text else []
     seen: set[str] = set()
     cands: list[str] = []
-    for c in c2 + c1:  # user-intent matches first (more relevant than failed name matches)
+    # 1. Intent tokens from user's raw utterance (most semantic)
+    for token in _extract_intent_tokens(user_text):
+        for c in app_launcher.find_candidates(token, n=4, cutoff=0.5):
+            if c not in seen:
+                seen.add(c)
+                cands.append(c)
+    # 2. Fallback on the failed name itself (handles near-typo cases)
+    for c in app_launcher.find_candidates(app_name, n=5, cutoff=0.3):
         if c not in seen:
             seen.add(c)
             cands.append(c)
     cands = cands[:8]
     if not cands:
         return locales.get("retry_launch_ctx_empty", name=app_name)
-    generics = {a["name"]: a.get("generic", "") for a in app_launcher.list_all_apps()}
-    lines = [f"- {c}" + (f" ({generics[c]})" if generics.get(c) else "") for c in cands]
+    meta = {a["name"]: a for a in app_launcher.list_all_apps()}
+    lines = []
+    for c in cands:
+        m = meta.get(c, {})
+        generic = m.get("generic", "")
+        kws = [k.strip() for k in m.get("keywords", "").split(";") if k.strip()][:5]
+        parts = [f"- {c}"]
+        if generic:
+            parts.append(f"({generic})")
+        if kws:
+            parts.append(f"[{', '.join(kws)}]")
+        lines.append(" ".join(parts))
     return locales.get("retry_launch_ctx", name=app_name, list="\n".join(lines))
 
 
