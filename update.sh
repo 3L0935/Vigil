@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# WritHer Linux — update script
+# Vigil — update script
 # Stops the running instance, pulls the latest code, syncs deps, and restarts.
 set -euo pipefail
 
 REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
-INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/writher-src"
+INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
 if [[ -f "$SCRIPT_DIR/main.py" && -f "$SCRIPT_DIR/pyproject.toml" ]]; then
@@ -16,7 +16,7 @@ step()  { echo -e "${GREEN}==> ${BOLD}$1${NC}"; }
 warn()  { echo -e "${YELLOW}WARN:${NC} $1"; }
 die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
 
-[[ -d "$INSTALL_DIR" ]] || die "WritHer source directory not found: $INSTALL_DIR"
+[[ -d "$INSTALL_DIR" ]] || die "Vigil source directory not found: $INSTALL_DIR"
 
 # If .git was removed by an older install, restore git tracking.
 if [[ ! -d "$INSTALL_DIR/.git" ]]; then
@@ -28,15 +28,15 @@ elif ! git -C "$INSTALL_DIR" remote get-url origin &>/dev/null; then
 fi
 
 # ── 1. Stop running instance ─────────────────────────────────────────────────
-step "Checking for running WritHer instance..."
+step "Checking for running Vigil instance..."
 # Match any process whose cmdline contains the install dir (uv --directory ... or the venv python)
-WRITHER_PIDS=$(pgrep -f "$INSTALL_DIR" 2>/dev/null | grep -v "^$$\$" || true)
+VIGIL_PIDS=$(pgrep -f "$INSTALL_DIR" 2>/dev/null | grep -v "^$$\$" || true)
 WAS_RUNNING=false
 
-if [[ -n "$WRITHER_PIDS" ]]; then
+if [[ -n "$VIGIL_PIDS" ]]; then
     WAS_RUNNING=true
-    echo "  Stopping PID(s): $WRITHER_PIDS"
-    kill -TERM $WRITHER_PIDS 2>/dev/null || true
+    echo "  Stopping PID(s): $VIGIL_PIDS"
+    kill -TERM $VIGIL_PIDS 2>/dev/null || true
     for i in {1..10}; do
         remaining=$(pgrep -f "$INSTALL_DIR" 2>/dev/null | grep -v "^$$\$" || true)
         [[ -z "$remaining" ]] && break
@@ -48,9 +48,9 @@ if [[ -n "$WRITHER_PIDS" ]]; then
         kill -KILL $remaining 2>/dev/null || true
         sleep 0.5
     fi
-    step "WritHer stopped."
+    step "Vigil stopped."
 else
-    echo "  WritHer is not running."
+    echo "  Vigil is not running."
 fi
 
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
@@ -70,17 +70,17 @@ uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
 # ── 4. Restart if it was running ─────────────────────────────────────────────
 if [[ "$WAS_RUNNING" == true ]]; then
     sleep 0.5  # brief pause for PortAudio / PipeWire cleanup
-    step "Restarting WritHer..."
-    if command -v writher >/dev/null 2>&1; then
-        setsid writher >/dev/null 2>&1 &
+    step "Restarting Vigil..."
+    if command -v vigil >/dev/null 2>&1; then
+        setsid vigil >/dev/null 2>&1 &
     else
         setsid uv --directory "$INSTALL_DIR" run python main.py >/dev/null 2>&1 &
     fi
     disown
     echo ""
-    echo -e "${GREEN}${BOLD}Update complete — WritHer restarted.${NC}"
+    echo -e "${GREEN}${BOLD}Update complete — Vigil restarted.${NC}"
 else
     echo ""
     echo -e "${GREEN}${BOLD}Update complete.${NC}"
-    echo "  Run WritHer:  writher"
+    echo "  Run Vigil:  vigil"
 fi
