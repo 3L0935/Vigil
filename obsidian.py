@@ -1,4 +1,4 @@
-"""Obsidian vault search for WritHer Linux.
+"""Obsidian vault search for Vigil.
 
 Scans .md files in the vault directory, matches query tokens,
 and returns ranked results with title, excerpt, tags and file path.

@@ -81,11 +81,11 @@ def _parse_combo(combo: str) -> int | None:
         return None
     return base | modifiers
 
-_APP_ID = "writher"
+_APP_ID = "vigil"
 _KGLOBAL_CONFIG = os.path.expanduser("~/.config/kglobalshortcutsrc")
 
 # Stale component IDs from previous debug sessions — removed on each run.
-_STALE_SECTIONS = ("writher_test", "diag")
+_STALE_SECTIONS = ("writher_test", "vigil_test", "diag")
 
 
 def _sync_shortcuts_to_config(dict_key: str, assist_key: str | None) -> None:
@@ -102,7 +102,7 @@ def _sync_shortcuts_to_config(dict_key: str, assist_key: str | None) -> None:
     if not cfg.has_section(_APP_ID):
         cfg.add_section(_APP_ID)
 
-    cfg.set(_APP_ID, "_k_friendly_name", "WritHer")
+    cfg.set(_APP_ID, "_k_friendly_name", "Vigil")
     cfg.set(_APP_ID, "dictate", f"{dict_key},none,Start/stop dictation")
     cfg.set(_APP_ID, "assist",  f"{assist_key or ''},none,Start/stop assistant")
 
@@ -125,7 +125,7 @@ def register(
     """Register global hotkeys with KGlobalAccel.
 
     Returns True if registration succeeded, False otherwise.
-    Shortcuts appear in System Settings → Shortcuts → WritHer and are user-configurable.
+    Shortcuts appear in System Settings → Shortcuts → Vigil and are user-configurable.
     """
     try:
         import dbus
@@ -153,7 +153,7 @@ def register(
         kga_obj   = bus.get_object("org.kde.kglobalaccel", "/kglobalaccel")
         kga_iface = dbus.Interface(kga_obj, dbus_interface="org.kde.KGlobalAccel")
 
-        app_name = "WritHer"
+        app_name = "Vigil"
 
         # Parameter order: [componentUnique, actionUnique, componentFriendly, actionFriendly]
         dict_action   = [_APP_ID, "dictate", app_name, "Start/stop dictation"]
@@ -210,7 +210,7 @@ def register(
         _state["loop"]         = loop
 
         log.info(
-            "KGlobalAccel registered: dictation='%s' assistant='%s' (configurable in System Settings → Shortcuts → WritHer)",
+            "KGlobalAccel registered: dictation='%s' assistant='%s' (configurable in System Settings → Shortcuts → Vigil)",
             dictation_key, assistant_key or "none",
         )
         return True

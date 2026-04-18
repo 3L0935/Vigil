@@ -124,9 +124,9 @@ _OPEN_SETTINGS_TOOL = {
     "function": {
         "name": "open_settings",
         "description": (
-            "Open Writher's OWN settings/configuration panel. "
-            "Use ONLY when the user explicitly wants to configure Writher itself: "
-            "'ouvre les paramètres de Writher', 'open Writher settings', 'show settings', "
+            "Open Vigil's OWN settings/configuration panel. "
+            "Use ONLY when the user explicitly wants to configure Vigil itself: "
+            "'ouvre les paramètres de Vigil', 'open Vigil settings', 'show settings', "
             "'apri le impostazioni'. "
             "Do NOT use for OS settings, KDE settings, system settings, or any other "
             "application's settings — use launch_app for those instead."
@@ -140,7 +140,7 @@ _CLOSE_SETTINGS_TOOL = {
     "function": {
         "name": "close_settings",
         "description": (
-            "Close the Writher settings window if it is currently open. Use when the user asks "
+            "Close the Vigil settings window if it is currently open. Use when the user asks "
             "to close or hide the settings: 'ferme les paramètres', 'close settings', "
             "'hide settings', 'chiudi le impostazioni'."
         ),
@@ -215,7 +215,7 @@ def _system_prompt() -> str:
     now = datetime.now()
     return locales.get(
         "system_prompt",
-        name=getattr(config, "ASSISTANT_NAME", "WritHer"),
+        name=getattr(config, "ASSISTANT_NAME", "Vigil"),
         now=now.strftime("%Y-%m-%d %H:%M"),
         weekday=now.strftime("%A"),
         lang_name=locales.get("lang_name"),
