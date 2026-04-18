@@ -60,6 +60,7 @@ class SettingsWindow:
                     self._win.attributes("-topmost", True)
                     self._win.lift()
                     self._win.focus_force()
+                    self._win.grab_set()
                     self._win.after(100, lambda: self._win.attributes("-topmost", True)
                                     if self._win and self._win.winfo_exists() else None)
                     self._sync_ui()
@@ -69,7 +70,10 @@ class SettingsWindow:
         self._build()
         self._sync_ui()
         if self._win and self._win.winfo_exists():
-            self._win.after(100, self._win.focus_force)
+            self._win.after(100, lambda: (
+                self._win.focus_force(),
+                self._win.grab_set(),
+            ) if self._win and self._win.winfo_exists() else None)
 
     # ── Build ─────────────────────────────────────────────────────────────
 
@@ -134,6 +138,8 @@ class SettingsWindow:
                                      scrollbar_button_color=T.BG_HOVER,
                                      scrollbar_button_hover_color=T.ACCENT)
         pad.pack(fill="both", expand=True, padx=T.PAD_XL, pady=T.PAD_L)
+        # Prevent the scrollable canvas from stealing keyboard focus from Entry widgets
+        pad._parent_canvas.configure(takefocus=False)
 
         # ── Whisper Model ──────────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
@@ -553,6 +559,7 @@ class SettingsWindow:
         self._win = None
         if win:
             try:
+                win.grab_release()
                 win.withdraw()
                 win.after(1, win.destroy)
             except Exception:
