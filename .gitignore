@@ -31,5 +31,6 @@ site/
 
 # Dev-internal files (not for public repo)
 docs/
+.superpowers/
 CLAUDE.md
 TODO.md

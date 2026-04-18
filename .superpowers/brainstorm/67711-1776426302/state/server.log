@@ -1,6 +1,0 @@
-{"type":"server-started","port":57223,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:57223","screen_dir":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/content","state_dir":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/state"}
-{"type":"screen-added","file":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/content/ui-states-overview.html"}
-{"type":"screen-added","file":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/content/answer-card-variants.html"}
-{"type":"screen-added","file":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/content/position-options.html"}
-{"type":"screen-added","file":"/home/elo/github/WritHer-Linux/.superpowers/brainstorm/67711-1776426302/content/waiting.html"}
-{"type":"server-stopped","reason":"idle timeout"}
