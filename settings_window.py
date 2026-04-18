@@ -19,8 +19,9 @@ import database as db
 import locales
 from brand import make_title_bar_image
 import theme as T
+import tts
 
-_WIN_W, _WIN_H = 480, 680
+_WIN_W, _WIN_H = 480, 940
 _TITLE_H = 40
 
 
@@ -40,6 +41,9 @@ class SettingsWindow:
         self._lang_var = None
         self._overlay_pos_var = None
         self._overlay_screen_var = None
+        self._tts_mode_var = None
+        self._tts_voice_fr_var = None
+        self._tts_voice_en_var = None
 
     def show(self):
         if self._win is not None:
@@ -289,6 +293,91 @@ class SettingsWindow:
             command=self._on_overlay_screen_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
+        # ── TTS ───────────────────────────────────────────────────────
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(pad, text="TTS", font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        ctk.CTkLabel(pad, text="Mode", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        self._tts_mode_var = tk.StringVar(
+            master=self._win, value=db.get_setting("tts_mode", "overlay"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["off", "overlay", "tts", "both"],
+            variable=self._tts_mode_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_tts_mode_change,
+        ).pack(fill="x", pady=(0, T.PAD_M))
+
+        engine_row = ctk.CTkFrame(pad, fg_color="transparent")
+        engine_row.pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(engine_row, text="Engine", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(side="left")
+        ctk.CTkLabel(engine_row,
+                     text=db.get_setting("tts_engine", "off"),
+                     font=T.FONT_SMALL, text_color=T.FG,
+                     anchor="e").pack(side="right")
+
+        ctk.CTkLabel(pad, text="Voice (FR)", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        fr_voices = [v["name"] for v in tts.list_voices("fr")] or ["(none)"]
+        self._tts_voice_fr_var = tk.StringVar(
+            master=self._win,
+            value=db.get_setting("tts_voice_fr", fr_voices[0]))
+        fr_row = ctk.CTkFrame(pad, fg_color="transparent")
+        fr_row.pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkOptionMenu(
+            fr_row,
+            values=fr_voices,
+            variable=self._tts_voice_fr_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=lambda v: (db.save_setting("tts_voice_fr", v), tts.init()),
+        ).pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+        ctk.CTkButton(
+            fr_row, text="More voices...", width=110, height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=lambda: self._show_more_voices("fr"),
+        ).pack(side="right")
+
+        ctk.CTkLabel(pad, text="Voice (EN)", font=T.FONT_SMALL,
+                     text_color=T.FG_DIM, anchor="w").pack(fill="x")
+        en_voices = [v["name"] for v in tts.list_voices("en")] or ["(none)"]
+        self._tts_voice_en_var = tk.StringVar(
+            master=self._win,
+            value=db.get_setting("tts_voice_en", en_voices[0]))
+        en_row = ctk.CTkFrame(pad, fg_color="transparent")
+        en_row.pack(fill="x", pady=(0, T.PAD_L))
+        ctk.CTkOptionMenu(
+            en_row,
+            values=en_voices,
+            variable=self._tts_voice_en_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=lambda v: (db.save_setting("tts_voice_en", v), tts.init()),
+        ).pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+        ctk.CTkButton(
+            en_row, text="More voices...", width=110, height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=lambda: self._show_more_voices("en"),
+        ).pack(side="right")
+
         # ── Save button ───────────────────────────────────────────────
         ctk.CTkButton(
             pad, text=locales.get("setting_saved"), height=36,
@@ -339,6 +428,12 @@ class SettingsWindow:
             self._overlay_pos_var.set(getattr(config, "OVERLAY_POSITION", "bottom-center"))
         if self._overlay_screen_var:
             self._overlay_screen_var.set(getattr(config, "OVERLAY_SCREEN", "auto"))
+        if self._tts_mode_var:
+            self._tts_mode_var.set(db.get_setting("tts_mode", "overlay"))
+        if self._tts_voice_fr_var:
+            self._tts_voice_fr_var.set(db.get_setting("tts_voice_fr", ""))
+        if self._tts_voice_en_var:
+            self._tts_voice_en_var.set(db.get_setting("tts_voice_en", ""))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -378,6 +473,99 @@ class SettingsWindow:
         config.OVERLAY_SCREEN = value
         db.save_setting("overlay_screen", value)
         log.info("Overlay screen set to %s", value)
+
+    def _on_tts_mode_change(self, value: str):
+        db.save_setting("tts_mode", value)
+        config.TTS_MODE = value
+        tts.init()
+        log.info("TTS mode set to %s", value)
+
+    def _show_more_voices(self, lang: str):
+        import threading
+        dialog = ctk.CTkToplevel(self._win)
+        dialog.title(f"Voices ({lang.upper()})")
+        dialog.geometry("500x420")
+        dialog.attributes("-topmost", True)
+
+        list_frame = ctk.CTkScrollableFrame(dialog, fg_color=T.BG)
+        list_frame.pack(fill="both", expand=True, padx=T.PAD_L, pady=T.PAD_L)
+
+        status_lbl = ctk.CTkLabel(dialog, text="Loading...",
+                                   font=T.FONT_SMALL, text_color=T.FG_DIM)
+        status_lbl.pack(pady=T.PAD_M)
+
+        def _populate(voices):
+            status_lbl.configure(text=f"{len(voices)} voices available")
+            for w in list_frame.winfo_children():
+                w.destroy()
+            engine = tts._engine
+            for v in voices:
+                row = ctk.CTkFrame(list_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                ctk.CTkLabel(row, text=v["name"], font=T.FONT_SMALL,
+                             text_color=T.FG, anchor="w").pack(
+                    side="left", fill="x", expand=True)
+                if engine == "piper":
+                    cmd = lambda voice=v: self._download_piper_voice(voice, lang, dialog)
+                    btn_text = "Download"
+                else:
+                    cmd = lambda voice=v: self._select_kokoro_voice(voice, lang, dialog)
+                    btn_text = "Use"
+                ctk.CTkButton(
+                    row, text=btn_text, width=90, height=28,
+                    fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+                    border_color=T.BORDER, border_width=1,
+                    text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+                    command=cmd,
+                ).pack(side="right")
+
+        def _fetch():
+            voices = tts.fetch_voices(lang)
+            dialog.after(0, lambda: _populate(voices))
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _download_piper_voice(self, voice: dict, lang: str, dialog):
+        import threading
+        import urllib.request
+        from pathlib import Path
+
+        def _do():
+            dest_dir = Path.home() / ".local" / "share" / "writher" / "tts" / "piper"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            lang_full, rest = voice["name"].split("-", 1)
+            lang_short = lang_full.split("_")[0].lower()
+            speaker, quality = rest.rsplit("-", 1)
+            base = (
+                f"https://huggingface.co/rhasspy/piper-voices/resolve/main"
+                f"/{lang_short}/{lang_full}/{speaker}/{quality}/{voice['name']}"
+            )
+            for ext in (".onnx", ".onnx.json"):
+                dest = dest_dir / f"{voice['name']}{ext}"
+                if not dest.exists():
+                    urllib.request.urlretrieve(base + ext, str(dest))
+            db.save_setting(f"tts_voice_{lang}", voice["name"])
+            tts.init()
+            dialog.after(0, lambda: (
+                self._refresh_voice_dropdown(lang),
+                dialog.destroy(),
+            ))
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _select_kokoro_voice(self, voice: dict, lang: str, dialog):
+        db.save_setting(f"tts_voice_{lang}", voice["name"])
+        tts.init()
+        self._refresh_voice_dropdown(lang)
+        dialog.destroy()
+
+    def _refresh_voice_dropdown(self, lang: str):
+        voices = [v["name"] for v in tts.list_voices(lang)] or ["(none)"]
+        current = db.get_setting(f"tts_voice_{lang}", voices[0])
+        if lang == "fr" and self._tts_voice_fr_var:
+            self._tts_voice_fr_var.set(current)
+        elif lang == "en" and self._tts_voice_en_var:
+            self._tts_voice_en_var.set(current)
 
     def _save_linux_settings(self):
         if self._llm_url_var:

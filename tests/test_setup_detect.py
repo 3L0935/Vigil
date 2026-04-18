@@ -3,6 +3,9 @@ from unittest.mock import patch, MagicMock
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import database as db
+db.init()
+
 
 def test_detect_gpu_cuda():
     """Returns 'cuda' when nvidia-smi exits 0."""
@@ -48,3 +51,52 @@ def test_select_model_tier_cpu_only():
     import first_run
     result = first_run.select_model_tier(total_vram_mb=0)
     assert result["name"] == "Qwen3.5-0.8B Q4_K_M"
+
+
+# ── setup_language ────────────────────────────────────────────────────────
+
+def test_setup_language_english(monkeypatch):
+    import first_run, config
+    monkeypatch.setattr("builtins.input", lambda _: "1")
+    with patch("database.save_setting") as mock_save:
+        first_run.setup_language()
+        mock_save.assert_any_call("language", "en")
+    assert config.LANGUAGE == "en"
+
+
+def test_setup_language_french(monkeypatch):
+    import first_run, config
+    monkeypatch.setattr("builtins.input", lambda _: "2")
+    with patch("database.save_setting") as mock_save:
+        first_run.setup_language()
+        mock_save.assert_any_call("language", "fr")
+    assert config.LANGUAGE == "fr"
+
+
+def test_setup_language_default(monkeypatch):
+    """Empty input defaults to English."""
+    import first_run, config
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    with patch("database.save_setting") as mock_save:
+        first_run.setup_language()
+        mock_save.assert_any_call("language", "en")
+    assert config.LANGUAGE == "en"
+
+
+# ── setup_whisper ─────────────────────────────────────────────────────────
+
+def test_setup_whisper_base_default(monkeypatch):
+    """Empty input selects 'base' (index 2, idx=1)."""
+    import first_run
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    with patch("database.save_setting") as mock_save:
+        first_run.setup_whisper()
+        mock_save.assert_any_call("whisper_model", "base")
+
+
+def test_setup_whisper_large(monkeypatch):
+    import first_run
+    monkeypatch.setattr("builtins.input", lambda _: "5")
+    with patch("database.save_setting") as mock_save:
+        first_run.setup_whisper()
+        mock_save.assert_any_call("whisper_model", "large-v3")

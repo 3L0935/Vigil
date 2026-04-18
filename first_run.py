@@ -279,33 +279,171 @@ def setup_model(total_vram_mb: int) -> Path:
     return Path(downloaded)
 
 
+_WHISPER_MODELS = [
+    ("tiny",     "~75 MB,  fastest, lower accuracy"),
+    ("base",     "~145 MB, fast, decent accuracy       <- recommended"),
+    ("small",    "~466 MB, good balance"),
+    ("medium",   "~1.5 GB, high accuracy"),
+    ("large-v3", "~3 GB,   best accuracy, slow on CPU"),
+]
+
+
+def setup_language() -> str:
+    """Phase 0 — Choose UI language. Saved to DB."""
+    import database as db
+    import config
+    print("=== Language / Langue ===\n")
+    print("  [1] English")
+    print("  [2] Français")
+    print("  [3] Italiano")
+    choice = input("\nChoice / Choix [1]: ").strip() or "1"
+    lang = {"1": "en", "2": "fr", "3": "it"}.get(choice, "en")
+    db.save_setting("language", lang)
+    config.LANGUAGE = lang
+    return lang
+
+
+def setup_whisper() -> str:
+    """Phase 2.5 — Choose Whisper model size."""
+    import database as db
+    import config
+    print("\n=== Whisper (speech recognition) ===\n")
+    print("Choose a model size (downloaded automatically on first use):\n")
+    for i, (name, desc) in enumerate(_WHISPER_MODELS, 1):
+        print(f"  [{i}] {name:<10} — {desc}")
+    choice = input("\nChoice [2]: ").strip() or "2"
+    idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= 5 else 1
+    model = _WHISPER_MODELS[idx][0]
+    db.save_setting("whisper_model", model)
+    config.MODEL_SIZE = model
+    print(f"  Whisper model: {model}")
+    return model
+
+
+def _piper_voice_url(voice: str) -> str:
+    lang_full, rest = voice.split("-", 1)
+    lang_short = lang_full.split("_")[0].lower()
+    speaker, quality = rest.rsplit("-", 1)
+    return (
+        "https://huggingface.co/rhasspy/piper-voices"
+        f"/resolve/main/{lang_short}/{lang_full}/{speaker}/{quality}/{voice}"
+    )
+
+
+def _download_piper_voice(voice: str) -> None:
+    dest_dir = WRITHER_DIR / "tts" / "piper"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    base = _piper_voice_url(voice)
+    for ext in (".onnx", ".onnx.json"):
+        dest = dest_dir / f"{voice}{ext}"
+        if not dest.exists():
+            print(f"  Downloading {voice}{ext}...")
+            _download(base + ext, dest)
+    print(f"  {voice} installed.")
+
+
+def setup_tts() -> None:
+    """Phase 3 — Choose TTS engine, voices, and display mode."""
+    import database as db
+    from tts import _BUILTIN_VOICES
+    print("\n=== TTS (Text-to-Speech) ===\n")
+    print("Choose a TTS engine, or skip:\n")
+    print("  Piper TTS")
+    print("    + Best French voice quality, ~50 ms latency")
+    print("    + Modular: download only the voices you need (~80 MB/voice)")
+    print("    - Requires downloading voice files separately\n")
+    print("  Kokoro")
+    print("    + Best English voice quality, all voices bundled")
+    print("    + Single install (~300 MB total, no per-voice downloads)")
+    print("    - French quality decent but not best-in-class\n")
+    print("  [1] Piper TTS")
+    print("  [2] Kokoro")
+    print("  [3] No TTS (overlay only — skip)")
+
+    choice = input("\nChoice [3]: ").strip() or "3"
+
+    if choice == "3":
+        db.save_setting("tts_engine", "off")
+        db.save_setting("tts_mode",   "overlay")
+        print("  TTS skipped — overlay mode active.")
+        return
+
+    engine = "piper" if choice == "1" else "kokoro"
+
+    for lang in ("fr", "en"):
+        voices = _BUILTIN_VOICES[engine][lang]
+        print(f"\n  {lang.upper()} voices:")
+        for i, v in enumerate(voices, 1):
+            print(f"    [{i}] {v}")
+        vchoice = input(f"  Choice [1]: ").strip() or "1"
+        idx = int(vchoice) - 1 if vchoice.isdigit() and 1 <= int(vchoice) <= len(voices) else 0
+        voice = voices[idx]
+        db.save_setting(f"tts_voice_{lang}", voice)
+        print(f"  {lang.upper()} voice: {voice}")
+
+    print("\n  Display mode:")
+    print("  [1] TTS only     (no overlay)")
+    print("  [2] Overlay only (TTS audio muted)")
+    print("  [3] Both         (TTS + overlay text)")
+    mchoice = input("  Choice [3]: ").strip() or "3"
+    mode = {"1": "tts", "2": "overlay", "3": "both"}.get(mchoice, "both")
+
+    db.save_setting("tts_engine", engine)
+    db.save_setting("tts_mode",   mode)
+    print(f"  Engine: {engine}  Mode: {mode}")
+
+    if engine == "piper":
+        print("\n  Installing piper-tts...")
+        subprocess.run(["uv", "sync", "--extra", "tts-piper"], check=True)
+        for lang in ("fr", "en"):
+            import database as _db
+            voice = _db.get_setting(f"tts_voice_{lang}", "")
+            if voice:
+                _download_piper_voice(voice)
+    else:
+        print("\n  Installing kokoro (~300 MB)...")
+        subprocess.run(["uv", "sync", "--extra", "tts-kokoro"], check=True)
+        print("  Kokoro installed.")
+
+
 def main():
     print("=== WritHer Linux — Setup ===\n")
     import database as db
     db.init()
 
-    backend     = detect_gpu()
-    total_vram  = get_total_vram_mb(backend)
+    # Phase 0 — Language
+    setup_language()
 
-    print(f"Backend GPU détecté : {backend.upper()}")
+    # Phase 1 — llama-server binary
+    backend    = detect_gpu()
+    total_vram = get_total_vram_mb(backend)
+    print(f"\nGPU backend detected: {backend.upper()}")
     if total_vram:
-        print(f"VRAM totale : {total_vram} MB")
+        print(f"Total VRAM: {total_vram} MB")
     else:
-        print("Pas de GPU / mode CPU")
+        print("No GPU / CPU mode")
 
     bin_path, managed = setup_llama_binary()
-    model_path        = setup_model(total_vram)
+
+    # Phase 2 — LLM model
+    model_path = setup_model(total_vram)
+
+    # Phase 2.5 — Whisper model
+    setup_whisper()
+
+    # Phase 3 — TTS
+    setup_tts()
 
     db.save_setting("llama_server_bin",     str(bin_path))
     db.save_setting("llama_server_managed", "true" if managed else "false")
     db.save_setting("llama_model",          str(model_path))
     db.save_setting("llama_unload_timeout", "120")
 
-    print("\n=== Configuration sauvegardée ===")
-    print(f"  llama-server     : {bin_path}")
-    print(f"  Modèle           : {model_path}")
-    print(f"  Géré par WritHer : {'oui' if managed else 'non'}")
-    print("\nLance l'app avec : uv run python main.py")
+    print("\n=== Configuration saved ===")
+    print(f"  llama-server : {bin_path}")
+    print(f"  Model        : {model_path}")
+    print(f"  Managed      : {'yes' if managed else 'no'}")
+    print("\nRun the app with: uv run python main.py")
 
 
 if __name__ == "__main__":

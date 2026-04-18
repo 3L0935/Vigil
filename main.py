@@ -27,6 +27,7 @@ from hotkey import HotkeyListener
 from tray_qt import TrayIcon
 from widget import RecordingWidget
 import assistant
+import tts
 from llm_manager import manager as _llm_manager
 import config
 import database as db
@@ -70,6 +71,10 @@ def _load_settings():
     screen = db.get_setting("overlay_screen", "")
     if screen:
         config.OVERLAY_SCREEN = screen
+    config.TTS_ENGINE   = db.get_setting("tts_engine",   "off")
+    config.TTS_MODE     = db.get_setting("tts_mode",     "overlay")
+    config.TTS_VOICE_FR = db.get_setting("tts_voice_fr", "")
+    config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
 
 
 def _on_whisper_model_change(model_name: str):
@@ -84,6 +89,7 @@ def _on_whisper_model_change(model_name: str):
 # ── Dictation callbacks (AltGr) ──────────────────────────────────────────
 
 def _on_hotkey_press():
+    tts.stop()
     recorder.start()
     if tray:
         tray.set_recording(True)
@@ -112,6 +118,7 @@ def _on_hotkey_release():
 # ── Assistant callbacks (Ctrl+R) ──────────────────────────────────────────
 
 def _on_assist_press():
+    tts.stop()
     recorder.start()
     if tray:
         tray.set_recording(True)
@@ -207,7 +214,12 @@ def _assistant_worker():
             else:
                 if widget:
                     widget.set_expression("happy")
-                    widget.show_answer(result)
+                if tts.is_enabled():
+                    tts.speak(result)
+                if config.TTS_MODE in ("overlay", "both", "off"):
+                    if widget:
+                        widget.show_answer(result)
+                if widget:
                     widget.hide()
 
         except Exception as exc:
@@ -289,6 +301,7 @@ def main():
 
     db.init()
     _load_settings()
+    tts.init()
 
     root = tk.Tk()
     root.withdraw()
