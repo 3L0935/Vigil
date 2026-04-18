@@ -35,14 +35,12 @@ fi
 command -v uv >/dev/null 2>&1 || die "uv not found after install. Re-open your terminal and re-run."
 
 # ── Clone or update repo ─────────────────────────────────────────────────────
-if [[ ! -f "$INSTALL_DIR/main.py" ]]; then
-    if [[ -d "$INSTALL_DIR/.git" ]]; then
-        step "Updating existing installation..."
-        git -C "$INSTALL_DIR" pull --ff-only
-    else
-        step "Cloning WritHer..."
-        git clone "$REPO_URL" "$INSTALL_DIR"
-    fi
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+    step "Updating existing installation..."
+    git -C "$INSTALL_DIR" pull --ff-only
+elif [[ ! -f "$INSTALL_DIR/main.py" ]]; then
+    step "Cloning WritHer..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
 # ── Install Python dependencies ──────────────────────────────────────────────

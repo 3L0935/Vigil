@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 WRITHER_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/writher"
 AUTOSTART="$HOME/.config/autostart/writher.desktop"
