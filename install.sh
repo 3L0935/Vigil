@@ -37,8 +37,8 @@ if [[ "$_IN_REPO" == false ]]; then
     command -v git >/dev/null 2>&1 || die "git is required. Install it with your package manager."
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         step "Updating existing installation..."
-        git -C "$INSTALL_DIR" fetch --depth=1 origin main
-        git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
+        git -C "$INSTALL_DIR" fetch origin
+        git -C "$INSTALL_DIR" reset --hard origin/main
     else
         step "Downloading WritHer..."
         rm -rf "$INSTALL_DIR"
