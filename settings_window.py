@@ -526,6 +526,9 @@ class SettingsWindow:
             y = self._win.winfo_y() + (event.y - self._drag_y)
             self._win.geometry(f"+{x}+{y}")
 
+    def hide(self):
+        self._close()
+
     def _close(self):
         win = self._win
         self._win = None

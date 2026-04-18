@@ -112,7 +112,8 @@ def _on_whisper_model_change(model_name: str):
 
 def _on_hotkey_press():
     tts.stop()
-    recorder.start()
+    if not recorder.start():
+        return
     if tray:
         tray.set_recording(True)
     if widget:
@@ -141,7 +142,8 @@ def _on_hotkey_release():
 
 def _on_assist_press():
     tts.stop()
-    recorder.start()
+    if not recorder.start():
+        return
     if tray:
         tray.set_recording(True)
     if widget:
@@ -242,7 +244,13 @@ def _show_settings():
         root.after(0, lambda: settings_win.show())
 
 
+def _hide_settings():
+    if settings_win:
+        root.after(0, lambda: settings_win.hide())
+
+
 assistant.register_action("open_settings", _show_settings)
+assistant.register_action("close_settings", _hide_settings)
 
 
 # Tray fallback for Wayland (no global hotkeys available)

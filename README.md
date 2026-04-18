@@ -116,7 +116,7 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 
 - *"Search my notes for the API key for Claude"*
 - *"What is the weather in Paris?"*
-- *"Open settings"*
+- *"Open settings"* / *"Close settings"*
 - *"Launch Firefox"* / *"Open Kitty"*
 - *"Close Zen Browser"* / *"Quit VLC"*
 
@@ -124,7 +124,7 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 
 - *"Cherche dans mes notes le mot de passe Bitwarden"*
 - *"Donne moi les nouveautés liées à Anthropic AI"*
-- *"Ouvre les paramètres"*
+- *"Ouvre les paramètres"* / *"Ferme les paramètres"*
 - *"Lance Kitty"* / *"Ouvre Firefox"*
 - *"Ferme Zen Browser"* / *"Arrête VLC"*
 
@@ -227,6 +227,22 @@ WritHer uses the system default input device. Check `pavucontrol` or `aplay -l`.
 
 **TTS not playing**  
 Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
+
+---
+
+## Update
+
+**One-liner:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/update.sh | bash
+```
+
+**Or, if you have the repo cloned:**
+```bash
+bash update.sh
+```
+
+Stops the running instance, pulls the latest code, syncs dependencies, and restarts WritHer automatically. Your configuration and data are preserved.
 
 ---
 

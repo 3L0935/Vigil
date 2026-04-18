@@ -78,6 +78,19 @@ _OPEN_SETTINGS_TOOL = {
     },
 }
 
+_CLOSE_SETTINGS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "close_settings",
+        "description": (
+            "Close the Writher settings window if it is currently open. Use when the user asks "
+            "to close or hide the settings: 'ferme les paramètres', 'close settings', "
+            "'hide settings', 'chiudi le impostazioni'."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+}
+
 _LAUNCH_APP_TOOL = {
     "type": "function",
     "function": {
@@ -118,7 +131,7 @@ _CLOSE_APP_TOOL = {
 
 
 def _get_tools() -> list[dict]:
-    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL]
+    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL, _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -163,6 +176,12 @@ def _dispatch(name: str, args: dict) -> str:
             if cb:
                 cb()
             return locales.get("settings_opened")
+
+        elif name == "close_settings":
+            cb = _action_callbacks.get("close_settings")
+            if cb:
+                cb()
+            return locales.get("settings_closed")
 
         elif name == "search_obsidian_vault":
             if not config.OBSIDIAN_VAULT_PATH or not Path(config.OBSIDIAN_VAULT_PATH).is_dir():

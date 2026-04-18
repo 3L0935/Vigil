@@ -22,17 +22,18 @@ class Recorder:
                 rms = float(np.sqrt(np.mean(indata ** 2)))
                 self.on_level(rms)
 
-    def start(self):
+    def start(self) -> bool:
+        """Start recording. Returns True if started, False if already recording or error."""
         with self._start_lock:
             if self.recording:
-                return
+                return False
             self.recording = True  # claim the slot atomically before releasing the lock
         if not self._mic_available:
             self.recording = False
             log.warning("Microphone not available, cannot start recording.")
             if self.on_mic_error:
                 self.on_mic_error("🎤 No microphone detected")
-            return
+            return False
         self._frames = []
         try:
             self._stream = sd.InputStream(
@@ -42,6 +43,7 @@ class Recorder:
                 callback=self._callback,
             )
             self._stream.start()
+            return True
         except (sd.PortAudioError, OSError, Exception) as exc:
             log.error("Failed to open microphone: %s", exc)
             self.recording = False
@@ -49,6 +51,7 @@ class Recorder:
             self._mic_available = False
             if self.on_mic_error:
                 self.on_mic_error("🎤 No microphone detected")
+            return False
 
     def stop(self):
         if not self.recording:
