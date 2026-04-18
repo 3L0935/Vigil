@@ -374,6 +374,7 @@ class AnswerCard:
         self._countdown_start = 0.0
         self._countdown_dur = 0.0
         self._paused = False
+        self._persistent = False
         self._alpha = 0.0
         self._after_fade: str | None = None
         self._fading: str | None = None
@@ -384,8 +385,16 @@ class AnswerCard:
         self._root.after(0, lambda: self._show(text))
 
     def hide(self):
+        if self._persistent:
+            return
         tts.stop()
         self._root.after(0, self._start_fade_out)
+
+    def set_persistent(self, persistent: bool):
+        self._persistent = persistent
+        if not persistent:
+            # Restart countdown from now when persistence is lifted
+            self._countdown_start = time.monotonic()
 
     # ── internal ──────────────────────────────────────────────────────────
 
@@ -577,6 +586,10 @@ class AnswerCard:
     # ── countdown ─────────────────────────────────────────────────────────
 
     def _countdown_tick(self):
+        if self._persistent:
+            self._countdown_start = time.monotonic()
+            self._after_countdown = self._root.after(200, self._countdown_tick)
+            return
         if tts.is_playing():
             self._countdown_start = time.monotonic()
             self._after_countdown = self._root.after(100, self._countdown_tick)
@@ -739,6 +752,10 @@ class RecordingWidget:
         self._pill_cache = {}
         # Answer card (separate Toplevel, shown after LLM response)
         self._answer_card: AnswerCard | None = None
+        # Multi-turn context visual state
+        self._context_level   = 0
+        self._context_waiting = False
+        self._on_context_close = None
         # Start active-screen tracker once (shared across all instances)
         global _active_screen_tracker
         if _active_screen_tracker is None:
@@ -760,11 +777,14 @@ class RecordingWidget:
         self._root.after(0, lambda: self._show_msg(text, duration_ms))
 
     def hide(self):
+        if self._context_waiting:
+            return
         self._root.after(0, self._start_fade_out)
 
     def show_answer(self, text: str):
         if self._answer_card is None:
             self._answer_card = AnswerCard(self._root)
+        self._answer_card.set_persistent(self._context_waiting)
         self._answer_card.show(text)
 
     def hide_answer(self):
@@ -799,6 +819,15 @@ class RecordingWidget:
         error, alert, surprised, wink, sleep, sad, love, loading"""
         if expr in _STATE_STYLE:
             self._expression = expr
+
+    def set_context_state(self, level: int, waiting: bool):
+        self._context_level   = level
+        self._context_waiting = waiting
+        if self._answer_card is not None:
+            self._answer_card.set_persistent(waiting)
+
+    def set_close_callback(self, cb):
+        self._on_context_close = cb
 
     # ── fade transitions ──────────────────────────────────────────────────
 
@@ -905,6 +934,15 @@ class RecordingWidget:
         if self._after_anim is None:
             self._animate()
 
+    def _handle_close_btn(self):
+        """Close button: always dismisses pill, even when waiting for reply."""
+        self._context_waiting = False
+        if self._answer_card is not None:
+            self._answer_card.set_persistent(False)
+        if self._on_context_close:
+            self._on_context_close()
+        self._root.after(0, self._start_fade_out)
+
     def _do_hide(self):
         self._mode = None
         self._expression = "idle"
@@ -968,6 +1006,10 @@ class RecordingWidget:
     def _update_label(self):
         if self._label_id is None or self._canvas is None:
             return
+        if self._context_waiting and self._mode not in (self.RECORDING, self.ASSISTANT):
+            self._canvas.itemconfig(self._label_id, text="Waiting...",
+                                    fill="#c8a000", state="normal")
+            return
         style = _STATE_STYLE.get(self._expression, _IDLE_STYLE)
         label = style["label"]
         accent = style["accent"]
@@ -991,9 +1033,25 @@ class RecordingWidget:
             return
 
         expr = self._expression
-        style = _STATE_STYLE.get(expr, _IDLE_STYLE)
 
-        cache_key = (expr, tuple(style["border"]), style["border_a"])
+        active = self._mode in (self.RECORDING, self.ASSISTANT)
+        if self._context_waiting and not active:
+            border_rgb = (200, 160, 0)
+            border_a   = 0.15
+            glow_rgb   = (200, 160, 0)
+        elif self._context_level > 0 and not active:
+            t = min(1.0, self._context_level / 3.0)
+            g_b = int(255 + (80 - 255) * t)
+            border_rgb = (255, g_b, g_b)
+            border_a   = 0.08
+            glow_rgb   = border_rgb
+        else:
+            style      = _STATE_STYLE.get(expr, _IDLE_STYLE)
+            border_rgb = style["border"]
+            border_a   = style["border_a"]
+            glow_rgb   = style["glow"]
+
+        cache_key = (expr, tuple(border_rgb), border_a)
         if cache_key in self._pill_cache:
             self._bg_tk = self._pill_cache[cache_key]
         else:
@@ -1002,9 +1060,9 @@ class RecordingWidget:
             pill = _render_pill(
                 _W, _H, _RADIUS,
                 fill_rgb=fill_rgb,
-                border_rgb=style["border"],
-                border_a=style["border_a"],
-                glow_rgb=style["glow"],
+                border_rgb=border_rgb,
+                border_a=border_a,
+                glow_rgb=glow_rgb,
                 chromakey_rgb=ck_rgb,
             )
             self._bg_tk = ImageTk.PhotoImage(pill)
@@ -1103,7 +1161,7 @@ class RecordingWidget:
             font=("Segoe UI", 11, "bold"),
             anchor="center",
         )
-        c.tag_bind(self._close_id, "<Button-1>", lambda e: self.hide())
+        c.tag_bind(self._close_id, "<Button-1>", lambda e: self._handle_close_btn())
         c.tag_bind(self._close_id, "<Enter>",
                    lambda e: c.itemconfig(self._close_id, fill="#aaaacc"))
         c.tag_bind(self._close_id, "<Leave>",
@@ -1144,6 +1202,17 @@ class RecordingWidget:
 
         eye_rgb  = eye_theme["eye"]
         glow_rgb = eye_theme["glow"]
+
+        # Context state overrides eye color (not shape) — only when mic is not active
+        active = self._mode in (self.RECORDING, self.ASSISTANT)
+        if self._context_waiting and not active:
+            eye_rgb  = (255, 200, 0)
+            glow_rgb = (200, 150, 0)
+        elif self._context_level > 0 and not active:
+            t_c = min(1.0, self._context_level / 3.0)
+            g_b = int(255 + (80 - 255) * t_c)
+            eye_rgb  = (255, g_b, g_b)
+            glow_rgb = eye_rgb
 
         # ── Render at high-res (matching JSX SVG approach) ────────
         sz = 28          # output size

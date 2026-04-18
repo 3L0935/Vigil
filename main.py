@@ -217,8 +217,13 @@ def _assistant_worker():
                 continue
 
             log.info("Assistant heard: %r", text)
-            result = assistant.process(text)
-            log.info("Assistant result: %s", result)
+            result  = assistant.process(text)
+            waiting = assistant.is_waiting()
+            level   = assistant.context_level()
+            log.info("Assistant result: %s (waiting=%s, level=%d)", result, waiting, level)
+
+            if widget:
+                widget.set_context_state(level, waiting)
 
             if result == locales.get("not_understood") or result.startswith(locales.get("error", detail="")):
                 if widget:
@@ -227,7 +232,7 @@ def _assistant_worker():
             else:
                 if widget:
                     widget.set_expression("happy")
-                if tts.is_enabled():
+                if tts.is_enabled() and not waiting:
                     try:
                         tts.speak(result)
                     except Exception as tts_exc:
@@ -255,6 +260,16 @@ def _show_settings():
 def _hide_settings():
     if settings_win:
         root.after(0, lambda: settings_win.hide())
+
+
+def _clear_assistant_context():
+    assistant.reset_context()
+    if widget and root:
+        def _do():
+            widget.set_context_state(0, False)
+            widget.hide_answer()
+            widget.hide()
+        root.after(0, _do)
 
 
 assistant.register_action("open_settings", _show_settings)
@@ -375,6 +390,7 @@ def main():
     root.withdraw()
 
     widget = RecordingWidget(root)
+    widget.set_close_callback(lambda: assistant.reset_context())
     settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change,
                                    on_hotkey_change=_restart_hotkeys)
 
@@ -384,7 +400,8 @@ def main():
     tray = TrayIcon(on_quit=_quit, on_show_settings=_show_settings,
                     on_dictate=_tray_toggle_dictation,
                     on_assist=_tray_toggle_assistant,
-                    on_stop_tts=tts.stop)
+                    on_stop_tts=tts.stop,
+                    on_clear_context=_clear_assistant_context)
     tray.start()
     tray.update_hotkey_labels(
         f"Dictate ({config.HOTKEY})",

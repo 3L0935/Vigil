@@ -92,6 +92,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         # web search
         "web_no_results":           "No web results found for '{query}'",
 
+        # multi-turn context
+        "context_cleared":          "Conversation cleared.",
+        "tray_clear_context":       "Clear context",
+        "app_candidates":           "Multiple apps found:\n{list}\nReply with the number.",
+
         # settings_window.py
         "setting_whisper_model":    "Whisper model",
         "setting_llm_model":        "LLM model (.gguf)",
@@ -178,6 +183,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tray_stop_tts":            "Ferma TTS",
         "tray_dictate":             "Ditta (AltGr)",
         "tray_assist":              "Assistente (Ctrl+R)",
+
+        # multi-turn context
+        "context_cleared":          "Conversazione cancellata.",
+        "tray_clear_context":       "Cancella contesto",
+        "app_candidates":           "Più applicazioni trovate:\n{list}\nRispondi con il numero.",
 
         # settings_window.py
         "settings_title":           "Impostazioni",
@@ -294,6 +304,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_toggle":           "Appuyer pour démarrer / arrêter",
         "setting_max_duration":     "Durée max d'enregistrement (secondes)",
         "setting_saved":            "Paramètres enregistrés",
+
+        # multi-turn context
+        "context_cleared":          "Conversation effacée.",
+        "tray_clear_context":       "Effacer le contexte",
+        "app_candidates":           "Plusieurs applications trouvées :\n{list}\nRépondez par le numéro.",
 
         # obsidian vault (new)
         "vault_not_configured":     "La vault Obsidian n'est pas configurée. Définis le chemin dans les Paramètres.",

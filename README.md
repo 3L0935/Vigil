@@ -40,6 +40,10 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 - **Web search** — ask the assistant to look something up; answer spoken aloud
 - **Obsidian vault search** — query your markdown notes by voice
 - **App launcher** — open or close any installed app by name (searches `.desktop` files + PATH)
+  - **Fuzzy matching** — phonetic approximations work ("dolfine" → Dolphin); single match auto-launches, multiple matches show a numbered list
+  - **Multi-turn confirmation** — press the assistant hotkey again to reply with a number; answer card stays visible until resolved
+- **Multi-turn context** — the assistant remembers the last 10 turns for up to 30 seconds; context level shown via Pandora eye color (white = fresh, progressively red = active context, yellow = waiting for reply)
+- **Clear context** — say *"clear context"* / *"nettoie la conv"* to reset, or use the tray menu button
 - **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
 - **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
 - **Full settings UI** — all configuration from the settings window; no editing config files
@@ -119,6 +123,7 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 - *"Open settings"* / *"Close settings"*
 - *"Launch Firefox"* / *"Open Kitty"*
 - *"Close Zen Browser"* / *"Quit VLC"*
+- *"Clear context"* / *"Start over"*
 
 **Example commands (FR):**
 
@@ -127,6 +132,29 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 - *"Ouvre les paramètres"* / *"Ferme les paramètres"*
 - *"Lance Kitty"* / *"Ouvre Firefox"*
 - *"Ferme Zen Browser"* / *"Arrête VLC"*
+- *"Nettoie la conv"* / *"Repart à zéro"*
+
+**Fuzzy app matching:**
+
+If the spoken name doesn't match exactly, the assistant tries phonetic approximations. If a single match is found, it auto-launches. If multiple apps match, a numbered list appears in the overlay:
+
+```
+Multiple apps found:
+1: Dolphin
+2: Dragon
+Reply with the number.
+```
+
+Press the assistant hotkey again and say *"one"* / *"un"* / *"1"* to confirm. The overlay stays visible (yellow eyes) until you reply or click the close button.
+
+**Multi-turn context:**
+
+The Pandora eyes indicate context state:
+- **White** — fresh context, no history
+- **Progressively red** — active multi-turn context (1 → 3+ turns)
+- **Yellow** — waiting for your numbered reply
+
+Context resets automatically after 30 seconds of inactivity.
 
 
 ### System tray
@@ -274,3 +302,9 @@ MIT
 <p align="center">
   <sub>Built with 🎙️ faster-whisper · 🧠 llama.cpp · 🗣️ Piper TTS · 🐍 Python</sub>
 </p>
+
+---
+
+## Credits
+
+Based on [WritHer](https://github.com/benmaster82/writher) by [@benmaster82](https://github.com/benmaster82).

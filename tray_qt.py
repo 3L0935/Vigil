@@ -18,12 +18,14 @@ def _pil_to_qicon(img: Image.Image) -> QIcon:
 
 class TrayIcon:
     def __init__(self, on_quit, on_show_settings=None,
-                 on_dictate=None, on_assist=None, on_stop_tts=None):
+                 on_dictate=None, on_assist=None, on_stop_tts=None,
+                 on_clear_context=None):
         self._on_quit = on_quit
         self._on_show_settings = on_show_settings
         self._on_dictate = on_dictate
         self._on_assist = on_assist
         self._on_stop_tts = on_stop_tts
+        self._on_clear_context = on_clear_context
         self._dict_label = "Dictate"
         self._asst_label = "Assistant"
         self._app = None
@@ -50,7 +52,9 @@ class TrayIcon:
             menu.addAction(self._asst_label, self._on_assist)
         if self._on_stop_tts:
             menu.addAction(locales.get("tray_stop_tts"), self._on_stop_tts)
-        if self._on_dictate or self._on_assist or self._on_stop_tts:
+        if self._on_clear_context:
+            menu.addAction(locales.get("tray_clear_context"), self._on_clear_context)
+        if self._on_dictate or self._on_assist or self._on_stop_tts or self._on_clear_context:
             menu.addSeparator()
         if self._on_show_settings:
             menu.addAction(locales.get("tray_settings"), self._on_show_settings)

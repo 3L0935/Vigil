@@ -51,6 +51,17 @@ def _list_apps() -> list[dict]:
     return apps
 
 
+def find_candidates(query: str, n: int = 4) -> list[str]:
+    """Return up to n app display names that fuzzy-match query (difflib)."""
+    import difflib
+    q = query.lower().strip()
+    apps = _list_apps()
+    name_lower = [a["name"].lower() for a in apps]
+    matches = difflib.get_close_matches(q, name_lower, n=n, cutoff=0.55)
+    name_map = {a["name"].lower(): a["name"] for a in apps}
+    return [name_map[m] for m in matches if m in name_map]
+
+
 def _find_app(query: str) -> dict | None:
     q = query.lower().strip()
     apps = _list_apps()
