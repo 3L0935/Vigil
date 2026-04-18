@@ -124,9 +124,12 @@ _OPEN_SETTINGS_TOOL = {
     "function": {
         "name": "open_settings",
         "description": (
-            "Open the Writher settings window. Use when the user asks to open settings, "
-            "configure the app, change parameters, or says things like "
-            "'ouvre les paramètres', 'open settings', 'show settings', 'apri le impostazioni'."
+            "Open Writher's OWN settings/configuration panel. "
+            "Use ONLY when the user explicitly wants to configure Writher itself: "
+            "'ouvre les paramètres de Writher', 'open Writher settings', 'show settings', "
+            "'apri le impostazioni'. "
+            "Do NOT use for OS settings, KDE settings, system settings, or any other "
+            "application's settings — use launch_app for those instead."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
