@@ -9,8 +9,11 @@ import sounddevice as sd
 
 import config
 import database as db
+from logger import log
 
 _playing = threading.Event()
+_voice_cache: dict = {}
+_voice_cache_lock = threading.Lock()
 
 _PIPER_DIR = Path.home() / ".local" / "share" / "vigil" / "tts" / "piper"
 
@@ -123,7 +126,11 @@ def speak(text: str) -> None:
     voice = _voice_fr if lang == "fr" else _voice_en
     speaker_id = _speaker_fr if lang == "fr" else _speaker_en
     sid = speaker_id if get_num_speakers(voice) > 1 else None
-    _speak_piper(_clean_for_tts(text), voice, _volume, sid)
+    threading.Thread(
+        target=_speak_piper,
+        args=(_clean_for_tts(text), voice, _volume, sid),
+        daemon=True,
+    ).start()
 
 
 def preview(voice_name: str, speaker_id: int | None = None) -> None:
@@ -149,20 +156,36 @@ def is_playing() -> bool:
     return _playing.is_set()
 
 
+def _get_piper_voice(voice: str):
+    """Return cached PiperVoice, loading it on first access."""
+    with _voice_cache_lock:
+        pv = _voice_cache.get(voice)
+        if pv is not None:
+            return pv
+        from piper import PiperVoice
+        path = _PIPER_DIR / f"{voice}.onnx"
+        log.info("Loading Piper voice: %s", voice)
+        pv = PiperVoice.load(str(path))
+        _voice_cache[voice] = pv
+        return pv
+
+
 def _speak_piper(text: str, voice: str, volume: float = 1.0, speaker_id: int | None = None) -> None:
-    from piper import PiperVoice
-    from piper.config import SynthesisConfig
-    path = _PIPER_DIR / f"{voice}.onnx"
-    pv = PiperVoice.load(str(path))
-    syn_config = SynthesisConfig(speaker_id=speaker_id) if speaker_id is not None else None
-    chunks = [c.audio_float_array for c in pv.synthesize(text, syn_config=syn_config)]
-    if not chunks:
-        return
-    audio = np.concatenate(chunks).astype(np.float32) * volume
-    _playing.set()
-    sd.stop()  # flush any lingering stream (e.g. aborted recorder stream) before playing
-    sd.play(audio, samplerate=pv.config.sample_rate)
-    threading.Thread(target=_wait_audio_done, daemon=True).start()
+    try:
+        from piper.config import SynthesisConfig
+        pv = _get_piper_voice(voice)
+        syn_config = SynthesisConfig(speaker_id=speaker_id) if speaker_id is not None else None
+        chunks = [c.audio_float_array for c in pv.synthesize(text, syn_config=syn_config)]
+        if not chunks:
+            return
+        audio = np.concatenate(chunks).astype(np.float32) * volume
+        _playing.set()
+        sd.stop()  # flush any lingering stream (e.g. aborted recorder stream) before playing
+        sd.play(audio, samplerate=pv.config.sample_rate)
+        threading.Thread(target=_wait_audio_done, daemon=True).start()
+    except Exception as exc:
+        log.error("Piper TTS error: %s", exc, exc_info=True)
+        _playing.clear()
 
 
 def _wait_audio_done() -> None:
