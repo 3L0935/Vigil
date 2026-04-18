@@ -1,16 +1,16 @@
-"""Centralised logging for Writher (console + rotating file)."""
+"""Centralised logging for Vigil (console + rotating file)."""
 
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "writher"
+_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "vigil"
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
-_LOG_FILE = str(_DATA_DIR / "writher.log")
+_LOG_FILE = str(_DATA_DIR / "vigil.log")
 
 
-def setup(name: str = "writher") -> logging.Logger:
+def setup(name: str = "vigil") -> logging.Logger:
     logger = logging.getLogger(name)
     if logger.handlers:          # already initialised
         return logger

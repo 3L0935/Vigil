@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WritHer Linux — first-run setup. Run with: uv run python setup.py"""
+"""Vigil — first-run setup. Run with: uv run python first_run.py"""
 
 import fnmatch
 import os
@@ -22,9 +22,9 @@ if not sys.stdin.isatty():
     except OSError:
         pass
 
-WRITHER_DIR = Path.home() / ".local" / "share" / "writher"
-LLAMA_DIR   = WRITHER_DIR / "llama"
-MODELS_DIR  = WRITHER_DIR / "models"
+VIGIL_DIR  = Path.home() / ".local" / "share" / "vigil"
+LLAMA_DIR  = VIGIL_DIR / "llama"
+MODELS_DIR = VIGIL_DIR / "models"
 
 LLAMA_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 
@@ -360,7 +360,7 @@ def _piper_voice_url(voice: str) -> str:
 
 
 def _download_piper_voice(voice: str) -> None:
-    dest_dir = WRITHER_DIR / "tts" / "piper"
+    dest_dir = VIGIL_DIR / "tts" / "piper"
     dest_dir.mkdir(parents=True, exist_ok=True)
     base = _piper_voice_url(voice)
     for ext in (".onnx", ".onnx.json"):
@@ -468,10 +468,24 @@ def setup_tts() -> None:
             _download_piper_voice(voice)
 
 
+def _install_app_icon() -> None:
+    """Write vigil.png to ~/.local/share/icons/ for .desktop Icon= resolution."""
+    import brand
+    icons_dir = Path.home() / ".local" / "share" / "icons"
+    icons_dir.mkdir(parents=True, exist_ok=True)
+    icon_path = icons_dir / "vigil.png"
+    try:
+        brand.generate_app_icon(128).save(str(icon_path))
+        print(f"  App icon installed: {icon_path}")
+    except Exception as exc:
+        print(f"  Warning: could not install app icon: {exc}")
+
+
 def main():
-    print("=== WritHer Linux — Setup ===\n")
+    print("=== Vigil — Setup ===\n")
     import database as db
     db.init()
+    _install_app_icon()
 
     # Phase 0 — Language
     setup_language()

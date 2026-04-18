@@ -1,4 +1,4 @@
-"""Centralised i18n string table for Writher.
+"""Centralised i18n string table for Vigil.
 
 All user-facing strings are stored here, keyed by language code.
 Use ``get(key)`` to retrieve the string for the current ``config.LANGUAGE``.
@@ -42,9 +42,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "assistant_error":      "Assistant error",
 
         # tray_qt.py
-        "tray_idle":            "Writher — idle",
-        "tray_recording":       "Writher — recording...",
-        "tray_ollama_down":     "Writher — LLM server not reachable",
+        "tray_idle":            "Vigil — idle",
+        "tray_recording":       "Vigil — recording...",
+        "tray_ollama_down":     "Vigil — LLM server not reachable",
         "tray_quit":            "Quit",
         "tray_settings":        "Settings",
         "tray_stop_tts":        "Stop TTS",
@@ -116,9 +116,9 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         "assistant_error":      "Errore assistente",
 
-        "tray_idle":            "Writher — inattivo",
-        "tray_recording":       "Writher — registrazione...",
-        "tray_ollama_down":     "Writher — server LLM non raggiungibile",
+        "tray_idle":            "Vigil — inattivo",
+        "tray_recording":       "Vigil — registrazione...",
+        "tray_ollama_down":     "Vigil — server LLM non raggiungibile",
         "tray_quit":            "Esci",
         "tray_settings":        "Impostazioni",
         "tray_stop_tts":        "Ferma TTS",
@@ -192,9 +192,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "assistant_error":      "Erreur de l'assistant",
 
         # tray_qt.py
-        "tray_idle":            "WritHer — en attente",
-        "tray_recording":       "WritHer — enregistrement...",
-        "tray_ollama_down":     "WritHer — serveur LLM inaccessible",
+        "tray_idle":            "Vigil — en attente",
+        "tray_recording":       "Vigil — enregistrement...",
+        "tray_ollama_down":     "Vigil — serveur LLM inaccessible",
         "tray_quit":            "Quitter",
         "tray_settings":        "Paramètres",
         "tray_stop_tts":        "Arrêter TTS",

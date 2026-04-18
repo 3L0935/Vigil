@@ -44,7 +44,7 @@ class TrayIcon:
 
     def _build_menu(self) -> QMenu:
         menu = QMenu()
-        menu.addAction("Writher").setEnabled(False)
+        menu.addAction("Vigil").setEnabled(False)
         menu.addSeparator()
         if self._on_dictate:
             menu.addAction(self._dict_label, self._on_dictate)

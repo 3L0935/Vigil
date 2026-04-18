@@ -1,101 +1,238 @@
-"""Centralised Pandora Blackboard brand assets for Writher."""
+"""Vigil brand assets — iris mark and banner generation."""
 
 import os
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-# ── Eye geometry ratios (relative to output size) ─────────────────────────
-_EYE_SPREAD_RATIO = 0.18   # half-distance between dots / size
-_EYE_RADIUS_RATIO = 0.10   # dot radius / size (larger = crisper at small sizes)
-_GLOW_MULT = 2.8           # glow radius multiplier
-
-# ── Paths ─────────────────────────────────────────────────────────────────
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Idle state colors
+_IDLE_EYE = (0, 212, 255)    # #00d4ff
+_IDLE_BG  = (10, 10, 18)     # #0a0a12
 
-def render_eyes(
-    size: int = 64,
-    bg_rgb: tuple = (12, 12, 15),
-    eye_rgb: tuple = (255, 255, 255),
-    glow_rgb: tuple | None = None,
-    glow_alpha: int = 60,
-    circle_bg: bool = True,
-    bg_alpha: int = 255,
-) -> Image.Image:
-    """Render the Pandora Blackboard [ · · ] eyes as a PIL RGBA image.
+# Recording state colors
+_REC_EYE  = (255, 68, 68)    # #ff4444
+_REC_BG   = (18, 8, 8)       # #120808
+
+
+def render_vigil_eye(size: int = 64, idle: bool = True, almond: bool = True) -> Image.Image:
+    """Render the Vigil iris mark as a PIL RGBA image.
 
     Args:
-        size:       Output image size (square).
-        bg_rgb:     Background fill colour. Ignored if circle_bg is False.
-        eye_rgb:    Core eye dot colour.
-        glow_rgb:   Glow colour (defaults to eye_rgb).
-        glow_alpha: Glow layer opacity (0-255).
-        circle_bg:  If True, draw a filled circle background.
-        bg_alpha:   Background circle alpha (0-255). Use 0 for transparent bg.
+        size:   Output image size in pixels (square).
+        idle:   True = cyan eye, False = red (recording) eye.
+        almond: Draw the decorative almond frame. Auto-suppressed at size < 48.
 
     Returns:
-        PIL Image in RGBA mode.
+        PIL Image in RGBA mode, size × size.
     """
-    if glow_rgb is None:
-        glow_rgb = eye_rgb
+    eye_c = _IDLE_EYE if idle else _REC_EYE
+    bg_c  = _IDLE_BG  if idle else _REC_BG
 
-    # Higher internal scale for crisp output at all sizes
     scale = 8
-    s = size * scale
-    cx = s // 2
-    cy = s // 2
-    spread = size * _EYE_SPREAD_RATIO * scale
-    er = size * _EYE_RADIUS_RATIO * scale
+    s     = size * scale    # internal canvas side (512 at size=64)
+    cx    = s // 2
+    cy    = s // 2
 
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    # Geometry (all ratios × s)
+    pad    = max(2, int(0.04 * s))
+    glow_r = int(0.22 * s)
+    ring_r = int(0.14 * s)
+    ring_w = max(2, int(0.03 * s))
+    pup_r  = int(0.08 * s)
+    shi_r  = max(1, int(0.03 * s))
+    shi_dx = int(-0.05 * s)
+    shi_dy = int(-0.05 * s)
+    alm_rx = int(0.32 * s)
+    alm_ry = int(0.17 * s)
+
+    img  = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Optional circular background
-    if circle_bg and bg_alpha > 0:
-        pad = int(s * 0.04)
-        draw.ellipse([pad, pad, s - pad, s - pad],
-                     fill=bg_rgb + (bg_alpha,))
+    # Background circle with cyan border
+    draw.ellipse(
+        [pad, pad, s - pad, s - pad],
+        fill=bg_c + (255,),
+        outline=eye_c + (128,),   # 0.5 opacity
+        width=max(2, ring_w // 2),
+    )
 
-    lx = cx - spread
-    rx = cx + spread
+    # Almond frame (decorative, only at size >= 48)
+    if almond and size >= 48:
+        draw.ellipse(
+            [cx - alm_rx, cy - alm_ry, cx + alm_rx, cy + alm_ry],
+            outline=eye_c + (102,),   # 0.4 opacity
+            width=max(1, ring_w // 3),
+        )
 
-    # Glow layer (soft light behind the dots)
-    glow_img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    # Radial glow
+    glow_img  = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     glow_draw = ImageDraw.Draw(glow_img)
-    gr = er * _GLOW_MULT
-    glow_draw.ellipse([lx - gr, cy - gr, lx + gr, cy + gr],
-                      fill=glow_rgb + (glow_alpha,))
-    glow_draw.ellipse([rx - gr, cy - gr, rx + gr, cy + gr],
-                      fill=glow_rgb + (glow_alpha,))
-    glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=er * 1.5))
-    img = Image.alpha_composite(img, glow_img)
-
-    # Core dots
+    glow_draw.ellipse(
+        [cx - glow_r, cy - glow_r, cx + glow_r, cy + glow_r],
+        fill=eye_c + (140,),   # 0.55 opacity
+    )
+    glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=int(glow_r * 0.6)))
+    img  = Image.alpha_composite(img, glow_img)
     draw = ImageDraw.Draw(img)
-    draw.ellipse([lx - er, cy - er, lx + er, cy + er], fill=eye_rgb + (255,))
-    draw.ellipse([rx - er, cy - er, rx + er, cy + er], fill=eye_rgb + (255,))
+
+    # Iris ring
+    draw.ellipse(
+        [cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r],
+        outline=eye_c + (153,),   # 0.6 opacity
+        width=ring_w,
+    )
+
+    # Pupil
+    draw.ellipse(
+        [cx - pup_r, cy - pup_r, cx + pup_r, cy + pup_r],
+        fill=eye_c + (255,),
+    )
+
+    # Shine dot (top-left offset)
+    sx, sy = cx + shi_dx, cy + shi_dy
+    draw.ellipse(
+        [sx - shi_r, sy - shi_r, sx + shi_r, sy + shi_r],
+        fill=(255, 255, 255, 166),   # 0.65 opacity
+    )
 
     return img.resize((size, size), Image.LANCZOS)
 
 
 def make_tray_icon(recording: bool = False) -> Image.Image:
-    """Generate a 64x64 tray icon with Pandora eyes.
+    """Return a 64×64 tray icon. Idle = cyan, recording = red."""
+    return render_vigil_eye(size=64, idle=not recording)
 
-    Idle: white eyes on dark circle.
-    Recording: red-tinted eyes with red glow.
+
+def generate_app_icon(size: int = 128) -> Image.Image:
+    """Vigil eye without the almond frame — for .desktop / launcher use."""
+    return render_vigil_eye(size=size, idle=True, almond=False)
+
+
+def generate_banner(
+    out_path: str | None = None,
+    tagline: str = "VOICE · AI · LINUX",
+    transparent: bool = True,
+) -> Image.Image:
+    """Generate the 1280×640 GitHub banner.
+
+    transparent=True (default): RGBA PNG, no background fill — glow and eye
+    float on whatever background GitHub renders. transparent=False: dark
+    gradient background (original style).
     """
-    if recording:
-        return render_eyes(
-            size=64,
-            bg_rgb=(50, 12, 12),
-            eye_rgb=(255, 80, 80),
-            glow_rgb=(255, 50, 50),
-            glow_alpha=80,
-        )
-    return render_eyes(
-        size=64,
-        bg_rgb=(15, 15, 20),
-        eye_rgb=(255, 255, 255),
-        glow_rgb=(255, 255, 255),
-        glow_alpha=55,
-    )
+    w, h = 1280, 640
 
+    banner = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+
+    if not transparent:
+        # Dark diagonal gradient (#03030a → #04050e)
+        xs = np.linspace(0.0, 1.0, w, dtype=np.float32)
+        ys = np.linspace(0.0, 1.0, h, dtype=np.float32)
+        xg, yg = np.meshgrid(xs, ys)
+        t = (xg + yg) * 0.5
+        arr = np.zeros((h, w, 3), dtype=np.uint8)
+        arr[:, :, 0] = np.clip(3 + t,      0, 255).astype(np.uint8)
+        arr[:, :, 1] = np.clip(3 + t * 2,  0, 255).astype(np.uint8)
+        arr[:, :, 2] = np.clip(10 + t * 4, 0, 255).astype(np.uint8)
+        banner = Image.fromarray(arr, "RGB").convert("RGBA")
+
+        # Grid overlay (36px, #00d4ff at ~2.5% → alpha 6)
+        grid = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        gd   = ImageDraw.Draw(grid)
+        for x in range(0, w, 36):
+            gd.line([(x, 0), (x, h)], fill=(0, 212, 255, 6))
+        for y in range(0, h, 36):
+            gd.line([(0, y), (w, y)], fill=(0, 212, 255, 6))
+        banner = Image.alpha_composite(banner, grid)
+
+    # Center glow blob — stronger when transparent so it reads on any bg
+    glow_cx = w // 2
+    glow_cy = h // 2 - 60
+    glow    = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd2     = ImageDraw.Draw(glow)
+    gr      = 220
+    glow_a  = 55 if transparent else 30
+    gd2.ellipse(
+        [glow_cx - gr, glow_cy - gr, glow_cx + gr, glow_cy + gr],
+        fill=(0, 212, 255, glow_a),
+    )
+    glow   = glow.filter(ImageFilter.GaussianBlur(radius=90))
+    banner = Image.alpha_composite(banner, glow)
+
+    # Vigil eye (160px, centered horizontally, above vertical center)
+    eye   = render_vigil_eye(size=160, idle=True)
+    eye_x = (w - 160) // 2
+    eye_y = h // 2 - 200
+    banner.paste(eye, (eye_x, eye_y), eye)
+
+    # Text (VIGIL + tagline)
+    _draw_banner_text(banner, w, h, tagline=tagline, glow=transparent)
+
+    if transparent:
+        if out_path:
+            banner.save(out_path)
+        return banner
+
+    result = banner.convert("RGB")
+    if out_path:
+        result.save(out_path)
+    return result
+
+
+def _draw_banner_text(
+    img: Image.Image, w: int, h: int,
+    tagline: str = "VOICE · AI · LINUX",
+    glow: bool = False,
+) -> None:
+    """Draw VIGIL brand name and tagline onto the banner image in-place."""
+    try:
+        from PIL import ImageFont
+        import subprocess
+        fc = subprocess.run(
+            ["fc-match", "DejaVu Sans:bold", "--format=%{file}"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        font_big = ImageFont.truetype(fc, 72) if fc else ImageFont.load_default()
+        fc2 = subprocess.run(
+            ["fc-match", "DejaVu Sans", "--format=%{file}"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        font_tag = ImageFont.truetype(fc2, 20) if fc2 else font_big
+    except Exception:
+        font_big = None
+        font_tag = None
+
+    text_y = h // 2 + 20
+
+    if font_big:
+        letters = list("VIGIL")
+        spacing = 22
+        widths  = [font_big.getlength(c) for c in letters]
+        total_w = sum(widths) + spacing * (len(letters) - 1)
+        lx0     = int((w - total_w) // 2)
+
+        tl_w = font_tag.getlength(tagline)
+        tl_x = int((w - tl_w) // 2)
+        tl_y = text_y + 90
+
+        if glow:
+            # Cyan glow layer behind VIGIL text
+            g_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            g_draw  = ImageDraw.Draw(g_layer)
+            lx = lx0
+            for ch, cw in zip(letters, widths):
+                g_draw.text((lx, text_y), ch, fill=(0, 212, 255, 160), font=font_big)
+                lx += int(cw) + spacing
+            g_draw.text((tl_x, tl_y), tagline, fill=(0, 212, 255, 120), font=font_tag)
+            g_layer = g_layer.filter(ImageFilter.GaussianBlur(radius=18))
+            img.alpha_composite(g_layer)
+
+        bd = ImageDraw.Draw(img)
+        lx = lx0
+        for ch, cw in zip(letters, widths):
+            bd.text((lx, text_y), ch, fill=(232, 234, 240, 255), font=font_big)
+            lx += int(cw) + spacing
+
+        bd.text((tl_x, tl_y), tagline, fill=(0, 212, 255, 160), font=font_tag)
+    else:
+        ImageDraw.Draw(img).text((w // 2 - 40, text_y), "VIGIL", fill=(232, 234, 240, 255))

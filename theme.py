@@ -1,36 +1,36 @@
-"""Unified Pandora Blackboard theme for all Writher windows.
+"""Vigil unified theme — Pandora × Neon Hybrid palette."""
 
-Single source of truth for colours, fonts, and spacing.
-Pure black + bright white — matching the Pandora Blackboard brand.
-"""
+# ── Backgrounds ───────────────────────────────────────────────────────────
+BG_DEEP     = "#03030a"     # deepest background
+BG          = "#05050a"     # primary window background
+BG_CARD     = "#0a0a12"     # card / elevated surface
+BG_HOVER    = "#12121e"     # card hover state
+BG_INPUT    = "#0a0a12"     # input fields, sliders
 
-# ── Core Pandora Blackboard palette ───────────────────────────────────────
-BG_DEEP     = "#000000"     # pure black background
-BG          = "#050508"     # primary window background
-BG_CARD     = "#0a0a0f"     # card / elevated surface
-BG_HOVER    = "#111118"     # card hover state
-BG_INPUT    = "#0a0a0f"     # input fields, sliders
-BORDER      = "#1a1a24"     # subtle borders
-BORDER_GLOW = "#2a2a3a"     # brighter border for focus / hover
+# ── Borders (hex approximations — CTkinter takes no rgba) ─────────────────
+# BORDER      ≈ #00d4ff at 12% opacity on BG
+# BORDER_GLOW ≈ #00d4ff at 35% opacity on BG
+BORDER      = "#0d1a1f"
+BORDER_GLOW = "#004d66"
 
 # ── Text ──────────────────────────────────────────────────────────────────
-FG          = "#ffffff"     # pure white primary text
-FG_DIM      = "#888898"     # secondary / muted text
-FG_ACCENT   = "#ccccdd"     # slightly muted white
+FG          = "#e8eaf0"     # primary text
+FG_DIM      = "#8a8f98"     # secondary / muted text
+FG_ACCENT   = "#d0d6e0"     # slightly muted
 
 # ── Accent ────────────────────────────────────────────────────────────────
-ACCENT      = "#ffffff"     # white accent (on-brand)
-ACCENT_HOVER = "#ddddee"   # accent hover
-ACCENT_DIM  = "#666678"     # accent muted
+ACCENT       = "#00d4ff"    # cyan accent
+ACCENT_HOVER = "#33ddff"    # accent hover
+ACCENT_DIM   = "#007acc"    # accent muted
 
-# ── Semantic ──────────────────────────────────────────────────────────────
+# ── Semantic (unchanged) ──────────────────────────────────────────────────
 RED         = "#ff4444"
 RED_HOVER   = "#ff6666"
 GREEN       = "#55cc77"
 YELLOW      = "#ffaa00"
 
 # ── Title bar ─────────────────────────────────────────────────────────────
-TITLE_BG    = "#000000"
+TITLE_BG    = "#03030a"
 CLOSE_HOVER = "#ff4444"
 
 # ── Fonts ─────────────────────────────────────────────────────────────────

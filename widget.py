@@ -29,9 +29,9 @@ from logger import log
 _CHROMAKEY = "#000001"
 
 # Pandora Blackboard dark palette (matching JSX rgba(0,0,0,0.75))
-_BG        = "#0c0c0f"      # near-black pill fill
-_BG_INNER  = "#101016"      # subtle inner tone for avatar area
-_BORDER    = "#1c1c26"      # default subtle border
+_BG        = "#0a0a12"      # near-black pill fill
+_BG_INNER  = "#0d0d18"      # subtle inner tone for avatar area
+_BORDER    = "#0d1a1f"      # cyan-tinted dark border
 
 # On Linux, -transparentcolor doesn't work so we use _BG as the window
 # background — corner pixels blend with it instead of showing as near-black.
@@ -44,8 +44,6 @@ _RADIUS  = 8                # rounded rectangle (was full-pill radius _H//2)
 # ── avatar / eye area ───────────────────────────────────────────────────
 _AVA_CX     = 28             # center-x of eye area (left side of pill)
 _AVA_CY     = _H // 2        # center-y
-_EYE_SPREAD = 5.6            # half-distance between the two dots
-_EYE_R      = 2.1            # base eye dot radius
 
 # ── layout ────────────────────────────────────────────────────────────────
 _SEP_X     = 48              # separator x after avatar
@@ -78,43 +76,43 @@ _TYPEWRITER_MS   = 28   # ms between tokens during typewriter animation
 # ── JSX-matching accent colours per state ────────────────────────────────
 # Format: accent_rgb, glow_rgba_str, border_rgb, border_opacity
 _STATE_STYLE = {
-    "idle":       {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.04, "label": ""},
-    "listening":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Listening..."},
-    "thinking":   {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Thinking..."},
-    "coding":     {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Writing code..."},
-    "happy":      {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Done!"},
+    "idle":       {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.04, "label": ""},
+    "listening":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Listening..."},
+    "thinking":   {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Thinking..."},
+    "coding":     {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Writing code..."},
+    "happy":      {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Done!"},
     "error":      {"accent": (255, 68, 68),   "glow": (255, 68, 68),   "border": (255, 68, 68),   "border_a": 0.12, "label": "Error"},
     "alert":      {"accent": (255, 170, 0),   "glow": (255, 170, 0),   "border": (255, 170, 0),   "border_a": 0.12, "label": "Attention"},
-    "surprised":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "!"},
-    "wink":       {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Tip"},
-    "sleep":      {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.04, "label": ""},
-    "sad":        {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.06, "label": "Not found"},
+    "surprised":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "!"},
+    "wink":       {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Tip"},
+    "sleep":      {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.04, "label": ""},
+    "sad":        {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.06, "label": "Not found"},
     "love":       {"accent": (255, 107, 157), "glow": (255, 107, 157), "border": (255, 107, 157), "border_a": 0.12, "label": "Saved"},
-    "loading":    {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Loading..."},
+    "loading":    {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Loading..."},
     # mode aliases
-    "recording":  {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Listening..."},
-    "processing": {"accent": (255, 255, 255), "glow": (255, 255, 255), "border": (255, 255, 255), "border_a": 0.08, "label": "Thinking..."},
-    "assistant":  {"accent": (160, 144, 255), "glow": (160, 144, 255), "border": (120, 100, 255), "border_a": 0.15, "label": "Assistant..."},
+    "recording":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Listening..."},
+    "processing": {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.08, "label": "Thinking..."},
+    "assistant":  {"accent": (0, 212, 255),   "glow": (0, 212, 255),   "border": (0, 212, 255),   "border_a": 0.15, "label": "Assistant..."},
 }
 
 # Eye theme per expression (eye_rgb, glow_rgb for the SVG-like dot rendering)
 _EYE_THEME = {
-    "idle":       {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "listening":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "thinking":   {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "coding":     {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "happy":      {"eye": (255, 255, 255), "glow": (255, 255, 255)},
+    "idle":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "listening":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "thinking":   {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "coding":     {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "happy":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "error":      {"eye": (255, 68, 68),   "glow": (255, 68, 68)},
     "alert":      {"eye": (255, 170, 0),   "glow": (255, 170, 0)},
-    "surprised":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "wink":       {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "sleep":      {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "sad":        {"eye": (255, 255, 255), "glow": (255, 255, 255)},
+    "surprised":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "wink":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "sleep":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "sad":        {"eye": (0, 212, 255), "glow": (0, 212, 255)},
     "love":       {"eye": (255, 107, 157), "glow": (255, 107, 157)},
-    "loading":    {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "recording":  {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "processing": {"eye": (255, 255, 255), "glow": (255, 255, 255)},
-    "assistant":  {"eye": (160, 144, 255), "glow": (120, 100, 255)},
+    "loading":    {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "recording":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "processing": {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "assistant":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
 }
 
 _IDLE_STYLE = _STATE_STYLE["idle"]
@@ -433,53 +431,58 @@ class AnswerCard:
         win.overrideredirect(True)
         win.wm_attributes("-topmost", True)
         win.wm_attributes("-alpha", 0.0)
-        win.configure(bg="#0c0c0f")
+        win.configure(bg="#0a0a12")
 
         total_h = (_CARD_HEADER_H + 1 + _CARD_BODY_MAX_H
                    + 1 + _CARD_FOOTER_H + _CARD_PROG_H)
         x, y = self._calc_position(total_h)
         win.geometry(f"{_CARD_W}x{total_h}+{x}+{y}")
 
-        outer = tk.Frame(win, bg="#0c0c0f",
-                         highlightbackground="#1e1e2c", highlightthickness=1)
+        outer = tk.Frame(win, bg="#0a0a12",
+                         highlightbackground="#0d1a1f", highlightthickness=1)
         outer.pack(fill=tk.BOTH, expand=True)
 
         # ── Header ────────────────────────────────────────────────────────
-        hdr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_HEADER_H)
+        hdr = tk.Frame(outer, bg="#0a0a12", height=_CARD_HEADER_H)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
 
         ava_c = tk.Canvas(hdr, width=22, height=_CARD_HEADER_H,
-                          bg="#0c0c0f", highlightthickness=0)
+                          bg="#0a0a12", highlightthickness=0)
         ava_c.pack(side=tk.LEFT, padx=(10, 0))
         cy = _CARD_HEADER_H // 2
-        ava_c.create_oval(2, cy - 2, 8, cy + 2, fill="#ffffff", outline="")
-        ava_c.create_oval(14, cy - 2, 20, cy + 2, fill="#ffffff", outline="")
+        # Vigil iris (ring + pupil + shine) at ~18px
+        ava_c.create_oval(2, cy - 9, 20, cy + 9,
+                          fill="#0a0a12", outline="#00d4ff", width=1)
+        ava_c.create_oval(8, cy - 3, 14, cy + 3,
+                          fill="#00d4ff", outline="")
+        ava_c.create_oval(6, cy - 6, 9, cy - 3,
+                          fill="white", outline="")
 
-        tk.Frame(hdr, bg="#1e1e2c", width=1).pack(
+        tk.Frame(hdr, bg="#0d1a1f", width=1).pack(
             side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
 
-        tk.Label(hdr, text="WritHer", bg="#0c0c0f", fg="#3a3a50",
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        tk.Label(hdr, text="Vigil", bg="#0a0a12", fg="#2a3a4a",
+                 font=("DejaVu Sans", 9)).pack(side=tk.LEFT)
 
-        close_btn = tk.Label(hdr, text="×", bg="#0c0c0f", fg="#3a3a50",
+        close_btn = tk.Label(hdr, text="×", bg="#0a0a12", fg="#2a3a4a",
                              font=("Segoe UI", 9), cursor="hand2")
         close_btn.pack(side=tk.RIGHT, padx=10)
         close_btn.bind("<Button-1>", lambda e: self.hide())
         close_btn.bind("<Enter>", lambda e: close_btn.config(fg="#888899"))
-        close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#3a3a50"))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#2a3a4a"))
 
         # ── Divider ───────────────────────────────────────────────────────
-        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+        tk.Frame(outer, bg="#0b0f18", height=1).pack(fill=tk.X)
 
         # ── Body (scrollable text) ────────────────────────────────────────
-        body = tk.Frame(outer, bg="#0c0c0f", height=_CARD_BODY_MAX_H)
+        body = tk.Frame(outer, bg="#0a0a12", height=_CARD_BODY_MAX_H)
         body.pack(fill=tk.X)
         body.pack_propagate(False)
 
         text_w = tk.Text(
             body,
-            bg="#0c0c0f", fg="#c8c8d4",
+            bg="#0a0a12", fg="#c8c8d4",
             font=("Segoe UI", 11),
             wrap=tk.WORD,
             relief=tk.FLAT,
@@ -499,7 +502,7 @@ class AnswerCard:
             return "break"
         text_w.bind("<Key>", _block_typing)
         sb = tk.Scrollbar(body, orient=tk.VERTICAL, command=text_w.yview,
-                          width=4, troughcolor="#0c0c0f", bg="#2a2a3a",
+                          width=4, troughcolor="#0a0a12", bg="#2a2a3a",
                           activebackground="#3a3a4a", relief=tk.FLAT,
                           borderwidth=0, highlightthickness=0)
         text_w.configure(yscrollcommand=sb.set)
@@ -508,26 +511,26 @@ class AnswerCard:
         self._text_widget = text_w
 
         # ── Divider ───────────────────────────────────────────────────────
-        tk.Frame(outer, bg="#151520", height=1).pack(fill=tk.X)
+        tk.Frame(outer, bg="#0b0f18", height=1).pack(fill=tk.X)
 
         # ── Footer ────────────────────────────────────────────────────────
-        ftr = tk.Frame(outer, bg="#0c0c0f", height=_CARD_FOOTER_H)
+        ftr = tk.Frame(outer, bg="#0a0a12", height=_CARD_FOOTER_H)
         ftr.pack(fill=tk.X)
         ftr.pack_propagate(False)
 
-        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0c0c0f", fg="#3a3a50",
+        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0a0a12", fg="#2a3a4a",
                             font=("Segoe UI", 9), cursor="hand2")
         copy_btn.pack(side=tk.LEFT, padx=14)
         copy_btn.bind("<Button-1>", lambda e: self._copy_to_clipboard())
         copy_btn.bind("<Enter>", lambda e: copy_btn.config(fg="#888899"))
-        copy_btn.bind("<Leave>", lambda e: copy_btn.config(fg="#3a3a50"))
+        copy_btn.bind("<Leave>", lambda e: copy_btn.config(fg="#2a3a4a"))
 
-        self._footer_label = tk.Label(ftr, text="", bg="#0c0c0f", fg="#252535",
+        self._footer_label = tk.Label(ftr, text="", bg="#0a0a12", fg="#252535",
                                       font=("Segoe UI", 9))
         self._footer_label.pack(side=tk.RIGHT, padx=14)
 
         # ── Progress bar ──────────────────────────────────────────────────
-        prog = tk.Canvas(outer, bg="#151520", height=_CARD_PROG_H,
+        prog = tk.Canvas(outer, bg="#0b0f18", height=_CARD_PROG_H,
                          highlightthickness=0)
         prog.pack(fill=tk.X, side=tk.BOTTOM)
         self._prog_canvas = prog
@@ -1195,23 +1198,19 @@ class RecordingWidget:
     # ── avatar rendering: Pandora Blackboard eyes ────────────────────────
 
     def _update_avatar(self):
-        """Render Pandora Blackboard [ · · ] bot eyes matching JSX SVG style.
-
-        Uses gaussian blur glow filter like the JSX version.
-        Each expression modifies how the two dots are drawn.
-        """
+        """Render the Vigil iris eye for the current expression state."""
         c = self._canvas
         if c is None:
             return
 
-        t = self._tick
+        t    = self._tick
         expr = self._expression
-        eye_theme = _EYE_THEME.get(expr, _IDLE_EYE)
+        eye_theme = _EYE_THEME.get(expr, _EYE_THEME["idle"])
 
         eye_rgb  = eye_theme["eye"]
         glow_rgb = eye_theme["glow"]
 
-        # Context state overrides eye color (not shape) — only when mic is not active
+        # Context state overrides eye color — only when mic not active
         active = self._mode in (self.RECORDING, self.ASSISTANT)
         if self._context_waiting and not active:
             eye_rgb  = (255, 200, 0)
@@ -1222,243 +1221,161 @@ class RecordingWidget:
             eye_rgb  = (255, g_b, g_b)
             glow_rgb = eye_rgb
 
-        # ── Render at high-res (matching JSX SVG approach) ────────
-        sz = 28          # output size
+        sz    = 38
         scale = 6
-        s_sz     = sz * scale
-        s_cx     = s_sz // 2
-        s_cy     = s_sz // 2
-        s_spread = _EYE_SPREAD * scale
-        s_er     = _EYE_R * scale
+        s_sz  = sz * scale    # 228
+        s_cx  = s_sz // 2     # 114
+        s_cy  = s_sz // 2     # 114
 
-        # Transparent background (no rounded rect — eyes float over pill)
+        # Iris geometry (scaled internal coordinates).
+        # ir_st / is_r use scale*2 floor so ring and shine survive LANCZOS to ~38px.
+        ig_r  = int(0.22 * sz * scale)                    # glow radius ≈ 50
+        ir_r  = int(0.14 * sz * scale)                    # iris ring radius ≈ 31
+        ir_st = max(int(scale * 2), int(0.03 * sz * scale))  # ring stroke ≥ 2px output
+        ip_r  = int(0.08 * sz * scale)                    # pupil radius ≈ 18
+        is_r  = max(int(scale * 1.5), int(0.03 * sz * scale))  # shine radius ≥ 1.5px output
+        is_dx = int(-0.05 * sz * scale)                   # shine x offset ≈ -11
+        is_dy = int(-0.05 * sz * scale)                   # shine y offset ≈ -11
+
         img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
-        lx = s_cx - s_spread   # left eye x
-        rx = s_cx + s_spread   # right eye x
-        ey = s_cy              # eye y center
+        def _iris(cx, cy, glow_a=140, ring_a=153, pupil_a=255, size_m=1.0):
+            """Draw Vigil iris (glow + ring + pupil + shine) centred at (cx, cy)."""
+            nonlocal img, draw
+            gr = max(1, int(ig_r * size_m))
+            rr = max(1, int(ir_r * size_m))
+            rs = max(2, int(ir_st * size_m))
+            pr = max(1, int(ip_r * size_m))
+            sr = max(1, int(is_r * size_m))
+            g_img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
+            g_draw = ImageDraw.Draw(g_img)
+            g_draw.ellipse([cx - gr, cy - gr, cx + gr, cy + gr],
+                           fill=glow_rgb + (glow_a,))
+            g_img = g_img.filter(
+                ImageFilter.GaussianBlur(radius=max(1, int(gr * 0.55)))
+            )
+            img  = Image.alpha_composite(img, g_img)
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr],
+                         outline=eye_rgb + (ring_a,), width=rs)
+            draw.ellipse([cx - pr, cy - pr, cx + pr, cy + pr],
+                         fill=eye_rgb + (pupil_a,))
+            sx, sy = cx + is_dx, cy + is_dy
+            draw.ellipse([sx - sr, sy - sr, sx + sr, sy + sr],
+                         fill=(255, 255, 255, 166))
 
-        # ── Draw expression ───────────────────────────────────────
+        # ── Per-expression iris rendering ─────────────────────────────────
         if expr in ("idle", "listening", "recording"):
             if expr in ("listening", "recording"):
-                # JSX: pulsing r and opacity
                 phase = (t * 0.1) % (2 * math.pi)
-                pulse = 0.8 + 0.4 * abs(math.sin(phase))
+                pulse = 0.85 + 0.3 * abs(math.sin(phase))
             else:
                 pulse = 1.0
-
-            r = s_er * pulse
-            # Glow (mimicking JSX feGaussianBlur)
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            # Core dots
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (255,))
+            _iris(s_cx, s_cy, size_m=pulse)
 
         elif expr in ("thinking", "processing"):
-            # JSX: dots drift left/right (cx animates)
-            drift = math.sin(t * 0.06) * s_spread * 0.3
-            dlx = lx - drift
-            drx = rx + drift
-            r = s_er
-            # Glow
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([dlx - gr, ey - gr, dlx + gr, ey + gr],
-                              fill=glow_rgb + (40,))
-            glow_draw.ellipse([drx - gr, ey - gr, drx + gr, ey + gr],
-                              fill=glow_rgb + (40,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([dlx - r, ey - r, dlx + r, ey + r], fill=eye_rgb + (155,))
-            draw.ellipse([drx - r, ey - r, drx + r, ey + r], fill=eye_rgb + (155,))
+            drift = int(math.sin(t * 0.06) * ig_r * 0.2)
+            _iris(s_cx + drift, s_cy, glow_a=100)
 
         elif expr == "coding":
-            # JSX: left steady, right blinks on/off
-            r = s_er
-            blink = 1.0 if (t % 15) < 10 else 0.3
-            # Glow
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (int(50 * blink),))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r],
-                         fill=eye_rgb + (int(255 * blink),))
+            blink = 1.0 if (t % 15) < 10 else 0.2
+            _iris(s_cx, s_cy,
+                  ring_a=int(153 * blink), pupil_a=int(255 * blink))
 
         elif expr == "happy":
-            # JSX: arc curves (^ ^)
-            line_w = max(2, int(scale * 0.6))
-            for cx_pos in (lx, rx):
-                span = s_er * 1.5
-                pts = []
-                for i in range(20):
-                    frac = i / 19.0
-                    px = cx_pos - span + 2 * span * frac
-                    py = ey + s_er * 0.3 - abs(math.sin(math.pi * frac)) * s_er * 2
-                    pts.append((px, py))
-                for i in range(len(pts) - 1):
-                    draw.line([pts[i], pts[i + 1]], fill=eye_rgb + (255,), width=line_w)
+            _iris(s_cx, s_cy, glow_a=160, size_m=1.1)
+            draw.arc(
+                [s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
+                start=200, end=340,
+                fill=eye_rgb + (200,), width=max(3, ir_st),
+            )
 
         elif expr == "error":
-            # JSX: X X crosses
-            line_w = max(2, int(scale * 0.55))
-            cross_r = s_er
-            for cx_pos in (lx, rx):
-                draw.line([(cx_pos - cross_r, ey - cross_r),
-                           (cx_pos + cross_r, ey + cross_r)],
-                          fill=eye_rgb + (255,), width=line_w)
-                draw.line([(cx_pos + cross_r, ey - cross_r),
-                           (cx_pos - cross_r, ey + cross_r)],
-                          fill=eye_rgb + (255,), width=line_w)
+            g_img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
+            g_draw = ImageDraw.Draw(g_img)
+            g_draw.ellipse(
+                [s_cx - ig_r, s_cy - ig_r, s_cx + ig_r, s_cy + ig_r],
+                fill=glow_rgb + (60,),
+            )
+            g_img = g_img.filter(
+                ImageFilter.GaussianBlur(radius=int(ig_r * 0.55))
+            )
+            img  = Image.alpha_composite(img, g_img)
+            draw = ImageDraw.Draw(img)
+            lw = max(3, int(scale * 0.55))
+            draw.line([(s_cx - ir_r, s_cy - ir_r), (s_cx + ir_r, s_cy + ir_r)],
+                      fill=eye_rgb + (255,), width=lw)
+            draw.line([(s_cx + ir_r, s_cy - ir_r), (s_cx - ir_r, s_cy + ir_r)],
+                      fill=eye_rgb + (255,), width=lw)
 
         elif expr == "alert":
-            # JSX: ! ! exclamation marks, blinking
             blink = 0.3 + 0.7 * abs(math.sin(t * 0.2))
-            a = int(255 * blink)
-            line_w = max(2, int(scale * 0.55))
-            for cx_pos in (lx, rx):
-                draw.line([(cx_pos, ey - s_er * 1.2), (cx_pos, ey + s_er * 0.3)],
-                          fill=eye_rgb + (a,), width=line_w)
-                dot_r = s_er * 0.3
-                dot_y = ey + s_er * 1.4
-                draw.ellipse([cx_pos - dot_r, dot_y - dot_r,
-                              cx_pos + dot_r, dot_y + dot_r],
-                             fill=eye_rgb + (a,))
+            a  = int(255 * blink)
+            lw = max(3, int(scale * 0.55))
+            draw.line([(s_cx, s_cy - ir_r), (s_cx, s_cy + int(ip_r * 0.3))],
+                      fill=eye_rgb + (a,), width=lw)
+            dot_r = max(2, int(ip_r * 0.4))
+            dot_y = s_cy + int(ip_r * 1.2)
+            draw.ellipse(
+                [s_cx - dot_r, dot_y - dot_r, s_cx + dot_r, dot_y + dot_r],
+                fill=eye_rgb + (a,),
+            )
 
         elif expr == "surprised":
-            # JSX: bigger dots (r * 1.6)
-            r = s_er * 1.6
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.0))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (230,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (230,))
+            _iris(s_cx, s_cy, glow_a=180, size_m=1.6)
 
         elif expr == "wink":
-            # JSX: left dot, right horizontal line
-            r = s_er
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            line_half = s_er * 1.2
-            line_w = max(2, int(scale * 0.5))
-            draw.line([(rx - line_half, ey), (rx + line_half, ey)],
-                      fill=eye_rgb + (180,), width=line_w)
+            _iris(s_cx, s_cy)
+            ew = max(3, int(scale * 0.5))
+            draw.line([(s_cx - ir_r, s_cy), (s_cx + ir_r, s_cy)],
+                      fill=eye_rgb + (180,), width=ew)
 
         elif expr == "sleep":
-            # JSX: two dashes (— —), very dim
-            line_w = max(2, int(scale * 0.45))
-            line_half = s_er
-            draw.line([(lx - line_half, ey), (lx + line_half, ey)],
-                      fill=eye_rgb + (50,), width=line_w)
-            draw.line([(rx - line_half, ey), (rx + line_half, ey)],
-                      fill=eye_rgb + (50,), width=line_w)
+            _iris(s_cx, s_cy, glow_a=20, ring_a=30, pupil_a=30, size_m=0.5)
 
         elif expr == "sad":
-            # JSX: dots with tear lines
-            r = s_er * 0.8
-            draw.ellipse([lx - r, ey - r * 0.3 - r, lx + r, ey - r * 0.3 + r],
-                         fill=eye_rgb + (100,))
-            draw.ellipse([rx - r, ey - r * 0.3 - r, rx + r, ey - r * 0.3 + r],
-                         fill=eye_rgb + (100,))
-            # Tear lines
-            tear_w = max(1, int(scale * 0.25))
-            tear_len = s_er * 2.5
-            draw.line([(lx, ey + r * 0.8), (lx, ey + r * 0.8 + tear_len)],
-                      fill=eye_rgb + (50,), width=tear_w)
-            draw.line([(rx, ey + r * 0.8), (rx, ey + r * 0.8 + tear_len)],
-                      fill=eye_rgb + (50,), width=tear_w)
+            _iris(s_cx, s_cy + int(ig_r * 0.15), glow_a=80, ring_a=100, pupil_a=100)
+            tw     = max(1, int(scale * 0.25))
+            t_top  = s_cy + ip_r + int(ig_r * 0.15)
+            draw.line([(s_cx, t_top), (s_cx, t_top + int(ir_r * 1.2))],
+                      fill=eye_rgb + (50,), width=tw)
 
         elif expr == "love":
-            # JSX: heart shapes, pulsing opacity
             pulse = 0.4 + 0.45 * abs(math.sin(t * 0.12))
-            a = int(255 * (0.4 + 0.45 * abs(math.sin(t * 0.12))))
-            hr = s_er * 1.1
-            for cx_pos in (lx, rx):
-                offset = hr * 0.5
-                draw.ellipse([cx_pos - hr, ey - hr - offset,
-                              cx_pos, ey - offset],
-                             fill=eye_rgb + (a,))
-                draw.ellipse([cx_pos, ey - hr - offset,
-                              cx_pos + hr, ey - offset],
-                             fill=eye_rgb + (a,))
-                draw.polygon([
-                    (cx_pos - hr, ey - offset * 0.5),
-                    (cx_pos + hr, ey - offset * 0.5),
-                    (cx_pos, ey + hr * 1.0)
-                ], fill=eye_rgb + (a,))
+            a     = int(255 * pulse)
+            hr    = int(ir_r * 0.9)
+            off   = hr // 2
+            draw.ellipse([s_cx - hr, s_cy - hr - off, s_cx, s_cy - off],
+                         fill=eye_rgb + (a,))
+            draw.ellipse([s_cx, s_cy - hr - off, s_cx + hr, s_cy - off],
+                         fill=eye_rgb + (a,))
+            draw.polygon(
+                [(s_cx - hr, s_cy - off // 2),
+                 (s_cx + hr, s_cy - off // 2),
+                 (s_cx, s_cy + hr)],
+                fill=eye_rgb + (a,),
+            )
 
         elif expr == "loading":
-            # JSX: spinning arc segments
             angle = (t * 8) % 360
-            line_w = max(2, int(scale * 0.7))
-            arc_r = s_er * 1.3
-            # Background circles
-            draw.ellipse([lx - arc_r, ey - arc_r, lx + arc_r, ey + arc_r],
-                         outline=eye_rgb + (30,), width=max(1, line_w // 2))
-            draw.ellipse([rx - arc_r, ey - arc_r, rx + arc_r, ey + arc_r],
-                         outline=eye_rgb + (30,), width=max(1, line_w // 2))
-            # Spinning arcs
-            draw.arc([lx - arc_r, ey - arc_r, lx + arc_r, ey + arc_r],
+            lw    = max(2, int(scale * 0.7))
+            draw.ellipse([s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
+                         outline=eye_rgb + (30,), width=max(1, lw // 2))
+            draw.arc([s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
                      start=angle, end=angle + 90,
-                     fill=eye_rgb + (155,), width=line_w)
-            draw.arc([rx - arc_r, ey - arc_r, rx + arc_r, ey + arc_r],
-                     start=angle, end=angle + 90,
-                     fill=eye_rgb + (155,), width=line_w)
+                     fill=eye_rgb + (155,), width=lw)
+            draw.ellipse([s_cx - ip_r, s_cy - ip_r, s_cx + ip_r, s_cy + ip_r],
+                         fill=eye_rgb + (255,))
 
         elif expr == "assistant":
-            # Warm pulsing dots
             with self._level_lock:
                 level = self._level
-            pulse = 0.8 + 0.35 * level + 0.15 * math.sin(t * 0.1)
-            r = s_er * pulse
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (45,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (45,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (255,))
+            pulse = 0.85 + 0.35 * level + 0.15 * math.sin(t * 0.1)
+            _iris(s_cx, s_cy,
+                  glow_a=int(140 * pulse), size_m=min(1.3, pulse))
 
-        # ── Downscale ─────────────────────────────────────────────
         img = img.resize((sz, sz), Image.LANCZOS)
-
         self._ava_tk = ImageTk.PhotoImage(img)
         c.itemconfig(self._ava_img_id, image=self._ava_tk)
 

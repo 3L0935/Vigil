@@ -170,7 +170,7 @@ class SettingsWindow:
     def _build(self):
         win = ctk.CTkToplevel(self._root)
         win.configure(fg_color=T.BG_DEEP)
-        win.title("WritHer")
+        win.title("Vigil")
         win.protocol("WM_DELETE_WINDOW", self._close)
 
         sx = win.winfo_screenwidth()
@@ -321,7 +321,7 @@ class SettingsWindow:
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
         self._assistant_name_var = tk.StringVar(
-            master=self._win, value=getattr(config, "ASSISTANT_NAME", "WritHer"))
+            master=self._win, value=getattr(config, "ASSISTANT_NAME", "Vigil"))
         ctk.CTkEntry(pad, textvariable=self._assistant_name_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
@@ -681,7 +681,7 @@ class SettingsWindow:
         if self._vault_path_var:
             self._vault_path_var.set(getattr(config, "OBSIDIAN_VAULT_PATH", ""))
         if self._assistant_name_var:
-            self._assistant_name_var.set(getattr(config, "ASSISTANT_NAME", "WritHer"))
+            self._assistant_name_var.set(getattr(config, "ASSISTANT_NAME", "Vigil"))
         if self._lang_var:
             self._lang_var.set(getattr(config, "LANGUAGE", "en"))
         if self._overlay_pos_var:
@@ -847,7 +847,7 @@ class SettingsWindow:
         from pathlib import Path
 
         def _do():
-            dest_dir = Path.home() / ".local" / "share" / "writher" / "tts" / "piper"
+            dest_dir = Path.home() / ".local" / "share" / "vigil" / "tts" / "piper"
             dest_dir.mkdir(parents=True, exist_ok=True)
             lang_full, rest = voice["name"].split("-", 1)
             lang_short = lang_full.split("_")[0].lower()

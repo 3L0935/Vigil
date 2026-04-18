@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# WritHer Linux — distro-agnostic installer
+# Vigil — distro-agnostic installer
 set -euo pipefail
 
 REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
-INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/writher-src"
+INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
@@ -40,7 +40,7 @@ if [[ "$_IN_REPO" == false ]]; then
         git -C "$INSTALL_DIR" fetch origin
         git -C "$INSTALL_DIR" reset --hard origin/main
     else
-        step "Downloading WritHer..."
+        step "Downloading Vigil..."
         rm -rf "$INSTALL_DIR"
         git clone --depth=1 "$REPO_URL" "$INSTALL_DIR"
     fi
@@ -51,25 +51,25 @@ step "Installing Python dependencies (this may take a minute)..."
 uv --directory "$INSTALL_DIR" sync
 
 # ── Create launcher script ───────────────────────────────────────────────────
-step "Creating launcher: $BIN_DIR/writher"
+step "Creating launcher: $BIN_DIR/vigil"
 mkdir -p "$BIN_DIR"
-cat > "$BIN_DIR/writher" << LAUNCHER
+cat > "$BIN_DIR/vigil" << LAUNCHER
 #!/usr/bin/env bash
 exec uv --directory "$INSTALL_DIR" run python main.py "\$@"
 LAUNCHER
-chmod +x "$BIN_DIR/writher"
+chmod +x "$BIN_DIR/vigil"
 
 # ── Create .desktop entry ────────────────────────────────────────────────────
 step "Creating desktop entry..."
 mkdir -p "$DESKTOP_DIR"
-cat > "$DESKTOP_DIR/writher.desktop" << DESKTOP
+cat > "$DESKTOP_DIR/vigil.desktop" << DESKTOP
 [Desktop Entry]
 Type=Application
-Name=WritHer
+Name=Vigil
 GenericName=Voice Assistant
 Comment=Offline voice dictation and assistant
-Exec=$BIN_DIR/writher
-Icon=$INSTALL_DIR/img/logo_writher.png
+Exec=$BIN_DIR/vigil
+Icon=$INSTALL_DIR/img/logo_vigil.png
 Terminal=false
 Categories=Utility;Audio;
 Keywords=voice;dictation;assistant;speech;
@@ -78,10 +78,10 @@ DESKTOP
 
 # ── Optional autostart ───────────────────────────────────────────────────────
 echo ""
-read -rp "$(echo -e "${BOLD}Add WritHer to autostart?${NC} [y/N] ")" autostart </dev/tty
+read -rp "$(echo -e "${BOLD}Add Vigil to autostart?${NC} [y/N] ")" autostart </dev/tty
 if [[ "${autostart:-n}" =~ ^[Yy]$ ]]; then
     mkdir -p "$AUTOSTART_DIR"
-    cp "$DESKTOP_DIR/writher.desktop" "$AUTOSTART_DIR/writher.desktop"
+    cp "$DESKTOP_DIR/vigil.desktop" "$AUTOSTART_DIR/vigil.desktop"
     step "Autostart enabled."
 fi
 
@@ -106,7 +106,7 @@ uv --directory "$INSTALL_DIR" run python first_run.py
 echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${NC}"
 echo ""
-echo "  Run WritHer:  writher"
+echo "  Run Vigil:  vigil"
 echo "  Or launch from your application menu."
 echo ""
 echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash"

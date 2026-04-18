@@ -307,7 +307,7 @@ def _tray_toggle_assistant():
 
 
 def _build_tray_tip() -> str:
-    return f"Writher — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
+    return f"Vigil — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
 
 
 def _restart_hotkeys():

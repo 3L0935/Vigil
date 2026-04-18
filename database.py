@@ -6,13 +6,13 @@ import sqlite3
 import threading
 from pathlib import Path
 
-_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "writher"
+_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "vigil"
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
-_DB_PATH = str(_DATA_DIR / "writher.db")
+_DB_PATH = str(_DATA_DIR / "vigil.db")
 
 # One-time migration from old source-dir location
 _old_db = Path(__file__).parent / "writher.db"
-if _old_db.exists() and not (_DATA_DIR / "writher.db").exists():
+if _old_db.exists() and not (_DATA_DIR / "vigil.db").exists():
     shutil.copy2(str(_old_db), _DB_PATH)
 
 _lock = threading.Lock()

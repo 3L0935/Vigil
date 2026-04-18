@@ -1,4 +1,4 @@
-"""LLM backend abstraction for WritHer Linux.
+"""LLM backend abstraction for Vigil.
 
 Provides a thin Protocol + LlamaServerBackend for standalone use.
 Future: swap in LMAgentDaemonBackend to route through LMAgent-plus
