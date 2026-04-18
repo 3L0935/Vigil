@@ -5,7 +5,7 @@
 <h1 align="center">WritHer Linux</h1>
 
 <p align="center">
-  <strong>Offline voice assistant &amp; dictation for Linux — dictate text anywhere, manage notes, appointments and reminders by voice.</strong>
+  <strong>Offline voice assistant &amp; dictation for Linux — dictate text anywhere.</strong>
 </p>
 
 <p align="center">
@@ -37,12 +37,10 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 
 - **Toggle-mode dictation** — press once to start recording, press again to paste
 - **Voice assistant** — notes, lists, appointments, reminders via natural speech
-- **Smart date parsing** — "remind me tomorrow at 9" or "meeting next Monday at 3pm"
 - **Web search** — ask the assistant to look something up; answer spoken aloud
 - **Obsidian vault search** — query your markdown notes by voice
 - **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
 - **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
-- **Notes & Agenda window** — browse, check off list items, delete entries
 - **Full settings UI** — all configuration from the settings window; no editing config files
 - **Multi-language** — English, French, Italian; add more via `locales.py`
 - **X11 + Wayland** — global hotkeys via pynput (X11) or KGlobalAccel D-Bus (KDE Wayland)
@@ -115,19 +113,14 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 
 **Example commands (EN):**
 
-- *"Save a note: remember to buy milk"*
-- *"Create a shopping list: bread, eggs, butter, coffee"*
-- *"Appointment with the dentist tomorrow at 3pm"*
-- *"Remind me to call Sarah in two hours"*
-- *"Search my notes for the API key"*
+- *"Search my notes for the API key for claude"*
 - *"What is the weather in Paris?"*
 
 **Example commands (FR):**
 
-- *"Note : penser à rappeler le médecin"*
-- *"Rendez-vous dentiste demain à 14h"*
-- *"Rappelle-moi d'envoyer le rapport dans 30 minutes"*
 - *"Cherche dans mes notes le mot de passe Bitwarden"*
+- *"Donne moi les nouveauté lié a anthropic AI sur claude"*
+
 
 ### System tray
 
