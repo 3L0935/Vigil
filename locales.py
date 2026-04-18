@@ -24,6 +24,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error":                "Error: {detail}",
         "not_understood":       "I didn't understand the command",
         "settings_opened":      "Opening settings.",
+        "app_launched":         "Opening {name}.",
+        "app_not_found":        "Application '{name}' not found.",
 
         # assistant.py — system prompt fragments
         "system_prompt": (
@@ -125,6 +127,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error":                "Errore: {detail}",
         "not_understood":       "Non ho capito il comando",
         "settings_opened":      "Apro le impostazioni.",
+        "app_launched":         "Apro {name}.",
+        "app_not_found":        "Applicazione '{name}' non trovata.",
 
         "system_prompt": (
             "You are Writher, a voice assistant for productivity. "
@@ -222,6 +226,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "error":                "Erreur : {detail}",
         "not_understood":       "Je n'ai pas compris la commande",
         "settings_opened":      "Ouverture des paramètres.",
+        "app_launched":         "Ouverture de {name}.",
+        "app_not_found":        "Application '{name}' introuvable.",
 
         # assistant.py — system prompt
         "system_prompt": (

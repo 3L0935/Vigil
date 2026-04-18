@@ -58,10 +58,30 @@ def list_voices(lang: str) -> list:
 
 
 _URL_RE = re.compile(r"https?://\S+")
+_TTS_MAX_CHARS = 800
+
+_MD_SUBS = [
+    (re.compile(r'!\[.*?\]\(.*?\)'),           ''),       # images → drop
+    (re.compile(r'\[([^\]]+)\]\([^\)]+\)'),    r'\1'),    # [text](url) → text
+    (re.compile(r'\*\*(.+?)\*\*'),             r'\1'),    # bold
+    (re.compile(r'\*(.+?)\*'),                 r'\1'),    # italic
+    (re.compile(r'`([^`]+)`'),                 r'\1'),    # inline code
+    (re.compile(r'^#{1,6}\s+', re.MULTILINE),  ''),       # headings
+    (re.compile(r'^>\s*', re.MULTILINE),       ''),       # blockquotes
+    (re.compile(r'^[-*+]\s+', re.MULTILINE),   ''),       # list items
+]
 
 
-def _strip_urls(text: str) -> str:
-    return _URL_RE.sub("", text).strip()
+def _clean_for_tts(text: str) -> str:
+    text = _URL_RE.sub('', text)
+    for pattern, repl in _MD_SUBS:
+        text = pattern.sub(repl, text)
+    text = re.sub(r'\n+', ' ', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+    if len(text) > _TTS_MAX_CHARS:
+        cut = text.rfind('. ', 0, _TTS_MAX_CHARS)
+        text = text[:cut + 1] if cut > _TTS_MAX_CHARS // 2 else text[:_TTS_MAX_CHARS]
+    return text
 
 
 def speak(text: str) -> None:
@@ -69,7 +89,7 @@ def speak(text: str) -> None:
         return
     lang = config.LANGUAGE
     voice = _voice_fr if lang == "fr" else _voice_en
-    _speak_piper(_strip_urls(text), voice, _volume)
+    _speak_piper(_clean_for_tts(text), voice, _volume)
 
 
 def stop() -> None:

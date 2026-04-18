@@ -78,9 +78,28 @@ _OPEN_SETTINGS_TOOL = {
     },
 }
 
+_LAUNCH_APP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "launch_app",
+        "description": (
+            "Launch an installed application by name. Use when the user asks to open or launch "
+            "a program: 'lance Kitty', 'ouvre Firefox', 'open Thunderbird', 'lancia Gimp', "
+            "'démarre VLC', 'start Steam', etc."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "app_name": {"type": "string", "description": "Application name to launch"},
+            },
+            "required": ["app_name"],
+        },
+    },
+}
+
 
 def _get_tools() -> list[dict]:
-    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL]
+    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _LAUNCH_APP_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -141,6 +160,13 @@ def _dispatch(name: str, args: dict) -> str:
             for r in results:
                 lines.append(f"**{r['title']}**\n{r['excerpt']}")
             return "\n\n".join(lines)
+
+        elif name == "launch_app":
+            import app_launcher
+            ok, label = app_launcher.launch(args.get("app_name", ""))
+            if ok:
+                return locales.get("app_launched", name=label)
+            return locales.get("app_not_found", name=label)
 
         else:
             return locales.get("unknown_command", name=name)
@@ -218,6 +244,7 @@ def process(text: str) -> str:
                         if syn_content:
                             log.info("Synthesis: %s", syn_content[:120])
                             return syn_content
+                log.warning("Synthesis returned empty — falling back to raw search result")
                 return raw_result
 
             return raw_result
