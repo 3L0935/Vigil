@@ -143,25 +143,36 @@ def register(
         return False
 
     try:
-        # Pre-write desired shortcuts to config so KDE reads correct keys via Autoloading.
-        _sync_shortcuts_to_config(dictation_key, assistant_key if assist_code else None)
-        time.sleep(0.3)  # allow KConfig watcher to update KDE's runtime state
-
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus = dbus.SessionBus()
 
         kga_obj   = bus.get_object("org.kde.kglobalaccel", "/kglobalaccel")
         kga_iface = dbus.Interface(kga_obj, dbus_interface="org.kde.KGlobalAccel")
 
-        # Release stale "writher" component from KDE runtime if it exists.
+        # Empty and remove stale "writher" component BEFORE writing the vigil config.
+        # cleanUp() causes KDE to rewrite kglobalshortcutsrc; emptying shortcuts first
+        # ensures the rewrite doesn't re-claim Ctrl+Alt+W for writher.
         try:
             old_path = str(kga_iface.getComponent("writher"))
             old_obj  = bus.get_object("org.kde.kglobalaccel", old_path)
             old_iface = dbus.Interface(old_obj, dbus_interface="org.kde.kglobalaccel.Component")
+            empty = dbus.Array([], signature="i")
+            for action_name in old_iface.shortcutNames():
+                stale_action = ["writher", str(action_name), "writher", str(action_name)]
+                try:
+                    kga_iface.setForeignShortcut(stale_action, empty)
+                except Exception:
+                    pass
             old_iface.cleanUp()
+            time.sleep(0.2)  # let KDE process the cleanup and rewrite
             log.info("KGlobalAccel: released stale 'writher' component")
         except Exception:
             pass  # component not registered — fine
+
+        # Now write vigil shortcuts AFTER the stale cleanup, so KDE's rewrite
+        # of kglobalshortcutsrc (triggered by cleanUp) won't overwrite our section.
+        _sync_shortcuts_to_config(dictation_key, assistant_key if assist_code else None)
+        time.sleep(0.3)  # allow KConfig watcher to update KDE's runtime state
 
         app_name = "Vigil"
 
