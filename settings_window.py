@@ -30,16 +30,18 @@ _WIN_W, _WIN_H = 480, 680
 if sys.platform.startswith("linux"):
     def _vigil_set_scroll_increments(self):
         self._parent_canvas.configure(xscrollincrement=1, yscrollincrement=1)
+        # Tag so _vigil_mouse_wheel_all can pick THIS canvas out of the master
+        # chain without colliding with CTkButton/CTkFrame's internal CTkCanvas.
+        self._parent_canvas._vigil_sf_canvas = True
 
     def _vigil_mouse_wheel_all(self, event):
-        # Every CTkScrollableFrame registers bind_all("<MouseWheel>"), so every
-        # instance fires on every scroll. check_if_master_is_canvas passes for
-        # ANY scrollable canvas on the master chain — in nested layouts (popup
-        # dropdown inside the settings pad) that's both of them, so they scroll
-        # together. Fix: only the innermost CTkScrollableFrame should win.
+        # bind_all fires every CTkScrollableFrame's handler on every scroll;
+        # check_if_master_is_canvas passes for ANY scrollable canvas on the
+        # master chain — in nested layouts (popup dropdown inside settings pad)
+        # that's both. Route the event to the innermost scrollable frame only.
         w = event.widget
         while w is not None:
-            if isinstance(w, tk.Canvas):
+            if getattr(w, "_vigil_sf_canvas", False):
                 break
             w = getattr(w, "master", None)
         if w is not self._parent_canvas:
