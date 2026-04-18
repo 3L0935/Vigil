@@ -32,7 +32,17 @@ if sys.platform.startswith("linux"):
         self._parent_canvas.configure(xscrollincrement=1, yscrollincrement=1)
 
     def _vigil_mouse_wheel_all(self, event):
-        if not self.check_if_master_is_canvas(event.widget):
+        # Every CTkScrollableFrame registers bind_all("<MouseWheel>"), so every
+        # instance fires on every scroll. check_if_master_is_canvas passes for
+        # ANY scrollable canvas on the master chain — in nested layouts (popup
+        # dropdown inside the settings pad) that's both of them, so they scroll
+        # together. Fix: only the innermost CTkScrollableFrame should win.
+        w = event.widget
+        while w is not None:
+            if isinstance(w, tk.Canvas):
+                break
+            w = getattr(w, "master", None)
+        if w is not self._parent_canvas:
             return
         step = -int(event.delta / 6) if abs(event.delta) >= 6 else -int(event.delta)
         if self._shift_pressed:
