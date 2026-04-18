@@ -12,7 +12,7 @@ import database as db
 
 _playing = threading.Event()
 
-_PIPER_DIR = Path.home() / ".local" / "share" / "writher" / "tts" / "piper"
+_PIPER_DIR = Path.home() / ".local" / "share" / "vigil" / "tts" / "piper"
 
 _BUILTIN_VOICES = {
     "fr": ["fr_FR-siwis-medium", "fr_FR-upmc-medium", "fr_FR-mls-medium"],
