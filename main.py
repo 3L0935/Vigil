@@ -91,6 +91,9 @@ def _load_settings():
     hk_asst = db.get_setting("hotkey_assist", "")
     if hk_asst:
         config.ASSISTANT_HOTKEY = hk_asst
+    asst_name = db.get_setting("assistant_name", "")
+    if asst_name:
+        config.ASSISTANT_NAME = asst_name
     timeout = db.get_setting("overlay_answer_timeout", "")
     if timeout:
         try:

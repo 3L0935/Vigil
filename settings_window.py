@@ -50,6 +50,7 @@ class SettingsWindow:
         self._hotkey_dict_var = None
         self._hotkey_asst_var = None
         self._answer_timeout_var = None
+        self._assistant_name_var = None
         self._llm_gpu_layers_var = None
 
     def show(self):
@@ -245,6 +246,22 @@ class SettingsWindow:
                       text_color=T.FG, font=T.FONT_SMALL,
                       corner_radius=6,
                       command=self._browse_vault).pack(side="right")
+
+        # Separator
+        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+
+        # ── Assistant name ────────────────────────────────────────────
+        ctk.CTkLabel(pad, text=locales.get("setting_assistant_name"),
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+
+        self._assistant_name_var = tk.StringVar(
+            master=self._win, value=getattr(config, "ASSISTANT_NAME", "WritHer"))
+        ctk.CTkEntry(pad, textvariable=self._assistant_name_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
 
         # Separator
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
@@ -553,6 +570,8 @@ class SettingsWindow:
             self._llm_url_var.set(getattr(config, "LLAMA_SERVER_URL", ""))
         if self._vault_path_var:
             self._vault_path_var.set(getattr(config, "OBSIDIAN_VAULT_PATH", ""))
+        if self._assistant_name_var:
+            self._assistant_name_var.set(getattr(config, "ASSISTANT_NAME", "WritHer"))
         if self._lang_var:
             self._lang_var.set(getattr(config, "LANGUAGE", "en"))
         if self._overlay_pos_var:
@@ -776,6 +795,11 @@ class SettingsWindow:
             if ngl != old_ngl:
                 from llm_manager import manager as _mgr
                 _mgr.shutdown()
+        if self._assistant_name_var:
+            name = self._assistant_name_var.get().strip()
+            if name:
+                config.ASSISTANT_NAME = name
+                db.save_setting("assistant_name", name)
         if self._on_hotkey_change_cb:
             self._on_hotkey_change_cb()
         log.info("Settings saved.")

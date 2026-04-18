@@ -32,7 +32,8 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # assistant.py — system prompt fragments
         "system_prompt": (
-            "You are Writher, a voice assistant for productivity. "
+            "You are {name}, a voice assistant for productivity. "
+            "Your name is {name} — use it when introducing yourself or when the user addresses you by name. "
             "Current date and time: {now} ({weekday}). "
             "The user speaks in {lang_name}. "
             "Interpret their request and call the appropriate function. "
@@ -122,6 +123,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_loading":          "Loading…",
         "setting_rerun_setup":      "Re-run setup",
         "setting_uninstall":        "Uninstall",
+        "setting_assistant_name":   "Assistant name",
     },
 
     "it": {
@@ -142,7 +144,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "app_close_failed":     "Nessuna istanza in esecuzione di '{name}'.",
 
         "system_prompt": (
-            "You are Writher, a voice assistant for productivity. "
+            "You are {name}, a voice assistant for productivity. "
+            "Your name is {name} — use it when introducing yourself or when the user addresses you by name. "
             "Current date and time: {now} ({weekday}). "
             "The user speaks in {lang_name}. "
             "Interpret their request and call the appropriate function. "
@@ -228,6 +231,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_loading":          "Caricamento…",
         "setting_rerun_setup":      "Riavvia setup",
         "setting_uninstall":        "Disinstalla",
+        "setting_assistant_name":   "Nome dell'assistente",
     },
 
     "fr": {
@@ -250,7 +254,8 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # assistant.py — system prompt
         "system_prompt": (
-            "Tu es WritHer, un assistant vocal de productivité. "
+            "Tu es {name}, un assistant vocal de productivité. "
+            "Ton nom est {name} — utilise-le quand tu te présentes ou quand l'utilisateur t'appelle par ton nom. "
             "Date et heure actuelles : {now} ({weekday}). "
             "L'utilisateur parle en {lang_name}. "
             "Interprète sa demande et appelle la fonction appropriée. "
@@ -342,6 +347,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_loading":          "Chargement…",
         "setting_rerun_setup":      "Relancer le setup",
         "setting_uninstall":        "Désinstaller",
+        "setting_assistant_name":   "Nom de l'assistant",
     },
 }
 

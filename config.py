@@ -24,6 +24,9 @@ COMPUTE_TYPE = "int8"
 LLAMA_SERVER_URL = "http://localhost:8080"
 LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from DB llama_model
 
+# ── Assistant identity ────────────────────────────────────────────────────
+ASSISTANT_NAME = "WritHer"
+
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.
 # Leave empty to disable the feature.

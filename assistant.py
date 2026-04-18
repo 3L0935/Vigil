@@ -212,6 +212,7 @@ def _system_prompt() -> str:
     now = datetime.now()
     return locales.get(
         "system_prompt",
+        name=getattr(config, "ASSISTANT_NAME", "WritHer"),
         now=now.strftime("%Y-%m-%d %H:%M"),
         weekday=now.strftime("%A"),
         lang_name=locales.get("lang_name"),
