@@ -1,8 +1,11 @@
 [Desktop Entry]
+Type=Application
 Name=Vigil
+GenericName=Voice Assistant
 Comment=Voice dictation and AI assistant for Linux
 Exec=uv run python /path/to/main.py
-Icon=vigil
-Type=Application
-Categories=Utility;Accessibility;
+Icon=/path/to/img/icon_vigil.png
+Terminal=false
+Categories=Utility;Accessibility;Audio;
 Keywords=voice;dictation;whisper;ai;assistant;
+StartupNotify=false

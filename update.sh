@@ -58,7 +58,34 @@ step "Fetching latest changes..."
 git -C "$INSTALL_DIR" fetch --depth=1 origin main
 git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 
-# ── 3. Sync Python dependencies ───────────────────────────────────────────────
+# ── 3. Refresh .desktop entries ───────────────────────────────────────────────
+refresh_desktop() {
+    local target="$1"
+    [[ -f "$target" ]] || return 0
+    cat > "$target" << DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Vigil
+GenericName=Voice Assistant
+Comment=Offline voice dictation and assistant
+Exec=$HOME/.local/bin/vigil
+Icon=$INSTALL_DIR/img/icon_vigil.png
+Terminal=false
+Categories=Utility;Audio;
+Keywords=voice;dictation;assistant;speech;
+StartupNotify=false
+DESKTOP
+}
+
+step "Refreshing .desktop entries..."
+DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+refresh_desktop "$DESKTOP_DIR/vigil.desktop"
+refresh_desktop "$AUTOSTART_DIR/vigil.desktop"
+# Prompt the icon cache to re-read (best-effort, no-op if missing)
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+
+# ── 4. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."
 # Preserve TTS if it was installed (piper-tts is an optional dep — uv sync drops it without --extra)
 SYNC_EXTRAS=""
@@ -67,7 +94,7 @@ if uv --directory "$INSTALL_DIR" run python -c "import piper" 2>/dev/null; then
 fi
 uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
 
-# ── 4. Restart if it was running ─────────────────────────────────────────────
+# ── 5. Restart if it was running ─────────────────────────────────────────────
 if [[ "$WAS_RUNNING" == true ]]; then
     sleep 0.5  # brief pause for PortAudio / PipeWire cleanup
     step "Restarting Vigil..."
