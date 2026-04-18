@@ -170,26 +170,41 @@ class _ActiveScreenTracker:
             return self._rect
 
     def _query(self, d, root, atom, screens):
+        # Try to locate the active X11 window on a screen.
+        matched = False
         try:
             prop = root.get_full_property(atom, 0)
-            if not prop or not prop.value or prop.value[0] == 0:
-                return
-            win = d.create_resource_object('window', int(prop.value[0]))
-            geom = win.get_geometry()
-            if geom.width == 0 or geom.height == 0:
-                return
-            # translate (0,0) from win coords into root/global coords
-            trans = root.translate_coords(win, 0, 0)
-            cx = trans.x + geom.width // 2
-            cy = trans.y + geom.height // 2
-            for ox, oy, sw, sh in screens:
-                if ox <= cx < ox + sw and oy <= cy < oy + sh:
-                    with self._lock:
-                        self._rect = (ox, oy, sw, sh)
-                    log.debug("active screen -> (%d,%d %dx%d)", ox, oy, sw, sh)
-                    return
+            if prop and prop.value and prop.value[0] != 0:
+                win = d.create_resource_object('window', int(prop.value[0]))
+                geom = win.get_geometry()
+                if geom.width > 0 and geom.height > 0:
+                    trans = root.translate_coords(win, 0, 0)
+                    cx = trans.x + geom.width // 2
+                    cy = trans.y + geom.height // 2
+                    for ox, oy, sw, sh in screens:
+                        if ox <= cx < ox + sw and oy <= cy < oy + sh:
+                            with self._lock:
+                                self._rect = (ox, oy, sw, sh)
+                            log.debug("active win -> screen (%d,%d %dx%d)", ox, oy, sw, sh)
+                            matched = True
+                            break
         except Exception:
             pass
+
+        if not matched:
+            # Wayland-native window or bad proxy position: fall back to cursor.
+            # query_pointer() goes through XWayland and returns real coordinates.
+            try:
+                ptr = root.query_pointer()
+                cx, cy = ptr.root_x, ptr.root_y
+                for ox, oy, sw, sh in screens:
+                    if ox <= cx < ox + sw and oy <= cy < oy + sh:
+                        with self._lock:
+                            self._rect = (ox, oy, sw, sh)
+                        log.debug("active cursor -> screen (%d,%d %dx%d)", ox, oy, sw, sh)
+                        break
+            except Exception:
+                pass
 
     def _run(self):
         try:
