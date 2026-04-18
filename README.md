@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="img/logo_writher.png" width="280" alt="WritHer">
+  <img src="img/logo_vigil.png" width="280" alt="Vigil">
 </p>
 
-<h1 align="center">WritHer Linux</h1>
+<h1 align="center">Vigil</h1>
 
 <p align="center">
   <strong>Offline voice assistant &amp; dictation for Linux — dictate text anywhere.</strong>
@@ -20,9 +20,9 @@
 
 ---
 
-## What is WritHer?
+## What is Vigil?
 
-WritHer sits in your system tray and gives you two modes:
+Vigil sits in your system tray and gives you two modes:
 
 | Mode | Default hotkey | What it does |
 |---|---|---|
@@ -66,7 +66,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh -o /tmp/install-writher.sh && bash /tmp/install-writher.sh
+curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
 ```
 
 Or, if you already have the repo cloned:
@@ -79,7 +79,7 @@ The installer will:
 
 1. Install [uv](https://docs.astral.sh/uv/) if not present
 2. Set up the Python virtual environment and dependencies
-3. Create a `writher` launcher in `~/.local/bin/`
+3. Create a `vigil` launcher in `~/.local/bin/`
 4. Create a `.desktop` entry (app launcher + optional autostart)
 5. Run the interactive first-run setup wizard
 
@@ -97,7 +97,7 @@ The setup wizard handles everything interactively:
 | **Whisper model** | Choose transcription size (tiny → large-v3) |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
 
-If no configuration is detected at launch, WritHer automatically opens a terminal and runs the wizard.
+If no configuration is detected at launch, Vigil automatically opens a terminal and runs the wizard.
 
 ---
 
@@ -186,7 +186,7 @@ Open from the tray → **Settings**. All changes are saved to the local database
 | Hotkeys | Dictation and assistant key combos |
 | TTS | Engine, voices (FR/EN), display mode, volume |
 | Re-run setup | Launch the first-run wizard again (model swap, TTS setup, etc.) |
-| Uninstall | Remove all WritHer data and desktop entries |
+| Uninstall | Remove all Vigil data and desktop entries |
 
 ---
 
@@ -240,7 +240,7 @@ Format: `Ctrl+Alt+W`, `Meta+D`, `Shift+F9`, etc.
 ## Troubleshooting
 
 **llama-server not reachable**  
-The tray tooltip shows a warning at startup. llama-server is launched automatically by the process manager when needed. If it fails, check the log (`~/.local/share/writher/writher.log`) or re-run setup from Settings.
+The tray tooltip shows a warning at startup. llama-server is launched automatically by the process manager when needed. If it fails, check the log (`~/.local/share/vigil/vigil.log`) or re-run setup from Settings.
 
 **Hotkey not detected (X11)**  
 Some keyboard layouts map modifier keys differently. Check the app log for the registered combo.
@@ -249,10 +249,10 @@ Some keyboard layouts map modifier keys differently. Check the app log for the r
 KGlobalAccel is KDE-only. On GNOME Wayland, use the tray buttons instead.
 
 **No audio / microphone not found**  
-WritHer uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
+Vigil uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
 
 **Dictation pastes nothing (Wayland)**  
-WritHer tries `wtype` first, then `xdotool`, then clipboard. Install at least one:
+Vigil tries `wtype` first, then `xdotool`, then clipboard. Install at least one:
 ```bash
 # Recommended (native Wayland, all apps)
 sudo pacman -S wtype          # Arch / CachyOS
@@ -278,7 +278,7 @@ curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/update.sh
 bash update.sh
 ```
 
-Stops the running instance, pulls the latest code, syncs dependencies, and restarts WritHer automatically. Your configuration and data are preserved.
+Stops the running instance, pulls the latest code, syncs dependencies, and restarts Vigil automatically. Your configuration and data are preserved.
 
 ---
 
