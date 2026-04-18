@@ -30,10 +30,10 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Current date and time: {now} ({weekday}). "
             "The user speaks in {lang_name}. "
             "Interpret their request and call the appropriate function. "
-            "When the user says relative times like 'tomorrow', 'in one hour', "
-            "'next Monday', convert them to absolute ISO datetimes. "
-            "Always respond by calling a function — never reply with plain text "
-            "unless no function fits."
+            "When the user asks you to search the web or their notes, call the search tool, "
+            "then synthesize the results into a concise 2-4 sentence spoken answer. "
+            "For all other requests, call the appropriate function. "
+            "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "English",
 
@@ -46,7 +46,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         # tray_icon.py
         "tray_idle":            "Writher — idle",
         "tray_recording":       "Writher — recording...",
-        "tray_ollama_down":     "Writher — Ollama not reachable",
+        "tray_ollama_down":     "Writher — LLM server not reachable",
         "tray_notes_agenda":    "Notes & Agenda",
         "tray_quit":            "Quit",
 
@@ -68,6 +68,7 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Settings",
+        "tray_stop_tts":            "Stop TTS",
         "tray_dictate":             "Dictate (AltGr)",
         "tray_assist":              "Assistant (Ctrl+R)",
 
@@ -83,6 +84,31 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # web search
         "web_no_results":           "No web results found for '{query}'",
+
+        # settings_window.py
+        "setting_whisper_model":    "Whisper model",
+        "setting_llm_model":        "LLM model (.gguf)",
+        "setting_llm_unload":       "LLM unload timeout",
+        "setting_llm_url":          "LLM server URL",
+        "setting_obsidian_vault":   "Obsidian vault",
+        "setting_language":         "Language",
+        "setting_overlay_position": "Overlay position",
+        "setting_overlay_screen":   "Lock to screen",
+        "setting_answer_timeout":   "Answer card timeout (s)",
+        "setting_hotkeys":          "Hotkeys",
+        "setting_hotkey_dict_hint": "Dictation  (e.g. Ctrl+Alt+W)",
+        "setting_hotkey_asst_hint": "Assistant  (e.g. Ctrl+Alt+R)",
+        "setting_hotkey_hint":      "Save to apply — format: Ctrl+Alt+W, Meta+D…",
+        "setting_tts_engine":       "Engine",
+        "setting_tts_voice_fr":     "Voice (FR)",
+        "setting_tts_voice_en":     "Voice (EN)",
+        "setting_tts_volume":       "Volume",
+        "setting_browse":           "Browse",
+        "setting_more_voices":      "More voices…",
+        "setting_download":         "Download",
+        "setting_loading":          "Loading…",
+        "setting_rerun_setup":      "Re-run setup",
+        "setting_uninstall":        "Uninstall",
     },
 
     "it": {
@@ -101,10 +127,10 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Current date and time: {now} ({weekday}). "
             "The user speaks in {lang_name}. "
             "Interpret their request and call the appropriate function. "
-            "When the user says relative times like 'domani', 'tra un'ora', "
-            "'lunedì prossimo', convert them to absolute ISO datetimes. "
-            "Always respond by calling a function — never reply with plain text "
-            "unless no function fits."
+            "When the user asks you to search the web or their notes, call the search tool, "
+            "then synthesize the results into a concise 2-4 sentence spoken answer. "
+            "For all other requests, call the appropriate function. "
+            "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "Italian",
 
@@ -115,7 +141,7 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         "tray_idle":            "Writher — inattivo",
         "tray_recording":       "Writher — registrazione...",
-        "tray_ollama_down":     "Writher — Ollama non raggiungibile",
+        "tray_ollama_down":     "Writher — server LLM non raggiungibile",
         "tray_notes_agenda":    "Note & Agenda",
         "tray_quit":            "Esci",
 
@@ -135,6 +161,7 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Impostazioni",
+        "tray_stop_tts":            "Ferma TTS",
         "tray_dictate":             "Ditta (AltGr)",
         "tray_assist":              "Assistente (Ctrl+R)",
 
@@ -150,6 +177,31 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # web search
         "web_no_results":           "Nessun risultato web per '{query}'",
+
+        # settings_window.py
+        "setting_whisper_model":    "Modello Whisper",
+        "setting_llm_model":        "Modello LLM (.gguf)",
+        "setting_llm_unload":       "Scarico LLM (inattività)",
+        "setting_llm_url":          "URL server LLM",
+        "setting_obsidian_vault":   "Vault Obsidian",
+        "setting_language":         "Lingua",
+        "setting_overlay_position": "Posizione overlay",
+        "setting_overlay_screen":   "Blocca sullo schermo",
+        "setting_answer_timeout":   "Durata risposta (s)",
+        "setting_hotkeys":          "Scorciatoie",
+        "setting_hotkey_dict_hint": "Dettatura  (es. Ctrl+Alt+W)",
+        "setting_hotkey_asst_hint": "Assistente  (es. Ctrl+Alt+R)",
+        "setting_hotkey_hint":      "Salva per applicare — formato: Ctrl+Alt+W, Meta+D…",
+        "setting_tts_engine":       "Motore",
+        "setting_tts_voice_fr":     "Voce (FR)",
+        "setting_tts_voice_en":     "Voce (EN)",
+        "setting_tts_volume":       "Volume",
+        "setting_browse":           "Sfoglia",
+        "setting_more_voices":      "Altre voci…",
+        "setting_download":         "Scarica",
+        "setting_loading":          "Caricamento…",
+        "setting_rerun_setup":      "Riavvia setup",
+        "setting_uninstall":        "Disinstalla",
     },
 
     "fr": {
@@ -170,12 +222,12 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Date et heure actuelles : {now} ({weekday}). "
             "L'utilisateur parle en {lang_name}. "
             "Interprète sa demande et appelle la fonction appropriée. "
-            "Quand l'utilisateur dit des temps relatifs comme 'demain', 'dans une heure', "
-            "'lundi prochain', convertis-les en dates ISO absolues. "
-            "Si l'utilisateur demande de chercher dans sa vault Obsidian, "
-            "utilise search_obsidian_vault. "
-            "Réponds toujours en appelant une fonction — "
-            "jamais en texte libre sauf si aucune fonction ne correspond."
+            "Quand l'utilisateur te demande de chercher sur le web ou dans ses notes, "
+            "appelle l'outil de recherche, puis synthétise les résultats en une réponse "
+            "concise de 2 à 4 phrases, formulée pour être lue à voix haute. "
+            "Pour toutes les autres demandes, appelle la fonction appropriée. "
+            "N'utilise jamais d'emoji ni d'émoticônes dans tes réponses — "
+            "ta réponse est lue à voix haute par un TTS."
         ),
         "lang_name": "French",
 
@@ -210,6 +262,7 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # tray_icon.py — settings menu + wayland fallback buttons
         "tray_settings":            "Paramètres",
+        "tray_stop_tts":            "Arrêter TTS",
         "tray_dictate":             "Dicter (AltGr)",
         "tray_assist":              "Assistant (Ctrl+R)",
 
@@ -225,6 +278,31 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # web search
         "web_no_results":           "Aucun résultat web pour '{query}'",
+
+        # settings_window.py
+        "setting_whisper_model":    "Modèle Whisper",
+        "setting_llm_model":        "Modèle LLM (.gguf)",
+        "setting_llm_unload":       "Déchargement LLM (inactivité)",
+        "setting_llm_url":          "URL du serveur LLM",
+        "setting_obsidian_vault":   "Vault Obsidian",
+        "setting_language":         "Langue",
+        "setting_overlay_position": "Position de l'overlay",
+        "setting_overlay_screen":   "Verrouiller à l'écran",
+        "setting_answer_timeout":   "Durée d'affichage de la réponse (s)",
+        "setting_hotkeys":          "Raccourcis clavier",
+        "setting_hotkey_dict_hint": "Dictée  (ex. Ctrl+Alt+W)",
+        "setting_hotkey_asst_hint": "Assistant  (ex. Ctrl+Alt+R)",
+        "setting_hotkey_hint":      "Sauvegarder pour appliquer — format : Ctrl+Alt+W, Meta+D…",
+        "setting_tts_engine":       "Moteur",
+        "setting_tts_voice_fr":     "Voix (FR)",
+        "setting_tts_voice_en":     "Voix (EN)",
+        "setting_tts_volume":       "Volume",
+        "setting_browse":           "Parcourir",
+        "setting_more_voices":      "Plus de voix…",
+        "setting_download":         "Télécharger",
+        "setting_loading":          "Chargement…",
+        "setting_rerun_setup":      "Relancer le setup",
+        "setting_uninstall":        "Désinstaller",
     },
 }
 
