@@ -2,8 +2,6 @@
   <img src="img/logo_vigil.png" alt="Vigil" width="100%">
 </p>
 
-<h1 align="center">Vigil</h1>
-
 <p align="center">
   <strong>Offline voice assistant &amp; dictation for Linux — dictate text anywhere.</strong>
 </p>
