@@ -243,10 +243,7 @@ def setup_llama_binary() -> tuple[Path, bool]:
 def setup_model(total_vram_mb: int) -> Path:
     """Ask user to pick/download a model. Returns path to .gguf."""
     import database as db
-    existing = db.get_setting("llama_model", "")
-    if existing and Path(existing).exists():
-        print(f"\n  Model already installed: {existing}")
-        return Path(existing)
+    existing_path = db.get_setting("llama_model", "")
 
     recommended = select_model_tier(total_vram_mb)
     budget = int(total_vram_mb * 0.55)
@@ -259,14 +256,26 @@ def setup_model(total_vram_mb: int) -> Path:
 
     print("Modèles disponibles :")
     for i, tier in enumerate(MODEL_TIERS, 1):
-        fits   = "OK" if tier["vram_mb"] <= budget else "X"
+        fits   = "OK" if tier["vram_mb"] <= budget else "X "
         marker = " <- recommandé" if tier["name"] == recommended["name"] else ""
-        print(f"  [{i}] {fits} {tier['name']:35s} (~{tier['vram_mb']} MB){marker}")
+        dest   = MODELS_DIR / tier["file"]
+        inst   = " [installé]" if dest.exists() else ""
+        print(f"  [{i}] {fits} {tier['name']:35s} (~{tier['vram_mb']} MB){marker}{inst}")
     print(f"  [{len(MODEL_TIERS)+1}] Pointer vers un fichier .gguf existant")
 
-    rec_idx = str(MODEL_TIERS.index(recommended) + 1)
-    choice  = input(f"\nChoix [Entrée = {rec_idx}] : ").strip() or rec_idx
+    has_current = existing_path and Path(existing_path).exists()
+    if has_current:
+        current_name = Path(existing_path).name
+        print(f"  [{len(MODEL_TIERS)+2}] Garder le modèle actuel ({current_name})")
+        default_choice = str(len(MODEL_TIERS) + 2)
+    else:
+        default_choice = str(MODEL_TIERS.index(recommended) + 1)
 
+    choice = input(f"\nChoix [Entrée = {default_choice}] : ").strip() or default_choice
+
+    if has_current and choice == str(len(MODEL_TIERS) + 2):
+        print(f"  Modèle conservé : {existing_path}")
+        return Path(existing_path)
     if choice == str(len(MODEL_TIERS) + 1):
         return Path(input("Chemin vers le fichier .gguf : ").strip())
     if choice.isdigit() and 1 <= int(choice) <= len(MODEL_TIERS):
@@ -359,31 +368,22 @@ def setup_tts() -> None:
     import database as db
     from tts import _BUILTIN_VOICES
     print("\n=== TTS (Text-to-Speech) ===\n")
-    print("Choose a TTS engine, or skip:\n")
     print("  Piper TTS")
     print("    + Best French voice quality, ~50 ms latency")
-    print("    + Modular: download only the voices you need (~80 MB/voice)")
-    print("    - Requires downloading voice files separately\n")
-    print("  Kokoro")
-    print("    + Best English voice quality, all voices bundled")
-    print("    + Single install (~300 MB total, no per-voice downloads)")
-    print("    - French quality decent but not best-in-class\n")
+    print("    + Modular: download only the voices you need (~80 MB/voice)\n")
     print("  [1] Piper TTS")
-    print("  [2] Kokoro")
-    print("  [3] No TTS (overlay only — skip)")
+    print("  [2] No TTS (overlay only — skip)")
 
-    choice = input("\nChoice [3]: ").strip() or "3"
+    choice = input("\nChoice [2]: ").strip() or "2"
 
-    if choice == "3":
+    if choice != "1":
         db.save_setting("tts_engine", "off")
         db.save_setting("tts_mode",   "overlay")
         print("  TTS skipped — overlay mode active.")
         return
 
-    engine = "piper" if choice == "1" else "kokoro"
-
     for lang in ("fr", "en"):
-        voices = _BUILTIN_VOICES[engine][lang]
+        voices = _BUILTIN_VOICES[lang]
         print(f"\n  {lang.upper()} voices:")
         for i, v in enumerate(voices, 1):
             print(f"    [{i}] {v}")
@@ -400,22 +400,17 @@ def setup_tts() -> None:
     mchoice = input("  Choice [3]: ").strip() or "3"
     mode = {"1": "tts", "2": "overlay", "3": "both"}.get(mchoice, "both")
 
-    db.save_setting("tts_engine", engine)
+    db.save_setting("tts_engine", "piper")
     db.save_setting("tts_mode",   mode)
-    print(f"  Engine: {engine}  Mode: {mode}")
+    print(f"  Engine: piper  Mode: {mode}")
 
-    if engine == "piper":
-        print("\n  Installing piper-tts...")
-        subprocess.run(["uv", "sync", "--extra", "tts-piper"], check=True)
-        for lang in ("fr", "en"):
-            import database as _db
-            voice = _db.get_setting(f"tts_voice_{lang}", "")
-            if voice:
-                _download_piper_voice(voice)
-    else:
-        print("\n  Installing kokoro (~300 MB)...")
-        subprocess.run(["uv", "sync", "--extra", "tts-kokoro"], check=True)
-        print("  Kokoro installed.")
+    print("\n  Installing piper-tts...")
+    subprocess.run(["uv", "sync", "--extra", "tts-piper"], check=True)
+    for lang in ("fr", "en"):
+        import database as _db
+        voice = _db.get_setting(f"tts_voice_{lang}", "")
+        if voice:
+            _download_piper_voice(voice)
 
 
 def main():
