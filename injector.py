@@ -37,7 +37,7 @@ def _inject_wtype(text: str) -> bool:
         log.info("Injected via wtype (%d chars)", len(text))
         return True
     except Exception as exc:
-        log.error("wtype injection failed: %s", exc)
+        log.warning("wtype injection failed (falling back): %s", exc)
         return False
 
 
@@ -84,6 +84,40 @@ def _inject_clipboard(text: str) -> bool:
                 pass
     except ImportError:
         return False
+
+
+def check_deps() -> str | None:
+    """Check that at least one injection method is available.
+
+    Returns a warning string if no method is ready, None if all is fine.
+    Wayland: needs wtype (or xdotool for XWayland apps, or xclip/wl-clipboard for paste).
+    X11: needs xdotool or xclip/xsel.
+    """
+    if is_wayland():
+        has_wtype     = bool(shutil.which("wtype"))
+        has_xdotool   = bool(shutil.which("xdotool"))
+        has_wlclip    = bool(shutil.which("wl-copy"))
+        has_xclip     = bool(shutil.which("xclip"))
+        has_xsel      = bool(shutil.which("xsel"))
+        has_clipboard = has_wlclip or has_xclip or has_xsel
+        if has_wtype or has_xdotool or has_clipboard:
+            return None
+        return (
+            "Dictation: no injection tool found.\n"
+            "Install wtype for Wayland:  sudo pacman -S wtype\n"
+            "Or xdotool for XWayland:   sudo pacman -S xdotool"
+        )
+    else:
+        has_xdotool = bool(shutil.which("xdotool"))
+        has_xclip   = bool(shutil.which("xclip"))
+        has_xsel    = bool(shutil.which("xsel"))
+        if has_xdotool or has_xclip or has_xsel:
+            return None
+        return (
+            "Dictation: no injection tool found.\n"
+            "Install xdotool:  sudo pacman -S xdotool\n"
+            "Or xclip:         sudo pacman -S xclip"
+        )
 
 
 def inject(text: str):

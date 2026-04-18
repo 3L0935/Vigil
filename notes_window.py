@@ -13,17 +13,14 @@ import tkinter as tk
 from datetime import datetime
 
 import customtkinter as ctk
-from PIL import ImageTk
 
 from logger import log
 import database as db
 import locales
-from brand import make_title_bar_image
 import theme as T
 
 _WIN_W, _WIN_H = 520, 600
 _MIN_W, _MIN_H = 380, 400
-_TITLE_H = 40
 
 
 class NotesWindow:
@@ -31,9 +28,6 @@ class NotesWindow:
         self._root = root
         self._win = None
         self._current_tab = "notes"
-        self._drag_x = 0
-        self._drag_y = 0
-        self._title_eye_tk = None
         self._tab_buttons = {}
         self._scroll_frame = None
 
@@ -41,28 +35,23 @@ class NotesWindow:
         if self._win is not None:
             try:
                 if self._win.winfo_exists():
-                    self._win.attributes("-topmost", True)
                     self._win.lift()
                     self._win.focus_force()
-                    self._win.after(100, lambda: self._win.attributes("-topmost", False)
-                                    if self._win and self._win.winfo_exists() else None)
                     self._switch_tab(tab)
                     return
             except Exception:
                 pass
         self._build()
         self._switch_tab(tab)
-        if self._win and self._win.winfo_exists():
-            self._win.after(100, self._win.focus_force)
 
     # ── Build ─────────────────────────────────────────────────────────────
 
     def _build(self):
         win = ctk.CTkToplevel(self._root)
-        win.overrideredirect(True)
         win.configure(fg_color=T.BG_DEEP)
-        win.attributes("-topmost", False)
+        win.title("WritHer")
         win.minsize(_MIN_W, _MIN_H)
+        win.protocol("WM_DELETE_WINDOW", self._close)
 
         sx = win.winfo_screenwidth()
         sy = win.winfo_screenheight()
@@ -71,51 +60,10 @@ class NotesWindow:
         win.geometry(f"{_WIN_W}x{_WIN_H}+{x}+{y}")
         self._win = win
 
-        # Force to front on creation, then release topmost
-        win.attributes("-topmost", True)
-        win.after(100, lambda: win.attributes("-topmost", False)
-                  if win.winfo_exists() else None)
-
         # Outer border frame
         outer = ctk.CTkFrame(win, fg_color=T.BG_DEEP, border_color=T.BORDER,
                              border_width=1, corner_radius=0)
         outer.pack(fill="both", expand=True)
-
-        # ── Custom title bar ──────────────────────────────────────────
-        title_bar = ctk.CTkFrame(outer, fg_color=T.TITLE_BG, height=_TITLE_H,
-                                 corner_radius=0)
-        title_bar.pack(fill="x")
-        title_bar.pack_propagate(False)
-
-        # Close + maximize — packed RIGHT first (Tkinter pack rule)
-        # Canvas draws text immune to GTK theme overrides; separator gives resting visibility
-        tk.Frame(title_bar, width=1, bg=T.BORDER).pack(side="right", fill="y")
-        close_frame = tk.Frame(title_bar, width=48, bg=T.TITLE_BG)
-        close_frame.pack(side="right", fill="y")
-        close_frame.pack_propagate(False)
-        close_cv = tk.Canvas(close_frame, bg=T.TITLE_BG,
-                             highlightthickness=0, cursor="hand2")
-        close_cv.pack(fill="both", expand=True)
-        close_cv.create_text(24, 20, text="×", fill="#ffffff",
-                             font=(T.FONT_FAMILY, 14, "bold"), anchor="center")
-        close_cv.bind("<Button-1>", lambda e: self._close())
-        close_cv.bind("<Enter>", lambda e: close_cv.configure(bg=T.CLOSE_HOVER))
-        close_cv.bind("<Leave>", lambda e: close_cv.configure(bg=T.TITLE_BG))
-
-        # Pandora eyes icon
-        eye_img = make_title_bar_image(size=20)
-        self._title_eye_tk = ImageTk.PhotoImage(eye_img)
-        eye_lbl = tk.Label(title_bar, image=self._title_eye_tk, bg=T.TITLE_BG)
-        eye_lbl.pack(side="left", padx=(14, 8))
-
-        title_lbl = ctk.CTkLabel(title_bar, text="Writher", font=(T.FONT_FAMILY, 13, "bold"),
-                                 text_color=T.FG)
-        title_lbl.pack(side="left")
-
-        # Drag support
-        for w in (title_bar, title_lbl):
-            w.bind("<Button-1>", self._start_drag)
-            w.bind("<B1-Motion>", self._on_drag)
 
         # ── Tab bar ───────────────────────────────────────────────────
         tab_bar = ctk.CTkFrame(outer, fg_color=T.BG, height=48, corner_radius=0)

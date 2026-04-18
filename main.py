@@ -35,6 +35,7 @@ _STOP = object()  # sentinel to shut down pipeline workers
 from logger import log
 from recorder import Recorder
 from transcriber import Transcriber
+import injector
 from injector import inject
 from hotkey import HotkeyListener
 from tray_qt import TrayIcon
@@ -359,6 +360,11 @@ def _quit():
             pass
     if root:
         def _destroy():
+            global transcriber
+            try:
+                transcriber = None  # release faster-whisper before exit to avoid semaphore leak
+            except Exception:
+                pass
             try:
                 root.destroy()
             except Exception:
@@ -412,6 +418,12 @@ def main():
     )
 
     tray.set_tooltip(_build_tray_tip())
+
+    # Check dictation injection tools
+    _inj_warn = injector.check_deps()
+    if _inj_warn:
+        log.warning("Injection deps: %s", _inj_warn.replace("\n", " | "))
+        root.after(2000, lambda: widget.show_message(_inj_warn, 6000))
 
     # Check llama-server connectivity at startup
     if not assistant.ping_llama_server():

@@ -777,6 +777,7 @@ class RecordingWidget:
         self._root.after(0, lambda: self._show_msg(text, duration_ms))
 
     def hide(self):
+        log.debug("widget.hide() called, context_waiting=%s alpha=%.2f", self._context_waiting, self._alpha)
         if self._context_waiting:
             return
         self._root.after(0, self._start_fade_out)
@@ -845,6 +846,7 @@ class RecordingWidget:
         self._fade_step()
 
     def _start_fade_out(self):
+        log.debug("widget._start_fade_out() alpha=%.2f mode=%s", self._alpha, self._mode)
         if self._win is None or self._alpha <= _ALPHA_MIN:
             self._do_hide()
             return
@@ -884,6 +886,7 @@ class RecordingWidget:
     # ── show / hide internals ─────────────────────────────────────────────
 
     def _show(self, mode: str):
+        log.debug("widget._show(mode=%s) alpha=%.2f fading=%s win=%s", mode, self._alpha, self._fading, self._win is not None)
         needs_build = (self._win is None)
         if not needs_build:
             try:
@@ -899,6 +902,10 @@ class RecordingWidget:
         self._reposition()
         if self._win:
             self._win.deiconify()
+            try:
+                self._win.wm_attributes("-alpha", self._alpha)
+            except Exception:
+                pass
 
         self._mode = mode
         self._tick = 0
@@ -944,6 +951,7 @@ class RecordingWidget:
         self._root.after(0, self._start_fade_out)
 
     def _do_hide(self):
+        log.debug("widget._do_hide()")
         self._mode = None
         self._expression = "idle"
         if self._after_anim is not None:

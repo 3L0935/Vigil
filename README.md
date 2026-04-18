@@ -204,7 +204,7 @@ hotkey_kglobalaccel.py — KGlobalAccel D-Bus (Wayland KDE only)
 platform_linux.py      — is_wayland() / is_x11()
 recorder.py            — sounddevice audio capture
 transcriber.py         — faster-whisper wrapper
-injector.py            — pyperclip + pynput paste, clipboard save/restore
+injector.py            — text injection: wtype (Wayland) → xdotool (XWayland) → clipboard fallback
 assistant.py           — LLM tool-calling: notes, appointments, reminders, search
 llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
 llm_manager.py         — llama-server process lifecycle management
@@ -252,6 +252,16 @@ KGlobalAccel is KDE-only. On GNOME Wayland, use the tray buttons instead.
 
 **No audio / microphone not found**  
 WritHer uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
+
+**Dictation pastes nothing (Wayland)**  
+WritHer tries `wtype` first, then `xdotool`, then clipboard. Install at least one:
+```bash
+# Recommended (native Wayland, all apps)
+sudo pacman -S wtype          # Arch / CachyOS
+# OR fallback (XWayland apps only)
+sudo pacman -S xdotool
+```
+On KDE Plasma, `wtype` may log `Compositor does not support the virtual keyboard protocol` — this is harmless; `xdotool` takes over automatically.
 
 **TTS not playing**  
 Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
