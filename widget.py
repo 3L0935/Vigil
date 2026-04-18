@@ -371,6 +371,7 @@ class AnswerCard:
         self._after_countdown: str | None = None
         self._countdown_start = 0.0
         self._countdown_dur = 0.0
+        self._hovering = False
         self._persistent = False
         self._alpha = 0.0
         self._after_fade: str | None = None
@@ -401,6 +402,7 @@ class AnswerCard:
         self._tokens = re.findall(r'\S+\s*|\n', text)
         self._token_idx = 0
         self._countdown_dur = float(getattr(config, "OVERLAY_ANSWER_TIMEOUT", 8))
+        self._hovering = False
 
         needs_build = self._win is None
         if not needs_build:
@@ -536,9 +538,12 @@ class AnswerCard:
             0, 0, _CARD_W, _CARD_PROG_H, fill="#2a2a3a", outline="")
 
         # ── Smart dismiss bindings ────────────────────────────────────────
-        # Hover-pause is polled in _countdown_tick (pointer-over-window check)
-        # rather than event-bound — <Leave> is unreliable on some WMs and would
-        # leave the card stuck paused forever.
+        # Bind hover only on the Toplevel: Tk's Enter/Leave on a Toplevel
+        # fire on real boundary crossings, not inter-child moves, so we get
+        # a reliable single Leave event without needing winfo_pointerx
+        # (which returns stale data on XWayland once the cursor exits).
+        win.bind("<Enter>", self._pause_countdown)
+        win.bind("<Leave>", self._resume_countdown)
         for w in [win, outer, hdr, body, text_w, ftr]:
             w.bind("<MouseWheel>", self._reset_countdown)
             w.bind("<Button-4>", self._reset_countdown)
@@ -587,22 +592,14 @@ class AnswerCard:
 
     # ── countdown ─────────────────────────────────────────────────────────
 
-    def _is_pointer_over_card(self) -> bool:
-        """Live pointer-position check. More reliable than <Enter>/<Leave>
-        events which miss on some Wayland compositors and can leave the
-        countdown stuck paused."""
-        if self._win is None:
-            return False
-        try:
-            mx = self._win.winfo_pointerx()
-            my = self._win.winfo_pointery()
-            wx = self._win.winfo_rootx()
-            wy = self._win.winfo_rooty()
-            ww = self._win.winfo_width()
-            wh = self._win.winfo_height()
-            return wx <= mx <= wx + ww and wy <= my <= wy + wh
-        except Exception:
-            return False
+    def _pause_countdown(self, event=None):
+        self._hovering = True
+
+    def _resume_countdown(self, event=None):
+        # Reset the start so the countdown restarts from a full duration when
+        # the user leaves the card (matches the user-expected behavior).
+        self._hovering = False
+        self._countdown_start = time.monotonic()
 
     def _countdown_tick(self):
         if self._persistent:
@@ -613,7 +610,7 @@ class AnswerCard:
             self._countdown_start = time.monotonic()
             self._after_countdown = self._root.after(100, self._countdown_tick)
             return
-        if self._is_pointer_over_card():
+        if self._hovering:
             # Hovering — hold the countdown at full duration
             self._countdown_start = time.monotonic()
             self._after_countdown = self._root.after(100, self._countdown_tick)
