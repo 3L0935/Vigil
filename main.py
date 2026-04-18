@@ -3,7 +3,19 @@ import sys
 import signal
 import queue
 import threading
-import tkinter as tk
+
+try:
+    import tkinter as tk
+except ImportError as _tk_err:
+    print(
+        f"ERROR: cannot import tkinter — {_tk_err}\n"
+        "Install the system Tk package, then retry:\n"
+        "  Arch / Manjaro / CachyOS : sudo pacman -S tk\n"
+        "  Ubuntu / Debian           : sudo apt install python3-tk\n"
+        "  Fedora                    : sudo dnf install python3-tkinter\n"
+    )
+    sys.exit(1)
+
 import customtkinter as ctk
 ctk.set_appearance_mode("dark")
 
