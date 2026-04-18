@@ -1,305 +1,251 @@
 <p align="center">
-  <img src="img/logo_writher.png" width="280" alt="Writher">
+  <img src="img/logo_writher.png" width="280" alt="WritHer">
 </p>
 
-<h1 align="center">WritHer</h1>
+<h1 align="center">WritHer Linux</h1>
 
 <p align="center">
-  <strong>Offline voice assistant & dictation tool for Windows (Python) — dictate text anywhere or manage notes, appointments and reminders hands-free.</strong>
+  <strong>Offline voice assistant &amp; dictation for Linux — dictate text anywhere, manage notes, appointments and reminders by voice.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
   <img src="https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
-  <img src="https://img.shields.io/badge/whisper-faster--whisper-orange" alt="Faster Whisper">
-  <img src="https://img.shields.io/badge/LLM-Ollama-white?logo=ollama" alt="Ollama">
+  <img src="https://img.shields.io/badge/STT-faster--whisper-orange" alt="faster-whisper">
+  <img src="https://img.shields.io/badge/LLM-llama.cpp-blueviolet" alt="llama.cpp">
+  <img src="https://img.shields.io/badge/TTS-Piper-teal" alt="Piper TTS">
+  <img src="https://img.shields.io/badge/DE-KDE%20%7C%20GNOME-1d99f3" alt="KDE/GNOME">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
-</p>
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=lfV0LF3EGMw">
-    <img src="https://img.youtube.com/vi/lfV0LF3EGMw/maxresdefault.jpg" width="600" alt="Writher Demo Video">
-  </a>
 </p>
 
 ---
 
 ## What is WritHer?
 
-WritHer sits quietly in your system tray and gives you two super-powers:
+WritHer sits in your system tray and gives you two modes:
 
-| Mode | Hotkey | What it does |
+| Mode | Default hotkey | What it does |
 |---|---|---|
-| **Dictation** | `AltGr` | Transcribes your voice and pastes the text directly into whichever app has focus — editors, browsers, chat windows, anything. |
-| **Assistant** | `Ctrl+R` | Understands natural-language commands and saves notes, creates appointments, sets reminders, manages lists — all by voice. |
+| **Dictation** | `Ctrl+Alt+W` | Transcribes your voice and pastes text directly into whichever app has focus — editors, browsers, chat windows, anything. |
+| **Assistant** | `Ctrl+Alt+R` | Understands natural-language commands: save notes, schedule appointments, set reminders, search the web or your Obsidian vault — all by voice. |
 
-Both hotkeys support two recording modes, configurable from the **Settings** window in the system tray:
-
-| Recording mode | How it works |
-|---|---|
-| **Hold** (default) | Hold the key to record, release to stop. |
-| **Toggle** | Press once to start recording, press again to stop. A configurable safety timeout auto-stops the recording if you forget. |
-
-Everything runs **locally**: speech recognition via [faster-whisper](https://github.com/SYSTRAN/faster-whisper), intent parsing via [Ollama](https://ollama.com), and data stored in a local SQLite database. No cloud, no API keys, no telemetry.
+Everything runs **locally**: speech recognition via [faster-whisper](https://github.com/SYSTRAN/faster-whisper), LLM via [llama.cpp](https://github.com/ggml-org/llama.cpp), optional TTS via [Piper](https://github.com/rhasspy/piper). No cloud, no API keys, no telemetry.
 
 ---
 
 ## Features
 
-- **Real-time dictation** — speak and text appears. Supports both hold-to-record and toggle (press to start/stop) modes. Clipboard is saved and restored automatically.
-- **Voice-controlled assistant** — save notes, create shopping/todo lists, schedule appointments, set reminders, all through natural speech.
-- **Smart date parsing** — say *"remind me tomorrow at 9"* or *"meeting next Monday at 3pm"* and the LLM converts relative times to absolute datetimes.
-- **Toast notifications** — get Windows notifications when reminders fire or appointments are approaching.
-- **Animated floating widget** — a minimal pill-shaped overlay with expressive "Pandora Blackboard" eyes that react to state (listening, thinking, happy, error, etc.).
-- **Notes & Agenda window** — a dark-themed borderless window to browse, check off list items, and delete notes/appointments/reminders.
-- **Settings window** — configure recording mode (hold vs toggle) and max recording duration directly from the system tray, with settings persisted across restarts.
-- **Multi-language** — ships with English and Italian; easy to add more via the `locales.py` string table.
-- **Fully offline** — no internet required after model download.
+- **Toggle-mode dictation** — press once to start recording, press again to paste
+- **Voice assistant** — notes, lists, appointments, reminders via natural speech
+- **Smart date parsing** — "remind me tomorrow at 9" or "meeting next Monday at 3pm"
+- **Web search** — ask the assistant to look something up; answer spoken aloud
+- **Obsidian vault search** — query your markdown notes by voice
+- **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
+- **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
+- **Notes & Agenda window** — browse, check off list items, delete entries
+- **Full settings UI** — all configuration from the settings window; no editing config files
+- **Multi-language** — English, French, Italian; add more via `locales.py`
+- **X11 + Wayland** — global hotkeys via pynput (X11) or KGlobalAccel D-Bus (KDE Wayland)
+- **Fully offline** after initial model download
+
+---
+
+## Requirements
+
+- Linux (tested on KDE Plasma 6, GNOME 46)
+- Microphone
+- `git` and `curl`
+- Internet connection for first-run model download (~500 MB minimum)
+- No GPU required (CPU-only works; GPU strongly recommended for larger models)
+
+---
+
+## Installation
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh | bash
+```
+
+Or, if you already have the repo cloned:
+
+```bash
+bash install.sh
+```
+
+The installer will:
+
+1. Install [uv](https://docs.astral.sh/uv/) if not present
+2. Set up the Python virtual environment and dependencies
+3. Create a `writher` launcher in `~/.local/bin/`
+4. Create a `.desktop` entry (app launcher + optional autostart)
+5. Run the interactive first-run setup wizard
+
+---
+
+## First-run setup
+
+The setup wizard handles everything interactively:
+
+| Phase | What it does |
+|---|---|
+| **Language** | Choose EN / FR / IT |
+| **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); downloads the matching llama.cpp binary from GitHub Releases |
+| **LLM model** | Recommends a model tier based on available VRAM; downloads from Hugging Face (Qwen3.5 0.8B → 9B, or Mistral Small 24B) |
+| **Whisper model** | Choose transcription size (tiny → large-v3) |
+| **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
+
+If no configuration is detected at launch, WritHer automatically opens a terminal and runs the wizard.
+
+---
+
+## Usage
+
+### Dictation
+
+1. Focus any text field (editor, browser, chat…)
+2. Press **`Ctrl+Alt+W`** — the overlay widget appears
+3. Speak
+4. Press **`Ctrl+Alt+W`** again — transcribed text is pasted automatically
+
+### Assistant
+
+1. Press **`Ctrl+Alt+R`** — overlay shows listening state
+2. Speak a command
+3. Press **`Ctrl+Alt+R`** again — answer appears in the overlay (and spoken aloud if TTS is on)
+
+**Example commands (EN):**
+
+- *"Save a note: remember to buy milk"*
+- *"Create a shopping list: bread, eggs, butter, coffee"*
+- *"Appointment with the dentist tomorrow at 3pm"*
+- *"Remind me to call Sarah in two hours"*
+- *"Search my notes for the API key"*
+- *"What is the weather in Paris?"*
+
+**Example commands (FR):**
+
+- *"Note : penser à rappeler le médecin"*
+- *"Rendez-vous dentiste demain à 14h"*
+- *"Rappelle-moi d'envoyer le rapport dans 30 minutes"*
+- *"Cherche dans mes notes le mot de passe Bitwarden"*
+
+### System tray
+
+Right-click the tray icon for:
+
+- **Dictate / Assistant** — toggle buttons (useful on Wayland as hotkey fallback)
+- **Stop TTS** — interrupt ongoing speech
+- **Settings** — open the settings window
+- **Quit**
+
+---
+
+## Settings
+
+Open from the tray → **Settings**. All changes are saved to the local database on "Save".
+
+| Section | What you can configure |
+|---|---|
+| Whisper model | tiny / base / small / medium / large-v3 |
+| LLM model | Path to `.gguf` file (browse or type) |
+| LLM unload timeout | Seconds of inactivity before the model is unloaded from RAM (0 = never) |
+| LLM server URL | llama-server endpoint (default `http://localhost:8080`) |
+| Obsidian vault | Path to your vault directory |
+| Language | EN / FR / IT |
+| Overlay position | 9-position grid (bottom-center default) |
+| Lock to screen | Pin overlay to a specific monitor |
+| Answer card timeout | Seconds before the answer pill auto-closes (5–30 s) |
+| Hotkeys | Dictation and assistant key combos |
+| TTS | Engine, voices (FR/EN), display mode, volume |
+| Re-run setup | Launch the first-run wizard again (model swap, TTS setup, etc.) |
+| Uninstall | Remove all WritHer data and desktop entries |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                     main.py                          │
-│            (orchestrator + Tk event loop)             │
-├──────────┬───────────┬───────────┬───────────────────┤
-│ hotkey   │ recorder  │ widget    │ tray_icon          │
-│ listener │ (audio)   │ (overlay) │ (system tray)      │
-├──────────┴───────────┴───────────┴───────────────────┤
-│                                                      │
-│  Dictation pipeline          Assistant pipeline      │
-│  ┌───────────┐               ┌───────────┐           │
-│  │transcriber│               │transcriber│           │
-│  │ (Whisper) │               │ (Whisper) │           │
-│  └─────┬─────┘               └─────┬─────┘           │
-│        ▼                           ▼                 │
-│   injector                    assistant              │
-│  (clipboard                  (Ollama LLM             │
-│   + Ctrl+V)                  + function calls)       │
-│                                    │                 │
-│                                    ▼                 │
-│                               database               │
-│                              (SQLite)                │
-│                                    │                 │
-│                              notifier                │
-│                          (toast scheduler)            │
-└──────────────────────────────────────────────────────┘
+main.py                — entry point, pipeline workers, hotkey dispatch
+config.py              — runtime constants (overridden by DB at startup)
+setup_utils.py         — terminal detection, first-run detection
+first_run.py           — interactive setup wizard (phases 0–3)
+install.sh             — distro-agnostic installer
+uninstall.sh           — data + desktop entry cleanup
+hotkey.py              — HotkeyListener: X11 (pynput) / Wayland KDE (KGlobalAccel)
+hotkey_kglobalaccel.py — KGlobalAccel D-Bus (Wayland KDE only)
+platform_linux.py      — is_wayland() / is_x11()
+recorder.py            — sounddevice audio capture
+transcriber.py         — faster-whisper wrapper
+injector.py            — pyperclip + pynput paste, clipboard save/restore
+assistant.py           — LLM tool-calling: notes, appointments, reminders, search
+llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
+llm_manager.py         — llama-server process lifecycle management
+obsidian.py            — Obsidian vault search (frontmatter + scoring)
+notifier.py            — notify-send + ReminderScheduler
+database.py            — SQLite: notes, appointments, reminders, settings KV
+locales.py             — i18n strings (EN / FR / IT)
+theme.py               — Pandora Blackboard colour palette + fonts
+widget.py              — floating overlay (RecordingWidget + AnswerCard)
+notes_window.py        — Notes / Agenda / Reminders viewer
+settings_window.py     — full settings UI
+tray_qt.py             — system tray (PyQt6, KDE Plasma)
+brand.py               — tray icon + title bar image generation
 ```
 
 ---
 
-## Requirements
+## Hotkeys
 
-- **Windows 10/11**
-- **Python 3.11+**
-- **Ollama** running locally (for the assistant mode)
-- A working **microphone**
+Configurable from Settings. Default:
 
----
+| Action | Default |
+|---|---|
+| Dictation | `Ctrl+Alt+W` |
+| Assistant | `Ctrl+Alt+R` |
 
-## Installation
+Format: `Ctrl+Alt+W`, `Meta+D`, `Shift+F9`, etc.
 
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/benmaster82/writher.git
-cd writher
-```
-
-### 2. Create a virtual environment (recommended)
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install faster-whisper numpy sounddevice pynput pystray Pillow requests winotify customtkinter
-```
-
-> **Optional:** install `plyer` as a fallback notification backend:
-> ```bash
-> pip install plyer
-> ```
-
-### 4. Install and start Ollama
-
-Download from [ollama.com](https://ollama.com), then pull a model that supports function calling:
-
-```bash
-ollama pull llama3.1:8b
-```
-
-Update `config.py` with your model name:
-
-```python
-OLLAMA_MODEL = "llama3.1:8b"
-```
-
-### 5. Run
-
-```bash
-python main.py
-```
-
-Writher appears in the system tray. Hold `AltGr` to dictate, hold `Ctrl+R` for assistant commands.
-
----
-
-## Configuration
-
-All settings live in **`config.py`**:
-
-```python
-# Hotkeys
-HOTKEY = Key.alt_gr            # Dictation
-ASSISTANT_HOTKEY = Key.ctrl_r  # Assistant
-
-# Language ("en" or "it")
-LANGUAGE = "en"
-
-# Recording mode
-HOLD_TO_RECORD = True          # True = hold key, False = toggle (press/press)
-MAX_RECORD_SECONDS = 120       # Safety timeout for toggle mode (seconds)
-
-# Whisper
-MODEL_SIZE = "base"            # tiny, base, small, medium, large-v3
-DEVICE = "cpu"                 # "cpu" or "cuda"
-COMPUTE_TYPE = "int8"          # int8, float16, float32
-
-# Ollama
-OLLAMA_URL = "http://localhost:11434"
-OLLAMA_MODEL = "gpt-oss:120b-cloud"
-
-# Notification lead time
-APPOINTMENT_REMIND_MINUTES = 15
-```
-
-> **Note:** `HOLD_TO_RECORD` and `MAX_RECORD_SECONDS` can also be changed at runtime from the **Settings** window in the system tray. Changes made there are persisted in the database and override `config.py` defaults.
-
-### Choosing a Whisper model
-
-| Model | Size | Speed | Accuracy |
-|---|---|---|---|
-| `tiny` | 39 MB | ⚡ fastest | basic |
-| `base` | 74 MB | ⚡ fast | good (default) |
-| `small` | 244 MB | moderate | better |
-| `medium` | 769 MB | slower | great |
-| `large-v3` | 1.5 GB | slowest | best |
-
-For CUDA acceleration, install `ctranslate2` with CUDA support and set `DEVICE = "cuda"`.
-
----
-
-## Usage
-
-### Dictation mode
-
-**Hold mode** (default):
-
-1. Focus any text field (editor, browser, chat…)
-2. **Hold** `AltGr`
-3. Speak
-4. **Release** — transcribed text is pasted automatically
-
-**Toggle mode:**
-
-1. Focus any text field
-2. **Press** `AltGr` once to start recording
-3. Speak
-4. **Press** `AltGr` again to stop — transcribed text is pasted automatically
-
-> In toggle mode, a safety timeout (configurable in Settings) will auto-stop the recording if you forget to press the key again.
-
-### Assistant mode
-
-**Hold mode** (default):
-
-1. **Hold** `Ctrl+R`
-2. Speak a command
-3. **Release** — Writher processes and confirms
-
-**Toggle mode:**
-
-1. **Press** `Ctrl+R` once to start recording
-2. Speak a command
-3. **Press** `Ctrl+R` again to stop — Writher processes and confirms
-
-**Example commands:**
-
-- *"Save a note: remember to buy milk"*
-- *"Create a shopping list: bread, eggs, butter, coffee"*
-- *"Add pasta to the shopping list"*
-- *"Appointment with the dentist tomorrow at 3pm"*
-- *"Remind me to call Marco in one hour"*
-- *"Show me my notes"*
-- *"Show my agenda"*
-
-### System tray
-
-Right-click the tray icon to access:
-
-- **Notes & Agenda** — open the notes/appointments/reminders viewer
-- **Settings** — configure recording mode (hold vs toggle) and max recording duration
-- **Quit** — exit Writher
-
----
-
-## Adding a language
-
-1. Open `locales.py`
-2. Add a new entry to the `_STRINGS` dictionary (copy `"en"` as a template)
-3. Set `LANGUAGE` in `config.py` to your language code
-
----
-
-## Project structure
-
-```
-writher/
-├── main.py              # Entry point and orchestrator
-├── config.py            # All user-configurable settings
-├── hotkey.py            # Dual-hotkey listener with hold/toggle modes (pynput)
-├── recorder.py          # Microphone recording (sounddevice)
-├── transcriber.py       # Speech-to-text (faster-whisper)
-├── injector.py          # Clipboard paste into active app (Win32 API)
-├── assistant.py         # Ollama LLM integration + function calling
-├── database.py          # SQLite storage (notes, appointments, reminders, settings)
-├── notifier.py          # Toast notifications + reminder/appointment scheduler
-├── widget.py            # Floating pill overlay with animated eyes
-├── notes_window.py      # Notes/Agenda/Reminders viewer window (CustomTkinter)
-├── settings_window.py   # Settings window (CustomTkinter)
-├── tray_icon.py         # System tray icon (pystray)
-├── brand.py             # "Pandora Blackboard" icon renderer
-├── theme.py             # Unified colour palette and font definitions
-├── locales.py           # i18n string tables (EN, IT)
-├── logger.py            # Rotating file + console logger
-├── debug_keys.py        # Key event debugger utility
-├── requirements.txt     # Python dependencies
-├── img/
-│   └── logo_writher.png # Logo for README
-└── LICENSE
-```
+**X11:** uses pynput GlobalHotKeys — works on all X11 desktop environments.  
+**Wayland KDE:** uses KGlobalAccel D-Bus — system-level, works even in Wayland-native apps. Falls back to pynput if KDE is not detected.  
+**Wayland (non-KDE):** KGlobalAccel is unavailable; use the tray icon **Dictate / Assistant** buttons as fallback.
 
 ---
 
 ## Troubleshooting
 
-**AltGr not detected?**
-Run `python debug_keys.py` to see exactly what pynput reports for your keyboard. Some keyboard layouts map AltGr differently.
+**llama-server not reachable**  
+The tray tooltip shows a warning at startup. llama-server is launched automatically by the process manager when needed. If it fails, check the log (`~/.local/share/writher/writher.log`) or re-run setup from Settings.
 
-**Ollama not reachable?**
-Make sure Ollama is running (`ollama serve`) and the URL in `config.py` matches. The tray tooltip will show a warning if the connection fails at startup.
+**Hotkey not detected (X11)**  
+Some keyboard layouts map modifier keys differently. Check the app log for the registered combo.
 
-**No audio / microphone not found?**
-Writher uses the system default input device. Check your Windows sound settings. The widget will display a "🎤 No microphone detected" message if the device can't be opened.
+**Hotkey not working (Wayland non-KDE)**  
+KGlobalAccel is KDE-only. On GNOME Wayland, use the tray buttons instead.
 
-**Text not pasting?**
-The injector uses `Ctrl+V` via the clipboard. Some apps with custom input handling may not respond. If injection fails, the text is saved to `recovery_notes.txt` so nothing is lost.
+**No audio / microphone not found**  
+WritHer uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
+
+**TTS not playing**  
+Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
+
+---
+
+## Uninstall
+
+**One-liner:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash
+```
+
+**From the app:**  
+Settings → Uninstall — removes data directory, desktop entries, and launcher.
+
+**Manually (if you have the repo):**
+```bash
+bash uninstall.sh
+```
+
+The source directory is never removed automatically — delete it yourself if needed.
 
 ---
 
@@ -310,5 +256,5 @@ MIT
 ---
 
 <p align="center">
-  <sub>Built with 🎙️ faster-whisper · 🧠 Ollama · 🐍 Python</sub>
+  <sub>Built with 🎙️ faster-whisper · 🧠 llama.cpp · 🗣️ Piper TTS · 🐍 Python</sub>
 </p>
