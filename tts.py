@@ -1,5 +1,6 @@
 """TTS engine abstraction — Piper, with sounddevice playback."""
 
+import json
 import re
 from pathlib import Path
 import threading
@@ -23,10 +24,12 @@ _mode: str = "overlay"
 _voice_fr: str = ""
 _voice_en: str = ""
 _volume: float = 1.0
+_speaker_fr: int = 0
+_speaker_en: int = 0
 
 
 def init() -> None:
-    global _engine, _mode, _voice_fr, _voice_en, _volume
+    global _engine, _mode, _voice_fr, _voice_en, _volume, _speaker_fr, _speaker_en
     _engine   = db.get_setting("tts_engine",   "off")
     _mode     = db.get_setting("tts_mode",     "overlay")
     _voice_fr = db.get_setting("tts_voice_fr", "")
@@ -35,6 +38,14 @@ def init() -> None:
         _volume = float(db.get_setting("tts_volume", "1.0"))
     except (ValueError, TypeError):
         _volume = 1.0
+    try:
+        _speaker_fr = int(db.get_setting("tts_speaker_fr", "0"))
+    except (ValueError, TypeError):
+        _speaker_fr = 0
+    try:
+        _speaker_en = int(db.get_setting("tts_speaker_en", "0"))
+    except (ValueError, TypeError):
+        _speaker_en = 0
     if _engine == "kokoro":
         _engine = "off"
         db.save_setting("tts_engine", "off")
@@ -94,12 +105,39 @@ def _clean_for_tts(text: str) -> str:
     return text
 
 
+def get_num_speakers(voice_name: str) -> int:
+    json_path = _PIPER_DIR / f"{voice_name}.onnx.json"
+    if not json_path.exists():
+        return 1
+    try:
+        data = json.loads(json_path.read_text())
+        return max(1, int(data.get("num_speakers", 1)))
+    except Exception:
+        return 1
+
+
 def speak(text: str) -> None:
     if _engine == "off" or _mode not in ("tts", "both"):
         return
     lang = config.LANGUAGE
     voice = _voice_fr if lang == "fr" else _voice_en
-    _speak_piper(_clean_for_tts(text), voice, _volume)
+    speaker_id = _speaker_fr if lang == "fr" else _speaker_en
+    sid = speaker_id if get_num_speakers(voice) > 1 else None
+    _speak_piper(_clean_for_tts(text), voice, _volume, sid)
+
+
+def preview(voice_name: str, speaker_id: int | None = None) -> None:
+    if _engine == "off" or _playing.is_set():
+        return
+    lang = "fr" if voice_name.startswith("fr_") else "en"
+    sample = ("Bonjour, voici un exemple de cette voix."
+              if lang == "fr" else
+              "Hello, this is a sample of this voice.")
+    threading.Thread(
+        target=_speak_piper,
+        args=(sample, voice_name, _volume, speaker_id),
+        daemon=True,
+    ).start()
 
 
 def stop() -> None:
@@ -111,11 +149,13 @@ def is_playing() -> bool:
     return _playing.is_set()
 
 
-def _speak_piper(text: str, voice: str, volume: float = 1.0) -> None:
+def _speak_piper(text: str, voice: str, volume: float = 1.0, speaker_id: int | None = None) -> None:
     from piper import PiperVoice
+    from piper.config import SynthesisConfig
     path = _PIPER_DIR / f"{voice}.onnx"
     pv = PiperVoice.load(str(path))
-    chunks = [c.audio_float_array for c in pv.synthesize(text)]
+    syn_config = SynthesisConfig(speaker_id=speaker_id) if speaker_id is not None else None
+    chunks = [c.audio_float_array for c in pv.synthesize(text, syn_config=syn_config)]
     if not chunks:
         return
     audio = np.concatenate(chunks).astype(np.float32) * volume

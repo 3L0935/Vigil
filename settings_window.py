@@ -41,6 +41,14 @@ class SettingsWindow:
         self._tts_volume_var = None
         self._tts_voice_fr_menu = None
         self._tts_voice_en_menu = None
+        self._tts_speaker_fr_var = None
+        self._tts_speaker_en_var = None
+        self._tts_speaker_fr_row = None
+        self._tts_speaker_en_row = None
+        self._tts_speaker_fr_range = None
+        self._tts_speaker_en_range = None
+        self._tts_fr_row = None
+        self._tts_en_row = None
         self._hotkey_dict_var = None
         self._hotkey_asst_var = None
         self._answer_timeout_var = None
@@ -385,10 +393,10 @@ class SettingsWindow:
         self._tts_voice_fr_var = tk.StringVar(
             master=self._win,
             value=db.get_setting("tts_voice_fr", fr_voices[0]))
-        fr_row = ctk.CTkFrame(pad, fg_color="transparent")
-        fr_row.pack(fill="x", pady=(0, T.PAD_M))
+        self._tts_fr_row = ctk.CTkFrame(pad, fg_color="transparent")
+        self._tts_fr_row.pack(fill="x", pady=(0, T.PAD_M))
         self._tts_voice_fr_menu = ctk.CTkOptionMenu(
-            fr_row,
+            self._tts_fr_row,
             values=fr_voices,
             variable=self._tts_voice_fr_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
@@ -396,16 +404,45 @@ class SettingsWindow:
             dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
             dropdown_hover_color=T.BG_HOVER,
             font=T.FONT_SMALL, corner_radius=6,
-            command=lambda v: (db.save_setting("tts_voice_fr", v), tts.init()),
+            command=lambda v: (db.save_setting("tts_voice_fr", v), tts.init(),
+                               self._update_speaker_row("fr")),
         )
         self._tts_voice_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            fr_row, text=locales.get("setting_more_voices"), width=110, height=32,
+            self._tts_fr_row, text=locales.get("setting_more_voices"), width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
             command=lambda: self._show_more_voices("fr"),
         ).pack(side="right")
+
+        # FR speaker row (hidden when voice is single-speaker)
+        self._tts_speaker_fr_row = ctk.CTkFrame(pad, fg_color="transparent")
+        ctk.CTkLabel(self._tts_speaker_fr_row, text="Speaker ID",
+                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left")
+        _fr_n = tts.get_num_speakers(self._tts_voice_fr_var.get())
+        self._tts_speaker_fr_range = ctk.CTkLabel(
+            self._tts_speaker_fr_row, text=f"(0\u2013{_fr_n - 1})",
+            font=T.FONT_SMALL, text_color=T.FG_DIM)
+        self._tts_speaker_fr_range.pack(side="left", padx=(T.PAD_S, T.PAD_M))
+        self._tts_speaker_fr_var = tk.StringVar(
+            master=self._win, value=db.get_setting("tts_speaker_fr", "0"))
+        ctk.CTkEntry(
+            self._tts_speaker_fr_row,
+            textvariable=self._tts_speaker_fr_var,
+            width=60, height=32,
+            fg_color=T.BG_CARD, border_color=T.BORDER,
+            text_color=T.FG, font=T.FONT_SMALL,
+        ).pack(side="left", padx=(0, T.PAD_M))
+        ctk.CTkButton(
+            self._tts_speaker_fr_row, text="\u25b6 Sample", width=90, height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=lambda: self._preview_voice("fr"),
+        ).pack(side="left")
+        if _fr_n > 1:
+            self._tts_speaker_fr_row.pack(fill="x", pady=(0, T.PAD_M))
 
         ctk.CTkLabel(pad, text=locales.get("setting_tts_voice_en"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(fill="x")
@@ -413,10 +450,10 @@ class SettingsWindow:
         self._tts_voice_en_var = tk.StringVar(
             master=self._win,
             value=db.get_setting("tts_voice_en", en_voices[0]))
-        en_row = ctk.CTkFrame(pad, fg_color="transparent")
-        en_row.pack(fill="x", pady=(0, T.PAD_L))
+        self._tts_en_row = ctk.CTkFrame(pad, fg_color="transparent")
+        self._tts_en_row.pack(fill="x", pady=(0, T.PAD_L))
         self._tts_voice_en_menu = ctk.CTkOptionMenu(
-            en_row,
+            self._tts_en_row,
             values=en_voices,
             variable=self._tts_voice_en_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
@@ -424,16 +461,45 @@ class SettingsWindow:
             dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
             dropdown_hover_color=T.BG_HOVER,
             font=T.FONT_SMALL, corner_radius=6,
-            command=lambda v: (db.save_setting("tts_voice_en", v), tts.init()),
+            command=lambda v: (db.save_setting("tts_voice_en", v), tts.init(),
+                               self._update_speaker_row("en")),
         )
         self._tts_voice_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            en_row, text=locales.get("setting_more_voices"), width=110, height=32,
+            self._tts_en_row, text=locales.get("setting_more_voices"), width=110, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
             command=lambda: self._show_more_voices("en"),
         ).pack(side="right")
+
+        # EN speaker row (hidden when voice is single-speaker)
+        self._tts_speaker_en_row = ctk.CTkFrame(pad, fg_color="transparent")
+        ctk.CTkLabel(self._tts_speaker_en_row, text="Speaker ID",
+                     font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left")
+        _en_n = tts.get_num_speakers(self._tts_voice_en_var.get())
+        self._tts_speaker_en_range = ctk.CTkLabel(
+            self._tts_speaker_en_row, text=f"(0\u2013{_en_n - 1})",
+            font=T.FONT_SMALL, text_color=T.FG_DIM)
+        self._tts_speaker_en_range.pack(side="left", padx=(T.PAD_S, T.PAD_M))
+        self._tts_speaker_en_var = tk.StringVar(
+            master=self._win, value=db.get_setting("tts_speaker_en", "0"))
+        ctk.CTkEntry(
+            self._tts_speaker_en_row,
+            textvariable=self._tts_speaker_en_var,
+            width=60, height=32,
+            fg_color=T.BG_CARD, border_color=T.BORDER,
+            text_color=T.FG, font=T.FONT_SMALL,
+        ).pack(side="left", padx=(0, T.PAD_M))
+        ctk.CTkButton(
+            self._tts_speaker_en_row, text="\u25b6 Sample", width=90, height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=lambda: self._preview_voice("en"),
+        ).pack(side="left")
+        if _en_n > 1:
+            self._tts_speaker_en_row.pack(fill="x", pady=(0, T.PAD_M))
 
         # ── Volume ───────────────────────────────────────────────────
         vol_row = ctk.CTkFrame(pad, fg_color="transparent")
@@ -550,6 +616,10 @@ class SettingsWindow:
                 v = 1.0
             self._tts_volume_var.set(v)
             self._tts_volume_label.configure(text=f"{int(v * 100)}%")
+        if self._tts_speaker_fr_var:
+            self._tts_speaker_fr_var.set(db.get_setting("tts_speaker_fr", "0"))
+        if self._tts_speaker_en_var:
+            self._tts_speaker_en_var.set(db.get_setting("tts_speaker_en", "0"))
         if self._hotkey_dict_var:
             self._hotkey_dict_var.set(getattr(config, "HOTKEY", "Ctrl+Alt+W"))
         if self._hotkey_asst_var:
@@ -616,6 +686,36 @@ class SettingsWindow:
         config.TTS_MODE = value
         tts.init()
         log.info("TTS mode set to %s", value)
+
+    def _update_speaker_row(self, lang: str) -> None:
+        voice_var  = self._tts_voice_fr_var   if lang == "fr" else self._tts_voice_en_var
+        row        = self._tts_speaker_fr_row  if lang == "fr" else self._tts_speaker_en_row
+        range_lbl  = self._tts_speaker_fr_range if lang == "fr" else self._tts_speaker_en_range
+        ref_row    = self._tts_fr_row           if lang == "fr" else self._tts_en_row
+        if not voice_var or not row:
+            return
+        n = tts.get_num_speakers(voice_var.get())
+        if n > 1:
+            range_lbl.configure(text=f"(0\u2013{n - 1})")
+            row.pack(fill="x", pady=(0, T.PAD_M), after=ref_row)
+        else:
+            row.pack_forget()
+
+    def _preview_voice(self, lang: str) -> None:
+        voice_var   = self._tts_voice_fr_var   if lang == "fr" else self._tts_voice_en_var
+        speaker_var = self._tts_speaker_fr_var if lang == "fr" else self._tts_speaker_en_var
+        if not voice_var:
+            return
+        voice = voice_var.get()
+        if not voice or voice == "(none)":
+            return
+        speaker_id = None
+        if speaker_var and tts.get_num_speakers(voice) > 1:
+            try:
+                speaker_id = int(speaker_var.get())
+            except ValueError:
+                speaker_id = 0
+        tts.preview(voice, speaker_id)
 
     def _show_more_voices(self, lang: str):
         import threading
@@ -696,6 +796,7 @@ class SettingsWindow:
                 self._tts_voice_en_menu.configure(values=voices)
             if self._tts_voice_en_var:
                 self._tts_voice_en_var.set(current)
+        self._update_speaker_row(lang)
 
     def _save_linux_settings(self):
         if self._llm_url_var:
@@ -759,6 +860,17 @@ class SettingsWindow:
             if name:
                 config.ASSISTANT_NAME = name
                 db.save_setting("assistant_name", name)
+        if self._tts_speaker_fr_var:
+            try:
+                db.save_setting("tts_speaker_fr", str(int(self._tts_speaker_fr_var.get())))
+            except ValueError:
+                pass
+        if self._tts_speaker_en_var:
+            try:
+                db.save_setting("tts_speaker_en", str(int(self._tts_speaker_en_var.get())))
+            except ValueError:
+                pass
+        tts.init()
         if self._on_hotkey_change_cb:
             self._on_hotkey_change_cb()
         log.info("Settings saved.")
