@@ -205,19 +205,17 @@ platform_linux.py      — is_wayland() / is_x11()
 recorder.py            — sounddevice audio capture
 transcriber.py         — faster-whisper wrapper
 injector.py            — text injection: wtype (Wayland) → xdotool (XWayland) → clipboard fallback
-assistant.py           — LLM tool-calling: notes, appointments, reminders, search
+assistant.py           — LLM tool-calling: web search, vault search, app launcher, settings
 llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
 llm_manager.py         — llama-server process lifecycle management
 obsidian.py            — Obsidian vault search (frontmatter + scoring)
-notifier.py            — notify-send + ReminderScheduler
-database.py            — SQLite: notes, appointments, reminders, settings KV
+database.py            — SQLite: settings KV store
 locales.py             — i18n strings (EN / FR / IT)
 theme.py               — Pandora Blackboard colour palette + fonts
 widget.py              — floating overlay (RecordingWidget + AnswerCard)
-notes_window.py        — Notes / Agenda / Reminders viewer
 settings_window.py     — full settings UI
 tray_qt.py             — system tray (PyQt6, KDE Plasma)
-brand.py               — tray icon + title bar image generation
+brand.py               — tray icon generation (Pandora eyes)
 ```
 
 ---

@@ -1,10 +1,4 @@
-"""Centralised Pandora Blackboard brand assets for Writher.
-
-Provides reusable eye-icon rendering at any size, used by:
-- tray_icon.py  (system tray)
-- notes_window.py  (title bar)
-- notifier.py  (toast notification icon)
-"""
+"""Centralised Pandora Blackboard brand assets for Writher."""
 
 import os
 from PIL import Image, ImageDraw, ImageFilter
@@ -16,8 +10,6 @@ _GLOW_MULT = 2.8           # glow radius multiplier
 
 # ── Paths ─────────────────────────────────────────────────────────────────
 _DIR = os.path.dirname(os.path.abspath(__file__))
-_ICO_PATH = os.path.join(_DIR, "writher.ico")
-_PNG_PATH = os.path.join(_DIR, "writher_icon.png")
 
 
 def render_eyes(
@@ -107,72 +99,3 @@ def make_tray_icon(recording: bool = False) -> Image.Image:
         glow_alpha=55,
     )
 
-
-def make_title_bar_image(size: int = 20) -> Image.Image:
-    """Small transparent eyes for the notes window title bar."""
-    return render_eyes(
-        size=size,
-        eye_rgb=(91, 206, 250),
-        glow_rgb=(91, 206, 250),
-        glow_alpha=45,
-        circle_bg=False,
-    )
-
-
-def get_notification_icon_path() -> str:
-    """Return path to a high-res PNG for toast notifications.
-
-    Generates the file on first call. PNG is preferred over ICO for
-    Windows toast notifications — sharper rendering and no scaling artifacts.
-    """
-    if not os.path.exists(_PNG_PATH):
-        _generate_notification_png()
-    return _PNG_PATH
-
-
-def get_ico_path() -> str:
-    """Return path to writher.ico, generating it if missing."""
-    if not os.path.exists(_ICO_PATH):
-        _generate_ico()
-    return _ICO_PATH
-
-
-def _generate_notification_png():
-    """Generate a 256x256 PNG with transparent background for toast icons.
-
-    Transparent background lets the notification blend with the Windows
-    theme (dark or light) instead of showing an ugly dark square.
-    """
-    size = 256
-    img = render_eyes(
-        size=size,
-        eye_rgb=(255, 255, 255),
-        glow_rgb=(255, 255, 255),
-        glow_alpha=70,
-        circle_bg=True,
-        bg_rgb=(30, 30, 40),
-        bg_alpha=200,
-    )
-    img.save(_PNG_PATH, format="PNG")
-
-
-def _generate_ico():
-    """Generate a multi-size .ico file with the Pandora eyes."""
-    sizes = [16, 24, 32, 48, 64, 128, 256]
-    images = []
-    for sz in sizes:
-        img = render_eyes(
-            size=sz,
-            bg_rgb=(15, 15, 20),
-            eye_rgb=(255, 255, 255),
-            glow_rgb=(255, 255, 255),
-            glow_alpha=55,
-        )
-        images.append(img)
-
-    images[0].save(
-        _ICO_PATH,
-        format="ICO",
-        sizes=[(sz, sz) for sz in sizes],
-        append_images=images[1:],
-    )

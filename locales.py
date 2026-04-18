@@ -14,12 +14,6 @@ import config
 _STRINGS: dict[str, dict[str, str]] = {
     "en": {
         # assistant.py — dispatch confirmations
-        "note_saved":           "Note saved (#{nid})",
-        "list_saved":           "List '{title}' saved ({count} items)",
-        "added_to_list":        "Added to '{title}'",
-        "list_not_found":       "List '{title}' not found",
-        "appointment_created":  "Appointment created: {title} ({dt})",
-        "reminder_set":         "Reminder set: {dt}",
         "unknown_command":      "Unknown command: {name}",
         "error":                "Error: {detail}",
         "not_understood":       "I didn't understand the command",
@@ -45,60 +39,30 @@ _STRINGS: dict[str, dict[str, str]] = {
         "lang_name": "English",
 
         # main.py — widget messages
-        "show_notes":           "📝 Here are your notes",
-        "show_appointments":    "📅 Here is your agenda",
-        "show_reminders":       "⏰ Here are your reminders",
         "assistant_error":      "Assistant error",
 
-        # tray_icon.py
+        # tray_qt.py
         "tray_idle":            "Writher — idle",
         "tray_recording":       "Writher — recording...",
         "tray_ollama_down":     "Writher — LLM server not reachable",
-        "tray_notes_agenda":    "Notes & Agenda",
         "tray_quit":            "Quit",
-
-        # notes_window.py — UI labels
-        "no_notes":             "No notes",
-        "no_appointments":      "No appointments",
-        "no_reminders":         "No reminders",
-        "tab_notes":            "📝  Notes",
-        "tab_agenda":           "📅  Agenda",
-        "tab_reminders":        "⏰  Reminders",
-        "default_list_title":   "List",
-        "default_note_title":   "Note",
-
-        # notifier.py
-        "reminder_toast_title":     "Writher Reminder",
-        "appointment_toast_title":  "Writher Appointment",
-        "appointment_toast_body":   "📅 {title} — in {minutes} min",
-        "appointment_toast_now":    "📅 {title} — now!",
-
-        # tray_icon.py — settings menu + wayland fallback buttons
-        "tray_settings":            "Settings",
-        "tray_stop_tts":            "Stop TTS",
-        "tray_dictate":             "Dictate (AltGr)",
-        "tray_assist":              "Assistant (Ctrl+R)",
-
-        # settings_window.py
-        "settings_title":           "Settings",
-        "setting_record_mode":      "Recording mode",
-        "setting_toggle":           "Press to start / stop",
-        "setting_max_duration":     "Max recording (seconds)",
-        "setting_saved":            "Settings saved",
-
-        # obsidian vault (new)
-        "vault_not_configured":     "Obsidian vault is not configured. Set the vault path in Settings.",
-        "vault_no_results":         "No notes found for '{query}' in the vault",
-
-        # web search
-        "web_no_results":           "No web results found for '{query}'",
+        "tray_settings":        "Settings",
+        "tray_stop_tts":        "Stop TTS",
+        "tray_clear_context":   "Clear context",
 
         # multi-turn context
-        "context_cleared":          "Conversation cleared.",
-        "tray_clear_context":       "Clear context",
-        "app_candidates":           "Multiple apps found:\n{list}\nReply with the number.",
+        "context_cleared":      "Conversation cleared.",
+        "app_candidates":       "Multiple apps found:\n{list}\nReply with the number.",
+
+        # obsidian vault
+        "vault_not_configured": "Obsidian vault is not configured. Set the vault path in Settings.",
+        "vault_no_results":     "No notes found for '{query}' in the vault",
+
+        # web search
+        "web_no_results":       "No web results found for '{query}'",
 
         # settings_window.py
+        "setting_saved":            "Settings saved",
         "setting_whisper_model":    "Whisper model",
         "setting_llm_model":        "LLM model (.gguf)",
         "setting_llm_unload":       "LLM unload timeout",
@@ -127,12 +91,6 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
 
     "it": {
-        "note_saved":           "Nota salvata (#{nid})",
-        "list_saved":           "Lista '{title}' salvata ({count} elementi)",
-        "added_to_list":        "Aggiunto a '{title}'",
-        "list_not_found":       "Lista '{title}' non trovata",
-        "appointment_created":  "Appuntamento creato: {title} ({dt})",
-        "reminder_set":         "Reminder impostato: {dt}",
         "unknown_command":      "Comando sconosciuto: {name}",
         "error":                "Errore: {detail}",
         "not_understood":       "Non ho capito il comando",
@@ -156,57 +114,25 @@ _STRINGS: dict[str, dict[str, str]] = {
         ),
         "lang_name": "Italian",
 
-        "show_notes":           "📝 Ecco le note",
-        "show_appointments":    "📅 Ecco l'agenda",
-        "show_reminders":       "⏰ Ecco i reminder",
         "assistant_error":      "Errore assistente",
 
         "tray_idle":            "Writher — inattivo",
         "tray_recording":       "Writher — registrazione...",
         "tray_ollama_down":     "Writher — server LLM non raggiungibile",
-        "tray_notes_agenda":    "Note & Agenda",
         "tray_quit":            "Esci",
+        "tray_settings":        "Impostazioni",
+        "tray_stop_tts":        "Ferma TTS",
+        "tray_clear_context":   "Cancella contesto",
 
-        "no_notes":             "Nessuna nota",
-        "no_appointments":      "Nessun appuntamento",
-        "no_reminders":         "Nessun reminder",
-        "tab_notes":            "📝  Note",
-        "tab_agenda":           "📅  Agenda",
-        "tab_reminders":        "⏰  Reminder",
-        "default_list_title":   "Lista",
-        "default_note_title":   "Nota",
+        "context_cleared":      "Conversazione cancellata.",
+        "app_candidates":       "Più applicazioni trovate:\n{list}\nRispondi con il numero.",
 
-        "reminder_toast_title":     "Writher Promemoria",
-        "appointment_toast_title":  "Writher Appuntamento",
-        "appointment_toast_body":   "📅 {title} — tra {minutes} min",
-        "appointment_toast_now":    "📅 {title} — adesso!",
+        "vault_not_configured": "La vault Obsidian non è configurata. Imposta il percorso nelle Impostazioni.",
+        "vault_no_results":     "Nessuna nota trovata per '{query}' nella vault",
 
-        # tray_icon.py — settings menu + wayland fallback buttons
-        "tray_settings":            "Impostazioni",
-        "tray_stop_tts":            "Ferma TTS",
-        "tray_dictate":             "Ditta (AltGr)",
-        "tray_assist":              "Assistente (Ctrl+R)",
+        "web_no_results":       "Nessun risultato web per '{query}'",
 
-        # multi-turn context
-        "context_cleared":          "Conversazione cancellata.",
-        "tray_clear_context":       "Cancella contesto",
-        "app_candidates":           "Più applicazioni trovate:\n{list}\nRispondi con il numero.",
-
-        # settings_window.py
-        "settings_title":           "Impostazioni",
-        "setting_record_mode":      "Modalità registrazione",
-        "setting_toggle":           "Premi per avviare / fermare",
-        "setting_max_duration":     "Durata max registrazione (secondi)",
         "setting_saved":            "Impostazioni salvate",
-
-        # obsidian vault (new)
-        "vault_not_configured":     "La vault Obsidian non è configurata. Imposta il percorso nelle Impostazioni.",
-        "vault_no_results":         "Nessuna nota trovata per '{query}' nella vault",
-
-        # web search
-        "web_no_results":           "Nessun risultato web per '{query}'",
-
-        # settings_window.py
         "setting_whisper_model":    "Modello Whisper",
         "setting_llm_model":        "Modello LLM (.gguf)",
         "setting_llm_unload":       "Scarico LLM (inattività)",
@@ -236,12 +162,6 @@ _STRINGS: dict[str, dict[str, str]] = {
 
     "fr": {
         # assistant.py — dispatch confirmations
-        "note_saved":           "Note enregistrée (#{nid})",
-        "list_saved":           "Liste '{title}' enregistrée ({count} éléments)",
-        "added_to_list":        "Ajouté à '{title}'",
-        "list_not_found":       "Liste '{title}' introuvable",
-        "appointment_created":  "Rendez-vous créé : {title} ({dt})",
-        "reminder_set":         "Rappel défini : {dt}",
         "unknown_command":      "Commande inconnue : {name}",
         "error":                "Erreur : {detail}",
         "not_understood":       "Je n'ai pas compris la commande",
@@ -269,60 +189,30 @@ _STRINGS: dict[str, dict[str, str]] = {
         "lang_name": "French",
 
         # main.py — widget messages
-        "show_notes":           "📝 Voici vos notes",
-        "show_appointments":    "📅 Voici votre agenda",
-        "show_reminders":       "⏰ Voici vos rappels",
         "assistant_error":      "Erreur de l'assistant",
 
-        # tray_icon.py
+        # tray_qt.py
         "tray_idle":            "WritHer — en attente",
         "tray_recording":       "WritHer — enregistrement...",
         "tray_ollama_down":     "WritHer — serveur LLM inaccessible",
-        "tray_notes_agenda":    "Notes & Agenda",
         "tray_quit":            "Quitter",
-
-        # notes_window.py
-        "no_notes":             "Aucune note",
-        "no_appointments":      "Aucun rendez-vous",
-        "no_reminders":         "Aucun rappel",
-        "tab_notes":            "📝  Notes",
-        "tab_agenda":           "📅  Agenda",
-        "tab_reminders":        "⏰  Rappels",
-        "default_list_title":   "Liste",
-        "default_note_title":   "Note",
-
-        # notifier.py
-        "reminder_toast_title":     "WritHer — Rappel",
-        "appointment_toast_title":  "WritHer — Rendez-vous",
-        "appointment_toast_body":   "📅 {title} — dans {minutes} min",
-        "appointment_toast_now":    "📅 {title} — maintenant !",
-
-        # tray_icon.py — settings menu + wayland fallback buttons
-        "tray_settings":            "Paramètres",
-        "tray_stop_tts":            "Arrêter TTS",
-        "tray_dictate":             "Dicter (AltGr)",
-        "tray_assist":              "Assistant (Ctrl+R)",
-
-        # settings_window.py
-        "settings_title":           "Paramètres",
-        "setting_record_mode":      "Mode d'enregistrement",
-        "setting_toggle":           "Appuyer pour démarrer / arrêter",
-        "setting_max_duration":     "Durée max d'enregistrement (secondes)",
-        "setting_saved":            "Paramètres enregistrés",
+        "tray_settings":        "Paramètres",
+        "tray_stop_tts":        "Arrêter TTS",
+        "tray_clear_context":   "Effacer le contexte",
 
         # multi-turn context
-        "context_cleared":          "Conversation effacée.",
-        "tray_clear_context":       "Effacer le contexte",
-        "app_candidates":           "Plusieurs applications trouvées :\n{list}\nRépondez par le numéro.",
+        "context_cleared":      "Conversation effacée.",
+        "app_candidates":       "Plusieurs applications trouvées :\n{list}\nRépondez par le numéro.",
 
-        # obsidian vault (new)
-        "vault_not_configured":     "La vault Obsidian n'est pas configurée. Définis le chemin dans les Paramètres.",
-        "vault_no_results":         "Aucune note trouvée pour '{query}' dans la vault",
+        # obsidian vault
+        "vault_not_configured": "La vault Obsidian n'est pas configurée. Définis le chemin dans les Paramètres.",
+        "vault_no_results":     "Aucune note trouvée pour '{query}' dans la vault",
 
         # web search
-        "web_no_results":           "Aucun résultat web pour '{query}'",
+        "web_no_results":       "Aucun résultat web pour '{query}'",
 
         # settings_window.py
+        "setting_saved":            "Paramètres enregistrés",
         "setting_whisper_model":    "Modèle Whisper",
         "setting_llm_model":        "Modèle LLM (.gguf)",
         "setting_llm_unload":       "Déchargement LLM (inactivité)",
