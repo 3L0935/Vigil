@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# WritHer Linux — distro-agnostic installer
+set -euo pipefail
+
+REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
+INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/writher-src"
+BIN_DIR="$HOME/.local/bin"
+DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+
+step()  { echo -e "${GREEN}==> ${BOLD}$1${NC}"; }
+warn()  { echo -e "${YELLOW}WARN:${NC} $1"; }
+die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
+
+# ── Detect source directory ──────────────────────────────────────────────────
+# If install.sh is run from inside the repo, use that directory directly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
+if [[ -f "$SCRIPT_DIR/main.py" && -f "$SCRIPT_DIR/pyproject.toml" ]]; then
+    INSTALL_DIR="$SCRIPT_DIR"
+    step "Using existing source: $INSTALL_DIR"
+fi
+
+# ── Check git ────────────────────────────────────────────────────────────────
+command -v git >/dev/null 2>&1 || die "git is required. Install it with your package manager."
+
+# ── Install uv if missing ────────────────────────────────────────────────────
+if ! command -v uv >/dev/null 2>&1; then
+    step "Installing uv (Python package manager)..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    # Add uv to PATH for this script session
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+command -v uv >/dev/null 2>&1 || die "uv not found after install. Re-open your terminal and re-run."
+
+# ── Clone or update repo ─────────────────────────────────────────────────────
+if [[ ! -f "$INSTALL_DIR/main.py" ]]; then
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+        step "Updating existing installation..."
+        git -C "$INSTALL_DIR" pull --ff-only
+    else
+        step "Cloning WritHer..."
+        git clone "$REPO_URL" "$INSTALL_DIR"
+    fi
+fi
+
+# ── Install Python dependencies ──────────────────────────────────────────────
+step "Installing Python dependencies (this may take a minute)..."
+uv --directory "$INSTALL_DIR" sync
+
+# ── Create launcher script ───────────────────────────────────────────────────
+step "Creating launcher: $BIN_DIR/writher"
+mkdir -p "$BIN_DIR"
+cat > "$BIN_DIR/writher" << LAUNCHER
+#!/usr/bin/env bash
+exec uv --directory "$INSTALL_DIR" run python main.py "\$@"
+LAUNCHER
+chmod +x "$BIN_DIR/writher"
+
+# ── Create .desktop entry ────────────────────────────────────────────────────
+step "Creating desktop entry..."
+mkdir -p "$DESKTOP_DIR"
+cat > "$DESKTOP_DIR/writher.desktop" << DESKTOP
+[Desktop Entry]
+Type=Application
+Name=WritHer
+GenericName=Voice Assistant
+Comment=Offline voice dictation and assistant
+Exec=$BIN_DIR/writher
+Icon=$INSTALL_DIR/img/logo_writher.png
+Terminal=false
+Categories=Utility;Audio;
+Keywords=voice;dictation;assistant;speech;
+StartupNotify=false
+DESKTOP
+
+# ── Optional autostart ───────────────────────────────────────────────────────
+echo ""
+read -rp "$(echo -e "${BOLD}Add WritHer to autostart?${NC} [y/N] ")" autostart
+if [[ "${autostart:-n}" =~ ^[Yy]$ ]]; then
+    mkdir -p "$AUTOSTART_DIR"
+    cp "$DESKTOP_DIR/writher.desktop" "$AUTOSTART_DIR/writher.desktop"
+    step "Autostart enabled."
+fi
+
+# ── PATH warning ─────────────────────────────────────────────────────────────
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    warn "$BIN_DIR is not in your PATH."
+    echo "  Add this line to your ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish:"
+    echo ""
+    echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo ""
+fi
+
+# ── First-run setup ──────────────────────────────────────────────────────────
+echo ""
+step "Running first-time setup wizard..."
+echo "(This will download llama-server, a model, and optionally Piper TTS voices)"
+echo ""
+uv --directory "$INSTALL_DIR" run python first_run.py
+
+# ── Done ─────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${GREEN}${BOLD}Installation complete!${NC}"
+echo ""
+echo "  Run WritHer:  writher"
+echo "  Or launch from your application menu."
+echo ""
+echo "  To uninstall: bash $INSTALL_DIR/uninstall.sh"
