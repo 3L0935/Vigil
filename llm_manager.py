@@ -34,6 +34,15 @@ class LlamaServerManager:
         except ValueError:
             return 120
 
+    def _gpu_layers(self) -> int:
+        val = db.get_setting("llm_gpu_layers", "off")
+        if val in ("off", "", "-1"):
+            return -1
+        try:
+            return int(val)
+        except ValueError:
+            return -1
+
     def _server_url(self) -> str:
         # DB is the source of truth for the URL (set by settings_window / setup).
         # Hardcoded default matches config.LLAMA_SERVER_URL; avoids importing
@@ -79,6 +88,9 @@ class LlamaServerManager:
         port = urllib.parse.urlparse(self._server_url()).port or 8080
         cmd = [bin_path, "--model", model_path,
                "--port", str(port), "--host", "127.0.0.1"]
+        ngl = self._gpu_layers()
+        if ngl >= 0:
+            cmd += ["-ngl", str(ngl)]
         log.info("Spawning llama-server: %s", " ".join(cmd))
 
         # Ensure shared libs in the same dir as the binary are found at runtime

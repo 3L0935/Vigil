@@ -1,5 +1,6 @@
 """TTS engine abstraction — Piper, with sounddevice playback."""
 
+import re
 from pathlib import Path
 import threading
 import numpy as np
@@ -56,12 +57,19 @@ def list_voices(lang: str) -> list:
     return []
 
 
+_URL_RE = re.compile(r"https?://\S+")
+
+
+def _strip_urls(text: str) -> str:
+    return _URL_RE.sub("", text).strip()
+
+
 def speak(text: str) -> None:
     if _engine == "off" or _mode not in ("tts", "both"):
         return
     lang = config.LANGUAGE
     voice = _voice_fr if lang == "fr" else _voice_en
-    _speak_piper(text, voice, _volume)
+    _speak_piper(_strip_urls(text), voice, _volume)
 
 
 def stop() -> None:
@@ -82,6 +90,7 @@ def _speak_piper(text: str, voice: str, volume: float = 1.0) -> None:
         return
     audio = np.concatenate(chunks).astype(np.float32) * volume
     _playing.set()
+    sd.stop()  # flush any lingering stream (e.g. aborted recorder stream) before playing
     sd.play(audio, samplerate=pv.config.sample_rate)
     threading.Thread(target=_wait_audio_done, daemon=True).start()
 

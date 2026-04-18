@@ -1,3 +1,4 @@
+import threading
 import numpy as np
 import sounddevice as sd
 import config
@@ -49,11 +50,19 @@ class Recorder:
     def stop(self):
         if not self.recording:
             return None
-        self.recording = False
-        if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
-            self._stream = None
+        self.recording = False  # stops callback from appending more frames
+        stream = self._stream
+        self._stream = None
+        if stream is not None:
+            # Close in a daemon thread — stream.stop() can block indefinitely on
+            # PipeWire/Wayland, which would freeze the GLib D-Bus thread.
+            def _close():
+                try:
+                    stream.abort()  # faster than stop() — discards pending buffers immediately
+                    stream.close()
+                except Exception as exc:
+                    log.warning("Stream close error: %s", exc)
+            threading.Thread(target=_close, daemon=True).start()
         if not self._frames:
             return None
         audio = np.concatenate(self._frames, axis=0).flatten()

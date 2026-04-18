@@ -50,6 +50,7 @@ class SettingsWindow:
         self._hotkey_dict_var = None
         self._hotkey_asst_var = None
         self._answer_timeout_var = None
+        self._llm_gpu_layers_var = None
 
     def show(self):
         if self._win is not None:
@@ -188,6 +189,23 @@ class SettingsWindow:
             dropdown_hover_color=T.BG_HOVER,
             font=T.FONT_SMALL, corner_radius=6,
             command=self._on_llm_timeout_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
+        # ── GPU Layers (ngl) ──────────────────────────────────────────
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_gpu_layers"),
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._llm_gpu_layers_var = tk.StringVar(
+            master=self._win, value=db.get_setting("llm_gpu_layers", "off"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["off", "10", "20", "33", "99"],
+            variable=self._llm_gpu_layers_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── LLM Server URL ────────────────────────────────────────────
@@ -558,6 +576,8 @@ class SettingsWindow:
         if self._answer_timeout_var:
             self._answer_timeout_var.set(
                 str(db.get_setting("overlay_answer_timeout", "8")))
+        if self._llm_gpu_layers_var:
+            self._llm_gpu_layers_var.set(db.get_setting("llm_gpu_layers", "off"))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -746,6 +766,13 @@ class SettingsWindow:
                 db.save_setting("overlay_answer_timeout", t)
             except ValueError:
                 pass
+        if self._llm_gpu_layers_var:
+            ngl = self._llm_gpu_layers_var.get()
+            old_ngl = db.get_setting("llm_gpu_layers", "off")
+            db.save_setting("llm_gpu_layers", ngl)
+            if ngl != old_ngl:
+                from llm_manager import manager as _mgr
+                _mgr.shutdown()
         if self._on_hotkey_change_cb:
             self._on_hotkey_change_cb()
         log.info("Settings saved.")

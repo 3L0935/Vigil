@@ -409,9 +409,7 @@ class AnswerCard:
         else:
             self._win.deiconify()
 
-        self._text_widget.config(state=tk.NORMAL)
         self._text_widget.delete("1.0", tk.END)
-        self._text_widget.config(state=tk.DISABLED)
 
         self._alpha = 0.0
         self._fading = None
@@ -478,9 +476,19 @@ class AnswerCard:
             relief=tk.FLAT,
             borderwidth=0,
             padx=14, pady=10,
-            state=tk.DISABLED,
-            cursor="arrow",
+            state=tk.NORMAL,
+            cursor="xterm",
         )
+        # Block typing but allow mouse selection and Ctrl+C/A/navigation
+        def _block_typing(event):
+            if event.state & 0x4:  # Ctrl held — allow copy, select-all, etc.
+                return
+            if event.keysym in ("Up", "Down", "Left", "Right",
+                                 "Home", "End", "Prior", "Next",
+                                 "Shift_L", "Shift_R", "Control_L", "Control_R"):
+                return
+            return "break"
+        text_w.bind("<Key>", _block_typing)
         sb = tk.Scrollbar(body, orient=tk.VERTICAL, command=text_w.yview,
                           width=4, troughcolor="#0c0c0f", bg="#2a2a3a",
                           activebackground="#3a3a4a", relief=tk.FLAT,
@@ -562,9 +570,7 @@ class AnswerCard:
             return
         chunk = self._tokens[self._token_idx]
         self._token_idx += 1
-        self._text_widget.config(state=tk.NORMAL)
         self._text_widget.insert(tk.END, chunk)
-        self._text_widget.config(state=tk.DISABLED)
         self._text_widget.see(tk.END)
         self._after_type = self._root.after(_TYPEWRITER_MS, self._typewriter_tick)
 
