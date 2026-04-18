@@ -1,5 +1,6 @@
 """Launch installed applications via .desktop files."""
 
+import os
 import re
 import shlex
 import subprocess
@@ -14,6 +15,18 @@ _DESKTOP_DIRS = [
 
 _FIELD_CODE_RE = re.compile(r'%[fFuUdDnNickvm]')
 
+# Detect system language (e.g. "fr" from "fr_FR.UTF-8")
+_SYS_LANG = (
+    os.environ.get("LANGUAGE", "").split(":")[0].split("_")[0]
+    or os.environ.get("LANG", "").split("_")[0]
+    or "en"
+)
+
+
+def _localized(cfg: dict, key: str) -> str:
+    """Return cfg[key[lang]] if present, else cfg[key], else ''."""
+    return cfg.get(f"{key}[{_SYS_LANG}]") or cfg.get(key, "")
+
 
 def _parse_desktop(path: Path) -> dict | None:
     cfg = {}
@@ -22,7 +35,7 @@ def _parse_desktop(path: Path) -> dict | None:
             if line.startswith('#') or '=' not in line:
                 continue
             k, _, v = line.partition('=')
-            cfg.setdefault(k.strip(), v.strip())
+            cfg[k.strip()] = v.strip()   # keep all keys incl. Name[fr] etc.
     except OSError:
         return None
     if cfg.get("Type") != "Application":
@@ -31,11 +44,17 @@ def _parse_desktop(path: Path) -> dict | None:
         return None
     if cfg.get("Terminal", "false").lower() == "true":
         return None
-    name = cfg.get("Name", "")
+    name = _localized(cfg, "Name")
     exec_ = _FIELD_CODE_RE.sub('', cfg.get("Exec", "")).strip()
     if not name or not exec_:
         return None
-    return {"name": name, "exec": exec_}
+    return {
+        "name":     name,
+        "exec":     exec_,
+        "generic":  _localized(cfg, "GenericName"),
+        "comment":  _localized(cfg, "Comment"),
+        "keywords": _localized(cfg, "Keywords"),
+    }
 
 
 def _list_apps() -> list[dict]:
@@ -52,14 +71,46 @@ def _list_apps() -> list[dict]:
 
 
 def find_candidates(query: str, n: int = 4) -> list[str]:
-    """Return up to n app display names that fuzzy-match query (difflib)."""
+    """Return up to n app display names that fuzzy-match query.
+
+    Searches name, GenericName, Comment, and Keywords so spoken descriptions
+    like "paramètres système" can match even when the display name differs.
+    """
     import difflib
     q = query.lower().strip()
     apps = _list_apps()
-    name_lower = [a["name"].lower() for a in apps]
-    matches = difflib.get_close_matches(q, name_lower, n=n, cutoff=0.55)
-    name_map = {a["name"].lower(): a["name"] for a in apps}
-    return [name_map[m] for m in matches if m in name_map]
+
+    # Build (search_text → display_name) pairs; multiple per app
+    pairs: list[tuple[str, str]] = []
+    seen_search: set[str] = set()
+    for app in apps:
+        display = app["name"]
+        candidates_fields = [
+            app["name"],
+            app.get("generic", ""),
+            app.get("comment", ""),
+        ] + [kw for kw in app.get("keywords", "").split(";") if kw.strip()]
+        for field in candidates_fields:
+            s = field.lower().strip()
+            if s and s not in seen_search:
+                seen_search.add(s)
+                pairs.append((s, display))
+
+    search_strings = [p[0] for p in pairs]
+    raw = difflib.get_close_matches(q, search_strings, n=n * 3, cutoff=0.55)
+
+    # Map back to display names, deduplicate, preserve relevance order
+    seen_display: set[str] = set()
+    result: list[str] = []
+    str_to_display = {s: d for s, d in pairs}
+    for m in raw:
+        display = str_to_display.get(m)
+        if display and display not in seen_display:
+            seen_display.add(display)
+            result.append(display)
+            if len(result) >= n:
+                break
+    return result
 
 
 def _find_app(query: str) -> dict | None:
@@ -69,10 +120,16 @@ def _find_app(query: str) -> dict | None:
         if app["name"].lower() == q:
             return app
     for app in apps:
+        if app.get("generic", "").lower() == q:
+            return app
+    for app in apps:
         if app["name"].lower().startswith(q):
             return app
     for app in apps:
         if q in app["name"].lower():
+            return app
+    for app in apps:
+        if q in app.get("generic", "").lower():
             return app
     return None
 
