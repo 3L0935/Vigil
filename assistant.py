@@ -97,9 +97,28 @@ _LAUNCH_APP_TOOL = {
     },
 }
 
+_CLOSE_APP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "close_app",
+        "description": (
+            "Close a running application by name. Use when the user asks to close, quit, "
+            "kill, or stop a program: 'ferme Firefox', 'close Kitty', 'quitte VLC', "
+            "'chiudi Gimp', 'arrête Zen Browser', 'kill Steam', etc."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "app_name": {"type": "string", "description": "Application name to close"},
+            },
+            "required": ["app_name"],
+        },
+    },
+}
+
 
 def _get_tools() -> list[dict]:
-    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _LAUNCH_APP_TOOL]
+    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -167,6 +186,13 @@ def _dispatch(name: str, args: dict) -> str:
             if ok:
                 return locales.get("app_launched", name=label)
             return locales.get("app_not_found", name=label)
+
+        elif name == "close_app":
+            import app_launcher
+            ok, label = app_launcher.close(args.get("app_name", ""))
+            if ok:
+                return locales.get("app_closed", name=label)
+            return locales.get("app_close_failed", name=label)
 
         else:
             return locales.get("unknown_command", name=name)

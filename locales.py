@@ -26,6 +26,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "settings_opened":      "Opening settings.",
         "app_launched":         "Opening {name}.",
         "app_not_found":        "Application '{name}' not found.",
+        "app_closed":           "{name} closed.",
+        "app_close_failed":     "Could not find a running instance of '{name}'.",
 
         # assistant.py — system prompt fragments
         "system_prompt": (
@@ -129,6 +131,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "settings_opened":      "Apro le impostazioni.",
         "app_launched":         "Apro {name}.",
         "app_not_found":        "Applicazione '{name}' non trovata.",
+        "app_closed":           "{name} chiuso.",
+        "app_close_failed":     "Nessuna istanza in esecuzione di '{name}'.",
 
         "system_prompt": (
             "You are Writher, a voice assistant for productivity. "
@@ -228,6 +232,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "settings_opened":      "Ouverture des paramètres.",
         "app_launched":         "Ouverture de {name}.",
         "app_not_found":        "Application '{name}' introuvable.",
+        "app_closed":           "{name} fermé.",
+        "app_close_failed":     "Aucune instance de '{name}' en cours d'exécution.",
 
         # assistant.py — system prompt
         "system_prompt": (

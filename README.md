@@ -39,7 +39,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 - **Voice assistant** — notes, lists, appointments, reminders via natural speech
 - **Web search** — ask the assistant to look something up; answer spoken aloud
 - **Obsidian vault search** — query your markdown notes by voice
-- **App launcher** — open any installed app by name (searches `.desktop` files + PATH)
+- **App launcher** — open or close any installed app by name (searches `.desktop` files + PATH)
 - **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
 - **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
 - **Full settings UI** — all configuration from the settings window; no editing config files
@@ -118,6 +118,7 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 - *"What is the weather in Paris?"*
 - *"Open settings"*
 - *"Launch Firefox"* / *"Open Kitty"*
+- *"Close Zen Browser"* / *"Quit VLC"*
 
 **Example commands (FR):**
 
@@ -125,6 +126,7 @@ If no configuration is detected at launch, WritHer automatically opens a termina
 - *"Donne moi les nouveautés liées à Anthropic AI"*
 - *"Ouvre les paramètres"*
 - *"Lance Kitty"* / *"Ouvre Firefox"*
+- *"Ferme Zen Browser"* / *"Arrête VLC"*
 
 
 ### System tray
