@@ -14,8 +14,6 @@ step()  { echo -e "${GREEN}==> ${BOLD}$1${NC}"; }
 warn()  { echo -e "${YELLOW}WARN:${NC} $1"; }
 die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
 
-# Restore stdin from terminal when piped via curl | bash
-[[ -t 0 ]] || exec </dev/tty
 
 # ── Detect source directory ──────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
@@ -79,7 +77,7 @@ DESKTOP
 
 # ── Optional autostart ───────────────────────────────────────────────────────
 echo ""
-read -rp "$(echo -e "${BOLD}Add WritHer to autostart?${NC} [y/N] ")" autostart
+read -rp "$(echo -e "${BOLD}Add WritHer to autostart?${NC} [y/N] ")" autostart </dev/tty
 if [[ "${autostart:-n}" =~ ^[Yy]$ ]]; then
     mkdir -p "$AUTOSTART_DIR"
     cp "$DESKTOP_DIR/writher.desktop" "$AUTOSTART_DIR/writher.desktop"

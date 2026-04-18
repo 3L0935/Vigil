@@ -14,6 +14,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+# When launched from curl | bash, stdin is a closed pipe — reopen /dev/tty so
+# input() prompts work correctly.
+if not sys.stdin.isatty():
+    try:
+        sys.stdin = open("/dev/tty")
+    except OSError:
+        pass
+
 WRITHER_DIR = Path.home() / ".local" / "share" / "writher"
 LLAMA_DIR   = WRITHER_DIR / "llama"
 MODELS_DIR  = WRITHER_DIR / "models"
