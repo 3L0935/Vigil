@@ -35,7 +35,7 @@ class LlamaServerManager:
             return 120
 
     def _gpu_layers(self) -> int:
-        val = db.get_setting("llm_gpu_layers", "off")
+        val = db.get_setting("llm_gpu_layers", "99")
         if val in ("off", "", "-1"):
             return -1
         try:

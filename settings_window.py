@@ -196,7 +196,7 @@ class SettingsWindow:
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_gpu_layers_var = tk.StringVar(
-            master=self._win, value=db.get_setting("llm_gpu_layers", "off"))
+            master=self._win, value=db.get_setting("llm_gpu_layers", "99"))
         ctk.CTkOptionMenu(
             pad,
             values=["off", "10", "20", "33", "99"],
@@ -577,7 +577,7 @@ class SettingsWindow:
             self._answer_timeout_var.set(
                 str(db.get_setting("overlay_answer_timeout", "8")))
         if self._llm_gpu_layers_var:
-            self._llm_gpu_layers_var.set(db.get_setting("llm_gpu_layers", "off"))
+            self._llm_gpu_layers_var.set(db.get_setting("llm_gpu_layers", "99"))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -768,7 +768,7 @@ class SettingsWindow:
                 pass
         if self._llm_gpu_layers_var:
             ngl = self._llm_gpu_layers_var.get()
-            old_ngl = db.get_setting("llm_gpu_layers", "off")
+            old_ngl = db.get_setting("llm_gpu_layers", "99")
             db.save_setting("llm_gpu_layers", ngl)
             if ngl != old_ngl:
                 from llm_manager import manager as _mgr
