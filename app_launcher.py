@@ -31,10 +31,15 @@ def _localized(cfg: dict, key: str) -> str:
 def _parse_desktop(path: Path) -> dict | None:
     cfg = {}
     try:
+        in_main = False
         for line in path.read_text(errors="replace").splitlines():
-            if line.startswith('#') or '=' not in line:
+            s = line.strip()
+            if s.startswith('['):
+                in_main = (s == '[Desktop Entry]')
                 continue
-            k, _, v = line.partition('=')
+            if not in_main or s.startswith('#') or '=' not in s:
+                continue
+            k, _, v = s.partition('=')
             cfg[k.strip()] = v.strip()   # keep all keys incl. Name[fr] etc.
     except OSError:
         return None
