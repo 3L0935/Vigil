@@ -3,6 +3,7 @@
 # Stops the running instance, pulls the latest code, syncs deps, and restarts.
 set -euo pipefail
 
+REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/writher-src"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
@@ -16,7 +17,13 @@ warn()  { echo -e "${YELLOW}WARN:${NC} $1"; }
 die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
 
 [[ -d "$INSTALL_DIR" ]] || die "WritHer source directory not found: $INSTALL_DIR"
-[[ -d "$INSTALL_DIR/.git" ]] || die "No git repository at $INSTALL_DIR — cannot update (curl install removes .git after setup)."
+
+# Curl installs strip .git after setup — restore it so we can fetch updates.
+if [[ ! -d "$INSTALL_DIR/.git" ]]; then
+    step "Restoring git repository (first update after curl install)..."
+    git -C "$INSTALL_DIR" init -q
+    git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
+fi
 
 # ── 1. Stop running instance ─────────────────────────────────────────────────
 step "Checking for running WritHer instance..."
