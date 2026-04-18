@@ -262,10 +262,10 @@ def _get_screen_rect_by_name(name: str) -> tuple[int, int, int, int] | None:
 
 
 def _monitor_rect(root) -> tuple[int, int, int, int]:
-    """Return (left, top, w, h) of the monitor that holds the active window.
+    """Return (left, top, w, h) of the target monitor.
 
-    Uses _NET_ACTIVE_WINDOW (X11/XWayland, works on KDE Wayland via bridge)
-    as primary source. Falls back to Qt primary screen, then xrandr+cursor.
+    Priority: OVERLAY_SCREEN lock → _NET_ACTIVE_WINDOW tracker →
+    Qt primary screen → xrandr+cursor fallback.
     """
     locked = getattr(config, "OVERLAY_SCREEN", "auto")
     if locked and locked != "auto":
