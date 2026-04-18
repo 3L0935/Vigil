@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from pathlib import Path
 from logger import log
 import config
 import locales
@@ -97,6 +98,8 @@ def _dispatch(name: str, args: dict) -> str:
             return "\n\n".join(lines)
 
         elif name == "search_obsidian_vault":
+            if not config.OBSIDIAN_VAULT_PATH or not Path(config.OBSIDIAN_VAULT_PATH).is_dir():
+                return locales.get("vault_not_configured")
             from obsidian import search_vault
             results = search_vault(
                 query=args.get("query", ""),

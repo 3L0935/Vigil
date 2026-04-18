@@ -27,7 +27,7 @@ LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from 
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.
 # Leave empty to disable the feature.
-OBSIDIAN_VAULT_PATH = "/home/elo/.obsidian-vault/wiki/"
+OBSIDIAN_VAULT_PATH = ""
 
 # ── Overlay ───────────────────────────────────────────────────────────────
 OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}

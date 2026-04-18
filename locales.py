@@ -80,6 +80,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_saved":            "Settings saved",
 
         # obsidian vault (new)
+        "vault_not_configured":     "Obsidian vault is not configured. Set the vault path in Settings.",
         "vault_no_results":         "No notes found for '{query}' in the vault",
 
         # web search
@@ -173,6 +174,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_saved":            "Impostazioni salvate",
 
         # obsidian vault (new)
+        "vault_not_configured":     "La vault Obsidian non è configurata. Imposta il percorso nelle Impostazioni.",
         "vault_no_results":         "Nessuna nota trovata per '{query}' nella vault",
 
         # web search
@@ -274,6 +276,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_saved":            "Paramètres enregistrés",
 
         # obsidian vault (new)
+        "vault_not_configured":     "La vault Obsidian n'est pas configurée. Définis le chemin dans les Paramètres.",
         "vault_no_results":         "Aucune note trouvée pour '{query}' dans la vault",
 
         # web search
