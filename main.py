@@ -201,7 +201,7 @@ def _dictation_worker():
                     # Hold "Done!" briefly so the state is visible for short
                     # dictations where transcription+injection finish faster
                     # than the pill's fade-in.
-                    root.after(1000, widget.hide)
+                    root.after(500, widget.hide)
             else:
                 log.info("No speech detected.")
                 if widget:

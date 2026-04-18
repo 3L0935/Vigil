@@ -1396,7 +1396,7 @@ class RecordingWidget:
         # Update label
         self._update_label()
 
-        # Indicator dot — pulsing red for dictation, violet for assistant
+        # Indicator dot — red=recording, violet=assistant listen, green=writing
         if self._dot_id is not None:
             if self._mode == self.RECORDING:
                 val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
@@ -1411,6 +1411,14 @@ class RecordingWidget:
                 r = int(48 + 112 * val)
                 g = int(40 + 104 * val)
                 b = int(96 + 159 * val)
+                self._canvas.itemconfig(self._dot_id,
+                                        fill=f"#{r:02x}{g:02x}{b:02x}",
+                                        state="normal")
+            elif self._mode == self.PROCESSING and self._expression == "writing":
+                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
+                r = int(20 * val)
+                g = int(140 + 115 * val)
+                b = int(40 * val)
                 self._canvas.itemconfig(self._dot_id,
                                         fill=f"#{r:02x}{g:02x}{b:02x}",
                                         state="normal")
