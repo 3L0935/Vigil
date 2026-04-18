@@ -759,6 +759,25 @@ class RecordingWidget:
         if self._answer_card is not None:
             self._answer_card.hide()
 
+    def close(self):
+        """Cancel all pending after-callbacks for clean shutdown."""
+        for attr in ("_after_anim", "_after_fade", "_after_msg"):
+            after_id = getattr(self, attr, None)
+            if after_id is not None:
+                try:
+                    self._root.after_cancel(after_id)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        if self._answer_card is not None:
+            self._answer_card._cancel_all_timers()
+            self._answer_card._cancel_fade()
+        if self._win is not None:
+            try:
+                self._win.withdraw()
+            except Exception:
+                pass
+
     def update_level(self, level: float):
         with self._level_lock:
             self._level = max(0.15, min(1.0, level))

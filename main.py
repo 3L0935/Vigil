@@ -319,9 +319,19 @@ def _quit():
         recorder.stop()
     except Exception:
         pass
-    if root:
+    if widget:
         try:
-            root.after(0, root.destroy)
+            widget.close()
+        except Exception:
+            pass
+    if root:
+        def _destroy():
+            try:
+                root.destroy()
+            except Exception:
+                pass
+        try:
+            root.after(0, _destroy)
         except Exception:
             pass
     log.info("Shutdown complete.")
