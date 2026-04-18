@@ -11,6 +11,15 @@ from llm_manager import manager as _llm_manager
 
 _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
 
+# ── Action callbacks (registered by main.py) ──────────────────────────────
+
+_action_callbacks: dict = {}
+
+
+def register_action(name: str, fn) -> None:
+    _action_callbacks[name] = fn
+
+
 # ── Tool definitions ──────────────────────────────────────────────────────
 
 _SEARCH_TOOLS = {"search_web", "search_obsidian_vault"}
@@ -56,8 +65,22 @@ _OBSIDIAN_TOOL = {
 }
 
 
+_OPEN_SETTINGS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_settings",
+        "description": (
+            "Open the Writher settings window. Use when the user asks to open settings, "
+            "configure the app, change parameters, or says things like "
+            "'ouvre les paramètres', 'open settings', 'show settings', 'apri le impostazioni'."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+}
+
+
 def _get_tools() -> list[dict]:
-    tools = [_WEB_SEARCH_TOOL]
+    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -96,6 +119,12 @@ def _dispatch(name: str, args: dict) -> str:
                 href  = r.get("href", "")
                 lines.append(f"**{title}**\n{body}\n{href}")
             return "\n\n".join(lines)
+
+        elif name == "open_settings":
+            cb = _action_callbacks.get("open_settings")
+            if cb:
+                cb()
+            return locales.get("settings_opened")
 
         elif name == "search_obsidian_vault":
             if not config.OBSIDIAN_VAULT_PATH or not Path(config.OBSIDIAN_VAULT_PATH).is_dir():

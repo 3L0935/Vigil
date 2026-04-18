@@ -23,6 +23,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "unknown_command":      "Unknown command: {name}",
         "error":                "Error: {detail}",
         "not_understood":       "I didn't understand the command",
+        "settings_opened":      "Opening settings.",
 
         # assistant.py — system prompt fragments
         "system_prompt": (
@@ -122,6 +123,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "unknown_command":      "Comando sconosciuto: {name}",
         "error":                "Errore: {detail}",
         "not_understood":       "Non ho capito il comando",
+        "settings_opened":      "Apro le impostazioni.",
 
         "system_prompt": (
             "You are Writher, a voice assistant for productivity. "
@@ -217,6 +219,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "unknown_command":      "Commande inconnue : {name}",
         "error":                "Erreur : {detail}",
         "not_understood":       "Je n'ai pas compris la commande",
+        "settings_opened":      "Ouverture des paramètres.",
 
         # assistant.py — system prompt
         "system_prompt": (

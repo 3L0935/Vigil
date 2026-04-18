@@ -242,6 +242,9 @@ def _show_settings():
         root.after(0, lambda: settings_win.show())
 
 
+assistant.register_action("open_settings", _show_settings)
+
+
 # Tray fallback for Wayland (no global hotkeys available)
 _tray_dict_recording = False
 _tray_assist_recording = False
