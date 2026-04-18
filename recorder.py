@@ -13,6 +13,7 @@ class Recorder:
         self.on_level = None       # optional callback(rms: float) set by main
         self.on_mic_error = None   # optional callback(msg: str) set by main
         self._mic_available = True
+        self._start_lock = threading.Lock()
 
     def _callback(self, indata, frames, time, status):
         if self.recording:
@@ -22,15 +23,16 @@ class Recorder:
                 self.on_level(rms)
 
     def start(self):
-        if self.recording:
-            return
+        with self._start_lock:
+            if self.recording:
+                return
+            self.recording = True  # claim the slot atomically before releasing the lock
         if not self._mic_available:
             log.warning("Microphone not available, cannot start recording.")
             if self.on_mic_error:
                 self.on_mic_error("🎤 No microphone detected")
             return
         self._frames = []
-        self.recording = True
         try:
             self._stream = sd.InputStream(
                 samplerate=config.SAMPLE_RATE,
