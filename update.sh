@@ -18,10 +18,12 @@ die()   { echo -e "${RED}ERROR:${NC} $1" >&2; exit 1; }
 
 [[ -d "$INSTALL_DIR" ]] || die "WritHer source directory not found: $INSTALL_DIR"
 
-# Curl installs strip .git after setup — restore it so we can fetch updates.
+# If .git was removed by an older install, restore git tracking.
 if [[ ! -d "$INSTALL_DIR/.git" ]]; then
-    step "Restoring git repository (first update after curl install)..."
+    step "Initialising git in $INSTALL_DIR..."
     git -C "$INSTALL_DIR" init -q
+    git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
+elif ! git -C "$INSTALL_DIR" remote get-url origin &>/dev/null; then
     git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
 fi
 
@@ -53,8 +55,8 @@ fi
 
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
 step "Fetching latest changes..."
-git -C "$INSTALL_DIR" fetch origin
-git -C "$INSTALL_DIR" reset --hard origin/main
+git -C "$INSTALL_DIR" fetch --depth=1 origin main
+git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 
 # ── 3. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."

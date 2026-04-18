@@ -101,11 +101,6 @@ echo "(This will download llama-server, a model, and optionally Piper TTS voices
 echo ""
 uv --directory "$INSTALL_DIR" run python first_run.py
 
-# ── Clean up git metadata (curl installs only) ────────────────────────────────
-if [[ "$_IN_REPO" == false && -d "$INSTALL_DIR/.git" ]]; then
-    step "Cleaning up download artifacts..."
-    rm -rf "$INSTALL_DIR/.git"
-fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
