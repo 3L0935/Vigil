@@ -3,9 +3,11 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-_LOG_DIR = os.path.dirname(os.path.abspath(__file__))
-_LOG_FILE = os.path.join(_LOG_DIR, "writher.log")
+_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "writher"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_LOG_FILE = str(_DATA_DIR / "writher.log")
 
 
 def setup(name: str = "writher") -> logging.Logger:
