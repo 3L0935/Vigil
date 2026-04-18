@@ -362,7 +362,7 @@ class SettingsWindow:
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
 
-        ctk.CTkLabel(pad, text="Redémarre l'app après changement de hotkeys Wayland.",
+        ctk.CTkLabel(pad, text="Changes apply immediately (listener restarts on save).",
                      font=T.FONT_SMALL, text_color=T.FG_DIM,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_L))
 
@@ -713,6 +713,10 @@ class SettingsWindow:
             screen = self._overlay_screen_var.get()
             config.OVERLAY_SCREEN = screen
             db.save_setting("overlay_screen", screen)
+        if self._hotkey_x11_dict_var and self._hotkey_x11_asst_var:
+            if self._hotkey_x11_dict_var.get() == self._hotkey_x11_asst_var.get():
+                log.warning("Dictation and assistant hotkeys cannot be the same key — not saved.")
+                return
         if self._hotkey_x11_dict_var:
             v = self._hotkey_x11_dict_var.get()
             db.save_setting("hotkey_x11_dict", v)
