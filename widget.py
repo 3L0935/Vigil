@@ -163,9 +163,14 @@ def _monitor_rect(root) -> tuple[int, int, int, int]:
         if app is not None:
             pos = QCursor.pos()
             cx, cy = pos.x(), pos.y()
-            screen = app.screenAt(pos)
-            if screen is None:
+            # Wayland doesn't expose global cursor pos without pointer focus —
+            # QCursor.pos() returns (0,0) in that case. Fall back to primary.
+            if cx == 0 and cy == 0:
                 screen = app.primaryScreen()
+            else:
+                screen = app.screenAt(pos)
+                if screen is None:
+                    screen = app.primaryScreen()
             if screen is not None:
                 geo = screen.geometry()
                 log.debug("pill Qt monitor=(%d,%d %dx%d) cursor=(%d,%d)",
