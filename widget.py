@@ -44,8 +44,6 @@ _RADIUS  = 8                # rounded rectangle (was full-pill radius _H//2)
 # ── avatar / eye area ───────────────────────────────────────────────────
 _AVA_CX     = 28             # center-x of eye area (left side of pill)
 _AVA_CY     = _H // 2        # center-y
-_EYE_SPREAD = 5.6            # half-distance between the two dots
-_EYE_R      = 2.1            # base eye dot radius
 
 # ── layout ────────────────────────────────────────────────────────────────
 _SEP_X     = 48              # separator x after avatar
@@ -1200,23 +1198,19 @@ class RecordingWidget:
     # ── avatar rendering: Pandora Blackboard eyes ────────────────────────
 
     def _update_avatar(self):
-        """Render Pandora Blackboard [ · · ] bot eyes matching JSX SVG style.
-
-        Uses gaussian blur glow filter like the JSX version.
-        Each expression modifies how the two dots are drawn.
-        """
+        """Render the Vigil iris eye for the current expression state."""
         c = self._canvas
         if c is None:
             return
 
-        t = self._tick
+        t    = self._tick
         expr = self._expression
-        eye_theme = _EYE_THEME.get(expr, _IDLE_EYE)
+        eye_theme = _EYE_THEME.get(expr, _EYE_THEME["idle"])
 
         eye_rgb  = eye_theme["eye"]
         glow_rgb = eye_theme["glow"]
 
-        # Context state overrides eye color (not shape) — only when mic is not active
+        # Context state overrides eye color — only when mic not active
         active = self._mode in (self.RECORDING, self.ASSISTANT)
         if self._context_waiting and not active:
             eye_rgb  = (255, 200, 0)
@@ -1227,243 +1221,160 @@ class RecordingWidget:
             eye_rgb  = (255, g_b, g_b)
             glow_rgb = eye_rgb
 
-        # ── Render at high-res (matching JSX SVG approach) ────────
-        sz = 28          # output size
+        sz    = 28
         scale = 6
-        s_sz     = sz * scale
-        s_cx     = s_sz // 2
-        s_cy     = s_sz // 2
-        s_spread = _EYE_SPREAD * scale
-        s_er     = _EYE_R * scale
+        s_sz  = sz * scale    # 168
+        s_cx  = s_sz // 2     # 84
+        s_cy  = s_sz // 2     # 84
 
-        # Transparent background (no rounded rect — eyes float over pill)
+        # Iris geometry (scaled internal coordinates)
+        ig_r  = int(0.22 * sz * scale)           # glow radius ≈ 37
+        ir_r  = int(0.14 * sz * scale)           # iris ring radius ≈ 23
+        ir_st = max(3, int(0.03 * sz * scale))   # ring stroke ≈ 5
+        ip_r  = int(0.08 * sz * scale)           # pupil radius ≈ 13
+        is_r  = max(2, int(0.03 * sz * scale))   # shine radius ≈ 5
+        is_dx = int(-0.05 * sz * scale)          # shine x offset ≈ -8
+        is_dy = int(-0.05 * sz * scale)          # shine y offset ≈ -8
+
         img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
-        lx = s_cx - s_spread   # left eye x
-        rx = s_cx + s_spread   # right eye x
-        ey = s_cy              # eye y center
+        def _iris(cx, cy, glow_a=140, ring_a=153, pupil_a=255, size_m=1.0):
+            """Draw Vigil iris (glow + ring + pupil + shine) centred at (cx, cy)."""
+            nonlocal img, draw
+            gr = max(1, int(ig_r * size_m))
+            rr = max(1, int(ir_r * size_m))
+            rs = max(2, int(ir_st * size_m))
+            pr = max(1, int(ip_r * size_m))
+            sr = max(1, int(is_r * size_m))
+            g_img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
+            g_draw = ImageDraw.Draw(g_img)
+            g_draw.ellipse([cx - gr, cy - gr, cx + gr, cy + gr],
+                           fill=glow_rgb + (glow_a,))
+            g_img = g_img.filter(
+                ImageFilter.GaussianBlur(radius=max(1, int(gr * 0.55)))
+            )
+            img  = Image.alpha_composite(img, g_img)
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr],
+                         outline=eye_rgb + (ring_a,), width=rs)
+            draw.ellipse([cx - pr, cy - pr, cx + pr, cy + pr],
+                         fill=eye_rgb + (pupil_a,))
+            sx, sy = cx + is_dx, cy + is_dy
+            draw.ellipse([sx - sr, sy - sr, sx + sr, sy + sr],
+                         fill=(255, 255, 255, 166))
 
-        # ── Draw expression ───────────────────────────────────────
+        # ── Per-expression iris rendering ─────────────────────────────────
         if expr in ("idle", "listening", "recording"):
             if expr in ("listening", "recording"):
-                # JSX: pulsing r and opacity
                 phase = (t * 0.1) % (2 * math.pi)
-                pulse = 0.8 + 0.4 * abs(math.sin(phase))
+                pulse = 0.85 + 0.3 * abs(math.sin(phase))
             else:
                 pulse = 1.0
-
-            r = s_er * pulse
-            # Glow (mimicking JSX feGaussianBlur)
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            # Core dots
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (255,))
+            _iris(s_cx, s_cy, size_m=pulse)
 
         elif expr in ("thinking", "processing"):
-            # JSX: dots drift left/right (cx animates)
-            drift = math.sin(t * 0.06) * s_spread * 0.3
-            dlx = lx - drift
-            drx = rx + drift
-            r = s_er
-            # Glow
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([dlx - gr, ey - gr, dlx + gr, ey + gr],
-                              fill=glow_rgb + (40,))
-            glow_draw.ellipse([drx - gr, ey - gr, drx + gr, ey + gr],
-                              fill=glow_rgb + (40,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([dlx - r, ey - r, dlx + r, ey + r], fill=eye_rgb + (155,))
-            draw.ellipse([drx - r, ey - r, drx + r, ey + r], fill=eye_rgb + (155,))
+            drift = int(math.sin(t * 0.06) * ig_r * 0.2)
+            _iris(s_cx + drift, s_cy, glow_a=100)
 
         elif expr == "coding":
-            # JSX: left steady, right blinks on/off
-            r = s_er
-            blink = 1.0 if (t % 15) < 10 else 0.3
-            # Glow
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (int(50 * blink),))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r],
-                         fill=eye_rgb + (int(255 * blink),))
+            blink = 1.0 if (t % 15) < 10 else 0.2
+            _iris(s_cx, s_cy,
+                  ring_a=int(153 * blink), pupil_a=int(255 * blink))
 
         elif expr == "happy":
-            # JSX: arc curves (^ ^)
-            line_w = max(2, int(scale * 0.6))
-            for cx_pos in (lx, rx):
-                span = s_er * 1.5
-                pts = []
-                for i in range(20):
-                    frac = i / 19.0
-                    px = cx_pos - span + 2 * span * frac
-                    py = ey + s_er * 0.3 - abs(math.sin(math.pi * frac)) * s_er * 2
-                    pts.append((px, py))
-                for i in range(len(pts) - 1):
-                    draw.line([pts[i], pts[i + 1]], fill=eye_rgb + (255,), width=line_w)
+            _iris(s_cx, s_cy, glow_a=160, size_m=1.1)
+            draw.arc(
+                [s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
+                start=200, end=340,
+                fill=eye_rgb + (200,), width=max(3, ir_st),
+            )
 
         elif expr == "error":
-            # JSX: X X crosses
-            line_w = max(2, int(scale * 0.55))
-            cross_r = s_er
-            for cx_pos in (lx, rx):
-                draw.line([(cx_pos - cross_r, ey - cross_r),
-                           (cx_pos + cross_r, ey + cross_r)],
-                          fill=eye_rgb + (255,), width=line_w)
-                draw.line([(cx_pos + cross_r, ey - cross_r),
-                           (cx_pos - cross_r, ey + cross_r)],
-                          fill=eye_rgb + (255,), width=line_w)
+            g_img  = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
+            g_draw = ImageDraw.Draw(g_img)
+            g_draw.ellipse(
+                [s_cx - ig_r, s_cy - ig_r, s_cx + ig_r, s_cy + ig_r],
+                fill=glow_rgb + (60,),
+            )
+            g_img = g_img.filter(
+                ImageFilter.GaussianBlur(radius=int(ig_r * 0.55))
+            )
+            img  = Image.alpha_composite(img, g_img)
+            draw = ImageDraw.Draw(img)
+            lw = max(3, int(scale * 0.55))
+            draw.line([(s_cx - ir_r, s_cy - ir_r), (s_cx + ir_r, s_cy + ir_r)],
+                      fill=eye_rgb + (255,), width=lw)
+            draw.line([(s_cx + ir_r, s_cy - ir_r), (s_cx - ir_r, s_cy + ir_r)],
+                      fill=eye_rgb + (255,), width=lw)
 
         elif expr == "alert":
-            # JSX: ! ! exclamation marks, blinking
             blink = 0.3 + 0.7 * abs(math.sin(t * 0.2))
-            a = int(255 * blink)
-            line_w = max(2, int(scale * 0.55))
-            for cx_pos in (lx, rx):
-                draw.line([(cx_pos, ey - s_er * 1.2), (cx_pos, ey + s_er * 0.3)],
-                          fill=eye_rgb + (a,), width=line_w)
-                dot_r = s_er * 0.3
-                dot_y = ey + s_er * 1.4
-                draw.ellipse([cx_pos - dot_r, dot_y - dot_r,
-                              cx_pos + dot_r, dot_y + dot_r],
-                             fill=eye_rgb + (a,))
+            a  = int(255 * blink)
+            lw = max(3, int(scale * 0.55))
+            draw.line([(s_cx, s_cy - ir_r), (s_cx, s_cy + int(ip_r * 0.3))],
+                      fill=eye_rgb + (a,), width=lw)
+            dot_r = max(2, int(ip_r * 0.4))
+            dot_y = s_cy + int(ip_r * 1.2)
+            draw.ellipse(
+                [s_cx - dot_r, dot_y - dot_r, s_cx + dot_r, dot_y + dot_r],
+                fill=eye_rgb + (a,),
+            )
 
         elif expr == "surprised":
-            # JSX: bigger dots (r * 1.6)
-            r = s_er * 1.6
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.0))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (230,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (230,))
+            _iris(s_cx, s_cy, glow_a=180, size_m=1.6)
 
         elif expr == "wink":
-            # JSX: left dot, right horizontal line
-            r = s_er
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (50,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            line_half = s_er * 1.2
-            line_w = max(2, int(scale * 0.5))
-            draw.line([(rx - line_half, ey), (rx + line_half, ey)],
-                      fill=eye_rgb + (180,), width=line_w)
+            _iris(s_cx, s_cy)
+            ew = max(3, int(scale * 0.5))
+            draw.line([(s_cx - ir_r, s_cy), (s_cx + ir_r, s_cy)],
+                      fill=eye_rgb + (180,), width=ew)
 
         elif expr == "sleep":
-            # JSX: two dashes (— —), very dim
-            line_w = max(2, int(scale * 0.45))
-            line_half = s_er
-            draw.line([(lx - line_half, ey), (lx + line_half, ey)],
-                      fill=eye_rgb + (50,), width=line_w)
-            draw.line([(rx - line_half, ey), (rx + line_half, ey)],
-                      fill=eye_rgb + (50,), width=line_w)
+            _iris(s_cx, s_cy, glow_a=20, ring_a=30, pupil_a=30, size_m=0.5)
 
         elif expr == "sad":
-            # JSX: dots with tear lines
-            r = s_er * 0.8
-            draw.ellipse([lx - r, ey - r * 0.3 - r, lx + r, ey - r * 0.3 + r],
-                         fill=eye_rgb + (100,))
-            draw.ellipse([rx - r, ey - r * 0.3 - r, rx + r, ey - r * 0.3 + r],
-                         fill=eye_rgb + (100,))
-            # Tear lines
-            tear_w = max(1, int(scale * 0.25))
-            tear_len = s_er * 2.5
-            draw.line([(lx, ey + r * 0.8), (lx, ey + r * 0.8 + tear_len)],
-                      fill=eye_rgb + (50,), width=tear_w)
-            draw.line([(rx, ey + r * 0.8), (rx, ey + r * 0.8 + tear_len)],
-                      fill=eye_rgb + (50,), width=tear_w)
+            _iris(s_cx, s_cy + int(ig_r * 0.15), glow_a=80, ring_a=100, pupil_a=100)
+            tw     = max(1, int(scale * 0.25))
+            t_top  = s_cy + ip_r + int(ig_r * 0.15)
+            draw.line([(s_cx, t_top), (s_cx, t_top + int(ir_r * 1.2))],
+                      fill=eye_rgb + (50,), width=tw)
 
         elif expr == "love":
-            # JSX: heart shapes, pulsing opacity
             pulse = 0.4 + 0.45 * abs(math.sin(t * 0.12))
-            a = int(255 * (0.4 + 0.45 * abs(math.sin(t * 0.12))))
-            hr = s_er * 1.1
-            for cx_pos in (lx, rx):
-                offset = hr * 0.5
-                draw.ellipse([cx_pos - hr, ey - hr - offset,
-                              cx_pos, ey - offset],
-                             fill=eye_rgb + (a,))
-                draw.ellipse([cx_pos, ey - hr - offset,
-                              cx_pos + hr, ey - offset],
-                             fill=eye_rgb + (a,))
-                draw.polygon([
-                    (cx_pos - hr, ey - offset * 0.5),
-                    (cx_pos + hr, ey - offset * 0.5),
-                    (cx_pos, ey + hr * 1.0)
-                ], fill=eye_rgb + (a,))
+            a     = int(255 * pulse)
+            hr    = int(ir_r * 0.9)
+            off   = hr // 2
+            draw.ellipse([s_cx - hr, s_cy - hr - off, s_cx, s_cy - off],
+                         fill=eye_rgb + (a,))
+            draw.ellipse([s_cx, s_cy - hr - off, s_cx + hr, s_cy - off],
+                         fill=eye_rgb + (a,))
+            draw.polygon(
+                [(s_cx - hr, s_cy - off // 2),
+                 (s_cx + hr, s_cy - off // 2),
+                 (s_cx, s_cy + hr)],
+                fill=eye_rgb + (a,),
+            )
 
         elif expr == "loading":
-            # JSX: spinning arc segments
             angle = (t * 8) % 360
-            line_w = max(2, int(scale * 0.7))
-            arc_r = s_er * 1.3
-            # Background circles
-            draw.ellipse([lx - arc_r, ey - arc_r, lx + arc_r, ey + arc_r],
-                         outline=eye_rgb + (30,), width=max(1, line_w // 2))
-            draw.ellipse([rx - arc_r, ey - arc_r, rx + arc_r, ey + arc_r],
-                         outline=eye_rgb + (30,), width=max(1, line_w // 2))
-            # Spinning arcs
-            draw.arc([lx - arc_r, ey - arc_r, lx + arc_r, ey + arc_r],
+            lw    = max(2, int(scale * 0.7))
+            draw.ellipse([s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
+                         outline=eye_rgb + (30,), width=max(1, lw // 2))
+            draw.arc([s_cx - ir_r, s_cy - ir_r, s_cx + ir_r, s_cy + ir_r],
                      start=angle, end=angle + 90,
-                     fill=eye_rgb + (155,), width=line_w)
-            draw.arc([rx - arc_r, ey - arc_r, rx + arc_r, ey + arc_r],
-                     start=angle, end=angle + 90,
-                     fill=eye_rgb + (155,), width=line_w)
+                     fill=eye_rgb + (155,), width=lw)
+            draw.ellipse([s_cx - ip_r, s_cy - ip_r, s_cx + ip_r, s_cy + ip_r],
+                         fill=eye_rgb + (255,))
 
         elif expr == "assistant":
-            # Warm pulsing dots
             with self._level_lock:
                 level = self._level
-            pulse = 0.8 + 0.35 * level + 0.15 * math.sin(t * 0.1)
-            r = s_er * pulse
-            glow_img = Image.new("RGBA", (s_sz, s_sz), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_img)
-            gr = r * 2.5
-            glow_draw.ellipse([lx - gr, ey - gr, lx + gr, ey + gr],
-                              fill=glow_rgb + (45,))
-            glow_draw.ellipse([rx - gr, ey - gr, rx + gr, ey + gr],
-                              fill=glow_rgb + (45,))
-            glow_img = glow_img.filter(ImageFilter.GaussianBlur(radius=r * 1.2))
-            img = Image.alpha_composite(img, glow_img)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([lx - r, ey - r, lx + r, ey + r], fill=eye_rgb + (255,))
-            draw.ellipse([rx - r, ey - r, rx + r, ey + r], fill=eye_rgb + (255,))
+            pulse = 0.85 + 0.35 * level + 0.15 * math.sin(t * 0.1)
+            _iris(s_cx, s_cy,
+                  glow_a=int(140 * pulse), size_m=min(1.3, pulse))
 
-        # ── Downscale ─────────────────────────────────────────────
         img = img.resize((sz, sz), Image.LANCZOS)
-
         self._ava_tk = ImageTk.PhotoImage(img)
         c.itemconfig(self._ava_img_id, image=self._ava_tk)
 
