@@ -215,7 +215,10 @@ def _assistant_worker():
                 if widget:
                     widget.set_expression("happy")
                 if tts.is_enabled():
-                    tts.speak(result)
+                    try:
+                        tts.speak(result)
+                    except Exception as tts_exc:
+                        log.error("TTS error: %s", tts_exc)
                 if config.TTS_MODE in ("overlay", "both", "off"):
                     if widget:
                         widget.show_answer(result)

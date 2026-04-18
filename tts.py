@@ -75,9 +75,11 @@ def _speak_piper(text: str, voice: str) -> None:
     from piper import PiperVoice
     path = _PIPER_DIR / f"{voice}.onnx"
     pv = PiperVoice.load(str(path))
-    chunks = list(pv.synthesize_stream_raw(text))
-    audio = np.frombuffer(b"".join(chunks), dtype=np.int16)
-    sd.play(audio, samplerate=22050)
+    chunks = [c.audio_float_array for c in pv.synthesize(text)]
+    if not chunks:
+        return
+    audio = np.concatenate(chunks).astype(np.float32)
+    sd.play(audio, samplerate=pv.config.sample_rate)
 
 
 def _speak_kokoro(text: str, voice: str, lang: str) -> None:
