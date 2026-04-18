@@ -1,3 +1,4 @@
+import os
 import sys
 import signal
 import queue
@@ -32,10 +33,8 @@ from llm_manager import manager as _llm_manager
 import config
 import database as db
 import locales
-from notifier import ReminderScheduler
-from notes_window import NotesWindow
 from settings_window import SettingsWindow
-from platform_linux import is_wayland as _is_wayland
+import setup_utils
 
 _pipeline_queue   = queue.Queue()
 _assistant_queue  = queue.Queue()
@@ -45,9 +44,7 @@ transcriber = None
 tray        = None
 widget      = None
 root        = None
-notes_win   = None
 settings_win = None
-scheduler   = None
 hotkey_listener = None
 
 # ── Load persisted settings into config at startup ────────────────────────
@@ -76,18 +73,18 @@ def _load_settings():
     config.TTS_MODE     = db.get_setting("tts_mode",     "overlay")
     config.TTS_VOICE_FR = db.get_setting("tts_voice_fr", "")
     config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
-    hk_dict = db.get_setting("hotkey_x11_dict", "")
-    if hk_dict and hk_dict in config._KEY_MAP:
-        config.HOTKEY = config._KEY_MAP[hk_dict]
-    hk_asst = db.get_setting("hotkey_x11_assist", "")
-    if hk_asst and hk_asst in config._KEY_MAP:
-        config.ASSISTANT_HOTKEY = config._KEY_MAP[hk_asst]
-    wl_dict = db.get_setting("hotkey_wayland_dict", "")
-    if wl_dict:
-        config.WAYLAND_HOTKEY = wl_dict
-    wl_asst = db.get_setting("hotkey_wayland_assist", "")
-    if wl_asst:
-        config.WAYLAND_ASSISTANT_HOTKEY = wl_asst
+    hk_dict = db.get_setting("hotkey_dict", "")
+    if hk_dict:
+        config.HOTKEY = hk_dict
+    hk_asst = db.get_setting("hotkey_assist", "")
+    if hk_asst:
+        config.ASSISTANT_HOTKEY = hk_asst
+    timeout = db.get_setting("overlay_answer_timeout", "")
+    if timeout:
+        try:
+            config.OVERLAY_ANSWER_TIMEOUT = int(timeout)
+        except ValueError:
+            pass
 
 
 def _on_whisper_model_change(model_name: str):
@@ -201,26 +198,7 @@ def _assistant_worker():
             result = assistant.process(text)
             log.info("Assistant result: %s", result)
 
-            # Handle special show commands
-            if result == "__show_notes__":
-                if notes_win:
-                    root.after(0, lambda: notes_win.show("notes"))
-                if widget:
-                    widget.set_expression("happy")
-                    widget.show_message(locales.get("show_notes"), 2000)
-            elif result == "__show_appointments__":
-                if notes_win:
-                    root.after(0, lambda: notes_win.show("appointments"))
-                if widget:
-                    widget.set_expression("happy")
-                    widget.show_message(locales.get("show_appointments"), 2000)
-            elif result == "__show_reminders__":
-                if notes_win:
-                    root.after(0, lambda: notes_win.show("reminders"))
-                if widget:
-                    widget.set_expression("happy")
-                    widget.show_message(locales.get("show_reminders"), 2000)
-            elif result == locales.get("not_understood") or result.startswith(locales.get("error", detail="")):
+            if result == locales.get("not_understood") or result.startswith(locales.get("error", detail="")):
                 if widget:
                     widget.set_expression("sad")
                     widget.show_message(result, 3000)
@@ -246,11 +224,6 @@ def _assistant_worker():
 
 
 # ── Quit & Main ───────────────────────────────────────────────────────────
-
-def _show_notes():
-    if notes_win:
-        root.after(0, lambda: notes_win.show("notes"))
-
 
 def _show_settings():
     if settings_win:
@@ -282,6 +255,10 @@ def _tray_toggle_assistant():
         _on_assist_release()
 
 
+def _build_tray_tip() -> str:
+    return f"Writher — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
+
+
 def _restart_hotkeys():
     global hotkey_listener
     if hotkey_listener:
@@ -296,6 +273,12 @@ def _restart_hotkeys():
         on_assist_release_cb=_on_assist_release,
     )
     hotkey_listener.start()
+    if tray:
+        tray.set_tooltip(_build_tray_tip())
+        tray.update_hotkey_labels(
+            f"Dictate ({config.HOTKEY})",
+            f"Assistant ({config.ASSISTANT_HOTKEY})",
+        )
 
 
 def _quit():
@@ -303,8 +286,6 @@ def _quit():
     _llm_manager.shutdown()
     _pipeline_queue.put(_STOP)
     _assistant_queue.put(_STOP)
-    if scheduler:
-        scheduler.stop()
     if hotkey_listener:
         try:
             hotkey_listener.stop()
@@ -330,18 +311,29 @@ def _quit():
                 root.destroy()
             except Exception:
                 pass
+            os._exit(0)
         try:
             root.after(0, _destroy)
         except Exception:
-            pass
+            os._exit(0)
     log.info("Shutdown complete.")
 
 
 def main():
-    global transcriber, tray, widget, root, notes_win, settings_win, scheduler
+    global transcriber, tray, widget, root, settings_win
     global hotkey_listener
 
     db.init()
+    if setup_utils.needs_first_run():
+        script = str(setup_utils.REPO_DIR / "first_run.py")
+        launched = setup_utils.launch_in_terminal(f'uv run python "{script}"')
+        if not launched:
+            print(
+                "First-run setup required but no terminal found.\n"
+                "Run manually: uv run python first_run.py",
+                flush=True,
+            )
+        sys.exit(0)
     _load_settings()
     tts.init()
 
@@ -349,27 +341,23 @@ def main():
     root.withdraw()
 
     widget = RecordingWidget(root)
-    notes_win = NotesWindow(root)
     settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change,
                                    on_hotkey_change=_restart_hotkeys)
 
     recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
 
-    tray = TrayIcon(on_quit=_quit, on_show_notes=_show_notes,
-                    on_show_settings=_show_settings,
+    tray = TrayIcon(on_quit=_quit, on_show_settings=_show_settings,
                     on_dictate=_tray_toggle_dictation,
-                    on_assist=_tray_toggle_assistant)
+                    on_assist=_tray_toggle_assistant,
+                    on_stop_tts=tts.stop)
     tray.start()
+    tray.update_hotkey_labels(
+        f"Dictate ({config.HOTKEY})",
+        f"Assistant ({config.ASSISTANT_HOTKEY})",
+    )
 
-    if _is_wayland():
-        _tray_tip = (f"Writher — {config.WAYLAND_HOTKEY}=dictate, "
-                     f"{config.WAYLAND_ASSISTANT_HOTKEY}=assistant")
-    else:
-        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
-        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
-        _tray_tip = f"Writher — {_hk_d}=dictate, {_hk_a}=assistant"
-    tray.set_tooltip(_tray_tip)
+    tray.set_tooltip(_build_tray_tip())
 
     # Check llama-server connectivity at startup
     if not assistant.ping_llama_server():
@@ -377,9 +365,6 @@ def main():
         tray.set_tooltip(locales.get("tray_ollama_down"))
 
     transcriber = Transcriber()
-
-    scheduler = ReminderScheduler()
-    scheduler.start()
 
     t1 = threading.Thread(target=_dictation_worker, daemon=True)
     t1.start()
@@ -406,13 +391,7 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    if _is_wayland():
-        log.info("Ready. %s=dictate, %s=assistant.",
-                 config.WAYLAND_HOTKEY, config.WAYLAND_ASSISTANT_HOTKEY)
-    else:
-        _hk_d = db.get_setting("hotkey_x11_dict", "alt_gr")
-        _hk_a = db.get_setting("hotkey_x11_assist", "ctrl_r")
-        log.info("Ready. %s=dictate, %s=assistant.", _hk_d, _hk_a)
+    log.info("Ready. %s", _build_tray_tip())
     root.after(50, _pump_qt)
     root.mainloop()
 
