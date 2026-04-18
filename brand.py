@@ -109,54 +109,69 @@ def generate_app_icon(size: int = 128) -> Image.Image:
     return render_vigil_eye(size=size, idle=True, almond=False)
 
 
-def generate_banner(out_path: str | None = None) -> Image.Image:
+def generate_banner(
+    out_path: str | None = None,
+    tagline: str = "VOICE · AI · LINUX",
+    transparent: bool = True,
+) -> Image.Image:
     """Generate the 1280×640 GitHub banner.
 
-    Saves to out_path if provided. Returns the final PIL Image (RGB).
+    transparent=True (default): RGBA PNG, no background fill — glow and eye
+    float on whatever background GitHub renders. transparent=False: dark
+    gradient background (original style).
     """
     w, h = 1280, 640
 
-    # Gradient background (#03030a → #04050e, diagonal)
-    xs = np.linspace(0.0, 1.0, w, dtype=np.float32)
-    ys = np.linspace(0.0, 1.0, h, dtype=np.float32)
-    xg, yg = np.meshgrid(xs, ys)
-    t = (xg + yg) * 0.5
-    arr = np.zeros((h, w, 3), dtype=np.uint8)
-    arr[:, :, 0] = np.clip(3 + t,     0, 255).astype(np.uint8)
-    arr[:, :, 1] = np.clip(3 + t * 2, 0, 255).astype(np.uint8)
-    arr[:, :, 2] = np.clip(10 + t * 4, 0, 255).astype(np.uint8)
-    banner = Image.fromarray(arr, "RGB").convert("RGBA")
+    banner = Image.new("RGBA", (w, h), (0, 0, 0, 0))
 
-    # Grid overlay (36px, #00d4ff at ~2.5% → alpha 6)
-    grid = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    gd   = ImageDraw.Draw(grid)
-    for x in range(0, w, 36):
-        gd.line([(x, 0), (x, h)], fill=(0, 212, 255, 6))
-    for y in range(0, h, 36):
-        gd.line([(0, y), (w, y)], fill=(0, 212, 255, 6))
-    banner = Image.alpha_composite(banner, grid)
+    if not transparent:
+        # Dark diagonal gradient (#03030a → #04050e)
+        xs = np.linspace(0.0, 1.0, w, dtype=np.float32)
+        ys = np.linspace(0.0, 1.0, h, dtype=np.float32)
+        xg, yg = np.meshgrid(xs, ys)
+        t = (xg + yg) * 0.5
+        arr = np.zeros((h, w, 3), dtype=np.uint8)
+        arr[:, :, 0] = np.clip(3 + t,      0, 255).astype(np.uint8)
+        arr[:, :, 1] = np.clip(3 + t * 2,  0, 255).astype(np.uint8)
+        arr[:, :, 2] = np.clip(10 + t * 4, 0, 255).astype(np.uint8)
+        banner = Image.fromarray(arr, "RGB").convert("RGBA")
 
-    # Center glow blob (200px radius, #00d4ff at 12% → alpha 30)
+        # Grid overlay (36px, #00d4ff at ~2.5% → alpha 6)
+        grid = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        gd   = ImageDraw.Draw(grid)
+        for x in range(0, w, 36):
+            gd.line([(x, 0), (x, h)], fill=(0, 212, 255, 6))
+        for y in range(0, h, 36):
+            gd.line([(0, y), (w, y)], fill=(0, 212, 255, 6))
+        banner = Image.alpha_composite(banner, grid)
+
+    # Center glow blob — stronger when transparent so it reads on any bg
     glow_cx = w // 2
     glow_cy = h // 2 - 60
     glow    = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     gd2     = ImageDraw.Draw(glow)
-    gr      = 200
+    gr      = 220
+    glow_a  = 55 if transparent else 30
     gd2.ellipse(
         [glow_cx - gr, glow_cy - gr, glow_cx + gr, glow_cy + gr],
-        fill=(0, 212, 255, 30),
+        fill=(0, 212, 255, glow_a),
     )
-    glow   = glow.filter(ImageFilter.GaussianBlur(radius=80))
+    glow   = glow.filter(ImageFilter.GaussianBlur(radius=90))
     banner = Image.alpha_composite(banner, glow)
 
     # Vigil eye (160px, centered horizontally, above vertical center)
-    eye    = render_vigil_eye(size=160, idle=True)
-    eye_x  = (w - 160) // 2
-    eye_y  = h // 2 - 200
+    eye   = render_vigil_eye(size=160, idle=True)
+    eye_x = (w - 160) // 2
+    eye_y = h // 2 - 200
     banner.paste(eye, (eye_x, eye_y), eye)
 
     # Text (VIGIL + tagline)
-    _draw_banner_text(banner, w, h)
+    _draw_banner_text(banner, w, h, tagline=tagline, glow=transparent)
+
+    if transparent:
+        if out_path:
+            banner.save(out_path)
+        return banner
 
     result = banner.convert("RGB")
     if out_path:
@@ -164,7 +179,11 @@ def generate_banner(out_path: str | None = None) -> Image.Image:
     return result
 
 
-def _draw_banner_text(img: Image.Image, w: int, h: int) -> None:
+def _draw_banner_text(
+    img: Image.Image, w: int, h: int,
+    tagline: str = "VOICE · AI · LINUX",
+    glow: bool = False,
+) -> None:
     """Draw VIGIL brand name and tagline onto the banner image in-place."""
     try:
         from PIL import ImageFont
@@ -183,23 +202,37 @@ def _draw_banner_text(img: Image.Image, w: int, h: int) -> None:
         font_big = None
         font_tag = None
 
-    bd     = ImageDraw.Draw(img)
     text_y = h // 2 + 20
 
     if font_big:
-        letters  = list("VIGIL")
-        spacing  = 22
-        widths   = [font_big.getlength(c) for c in letters]
-        total_w  = sum(widths) + spacing * (len(letters) - 1)
-        lx       = int((w - total_w) // 2)
+        letters = list("VIGIL")
+        spacing = 22
+        widths  = [font_big.getlength(c) for c in letters]
+        total_w = sum(widths) + spacing * (len(letters) - 1)
+        lx0     = int((w - total_w) // 2)
+
+        tl_w = font_tag.getlength(tagline)
+        tl_x = int((w - tl_w) // 2)
+        tl_y = text_y + 90
+
+        if glow:
+            # Cyan glow layer behind VIGIL text
+            g_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            g_draw  = ImageDraw.Draw(g_layer)
+            lx = lx0
+            for ch, cw in zip(letters, widths):
+                g_draw.text((lx, text_y), ch, fill=(0, 212, 255, 160), font=font_big)
+                lx += int(cw) + spacing
+            g_draw.text((tl_x, tl_y), tagline, fill=(0, 212, 255, 120), font=font_tag)
+            g_layer = g_layer.filter(ImageFilter.GaussianBlur(radius=18))
+            img.alpha_composite(g_layer)
+
+        bd = ImageDraw.Draw(img)
+        lx = lx0
         for ch, cw in zip(letters, widths):
             bd.text((lx, text_y), ch, fill=(232, 234, 240, 255), font=font_big)
             lx += int(cw) + spacing
 
-        tagline = "VOICE · AI · LINUX"
-        tl_w    = font_tag.getlength(tagline)
-        tl_x    = int((w - tl_w) // 2)
-        tl_y    = text_y + 90
-        bd.text((tl_x, tl_y), tagline, fill=(0, 212, 255, 140), font=font_tag)
+        bd.text((tl_x, tl_y), tagline, fill=(0, 212, 255, 160), font=font_tag)
     else:
-        bd.text((w // 2 - 40, text_y), "VIGIL", fill=(232, 234, 240, 255))
+        ImageDraw.Draw(img).text((w // 2 - 40, text_y), "VIGIL", fill=(232, 234, 240, 255))
