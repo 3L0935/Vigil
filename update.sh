@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Vigil — update script
 # Stops the running instance, pulls the latest code, syncs deps, and restarts.
+#
+# Env vars:
+#   VIGIL_BRANCH   branch to track (default: main). Use this to test a feature
+#                  branch before it's merged, e.g.:
+#                    VIGIL_BRANCH=feat/wayland-hotkeys-universal bash update.sh
 set -euo pipefail
 
-REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
+REPO_URL="https://github.com/3L0935/Vigil.git"
+VIGIL_BRANCH="${VIGIL_BRANCH:-main}"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
@@ -25,6 +31,13 @@ if [[ ! -d "$INSTALL_DIR/.git" ]]; then
     git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
 elif ! git -C "$INSTALL_DIR" remote get-url origin &>/dev/null; then
     git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
+else
+    # Silently migrate old WritHer-Linux remote to the renamed Vigil repo.
+    CURRENT_URL=$(git -C "$INSTALL_DIR" remote get-url origin)
+    if [[ "$CURRENT_URL" == *"WritHer-Linux"* ]]; then
+        step "Updating remote URL: WritHer-Linux → Vigil"
+        git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    fi
 fi
 
 # ── 1. Stop running instance ─────────────────────────────────────────────────
@@ -54,8 +67,8 @@ else
 fi
 
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
-step "Fetching latest changes..."
-git -C "$INSTALL_DIR" fetch --depth=1 origin main
+step "Fetching $VIGIL_BRANCH..."
+git -C "$INSTALL_DIR" fetch --depth=1 origin "$VIGIL_BRANCH"
 git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 
 # ── 3. Refresh .desktop entries ───────────────────────────────────────────────
