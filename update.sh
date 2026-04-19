@@ -107,6 +107,19 @@ if uv --directory "$INSTALL_DIR" run python -c "import piper" 2>/dev/null; then
 fi
 uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
 
+# ── 4b. Detect compositor change ──────────────────────────────────────────────
+STORED_ADAPTER=$(uv --directory "$INSTALL_DIR" run python -c \
+    "import database; database.init(); print(database.get_setting('hotkey_adapter', ''))" \
+    2>/dev/null || echo "")
+CURRENT_COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+    "from compositor import detect; print(detect())" 2>/dev/null || echo "")
+if [[ -n "$STORED_ADAPTER" && -n "$CURRENT_COMPOSITOR" \
+      && "$STORED_ADAPTER" != "$CURRENT_COMPOSITOR" \
+      && "$STORED_ADAPTER" != "skipped" && "$STORED_ADAPTER" != "manual" ]]; then
+    warn "Compositor changed: last bound via '$STORED_ADAPTER', now running '$CURRENT_COMPOSITOR'."
+    echo "  Run: vigil --reconfigure-hotkeys"
+fi
+
 # ── 5. Restart if it was running ─────────────────────────────────────────────
 if [[ "$WAS_RUNNING" == true ]]; then
     sleep 0.5  # brief pause for PortAudio / PipeWire cleanup

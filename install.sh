@@ -102,6 +102,14 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
 fi
 
+# ── Compositor detection (informational) ────────────────────────────────────
+COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+    "from compositor import detect; print(detect())" 2>/dev/null || echo "unknown")
+echo ""
+step "Compositor detected: $COMPOSITOR"
+echo "  Hotkeys will be bound automatically during first-run setup."
+echo "  Set VIGIL_SKIP_HOTKEYS=1 to skip (useful for CI / headless installs)."
+
 # ── First-run setup ──────────────────────────────────────────────────────────
 echo ""
 step "Running first-time setup wizard..."
