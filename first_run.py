@@ -468,6 +468,76 @@ def setup_tts() -> None:
             _download_piper_voice(voice)
 
 
+def setup_hotkeys() -> str:
+    """Phase 4 — Bind dictation/assistant hotkeys via the detected compositor.
+
+    Returns the adapter name (e.g. "kde", "gnome", "hyprland", "manual") so
+    future `vigil --reconfigure-hotkeys` runs can detect a WM switch.
+
+    Honours VIGIL_SKIP_HOTKEYS=1 for headless/CI installs.
+    """
+    import config
+    import database as db
+    from compositor import detect as _detect_compositor
+    from hotkey import pick_adapter
+
+    if os.environ.get("VIGIL_SKIP_HOTKEYS") == "1":
+        print("\n=== Hotkeys (skipped via VIGIL_SKIP_HOTKEYS=1) ===")
+        db.save_setting("hotkey_adapter", "skipped")
+        return "skipped"
+
+    compositor = _detect_compositor()
+    adapter = pick_adapter()
+
+    print("\n=== Hotkeys ===")
+    print(f"  Compositor detected: {compositor}")
+    print(f"  Adapter:             {adapter.name}")
+    print(f"  Dictation:           {config.HOTKEY}")
+    print(f"  Assistant:           {config.ASSISTANT_HOTKEY}")
+
+    if adapter.name == "manual":
+        print("\n  Vigil can't automatically bind hotkeys on this compositor.")
+        print("  Add these bindings to your compositor config manually:")
+        print(f"    {config.HOTKEY}         -> vigil-trigger dictate")
+        print(f"    {config.ASSISTANT_HOTKEY}         -> vigil-trigger assistant")
+        print("  Run `vigil --reconfigure-hotkeys` later after editing the config.")
+        db.save_setting("hotkey_adapter", "manual")
+        return "manual"
+
+    # File-based adapters modify a user config; prompt first.
+    needs_prompt = adapter.name in ("hyprland", "sway", "niri")
+    if needs_prompt:
+        cfg_path = getattr(adapter, "_config_path", lambda: None)()
+        target = str(cfg_path) if cfg_path else "(compositor config)"
+        print(f"\n  Vigil will edit:     {target}")
+        print("  Edits are wrapped in a fenced managed block — uninstall removes them cleanly.")
+        ans = input("  Proceed? [Y/n]: ").strip().lower()
+        if ans and ans not in ("y", "yes", "o", "oui"):
+            print("  Skipped. Run `vigil --reconfigure-hotkeys` when ready.")
+            db.save_setting("hotkey_adapter", "deferred")
+            return "deferred"
+
+    dict_ok = adapter.register(
+        "dictate", config.HOTKEY,
+        command=["vigil-trigger", "dictate"],
+    )
+    assist_ok = adapter.register(
+        "assistant", config.ASSISTANT_HOTKEY,
+        command=["vigil-trigger", "assistant"],
+    )
+
+    if dict_ok and assist_ok:
+        print(f"  Hotkeys bound via {adapter.name}.")
+        db.save_setting("hotkey_adapter", adapter.name)
+        return adapter.name
+    print(f"  Warning: some bindings failed "
+          f"(dictate={'ok' if dict_ok else 'FAIL'}, "
+          f"assistant={'ok' if assist_ok else 'FAIL'}).")
+    print("  Run `vigil --reconfigure-hotkeys` to retry.")
+    db.save_setting("hotkey_adapter", f"{adapter.name}-partial")
+    return f"{adapter.name}-partial"
+
+
 def _install_app_icon() -> None:
     """Write vigil.png to ~/.local/share/icons/ for .desktop Icon= resolution."""
     import brand
@@ -512,6 +582,9 @@ def main():
 
     # Phase 3 — TTS
     setup_tts()
+
+    # Phase 4 — hotkeys (compositor-native binding)
+    setup_hotkeys()
 
     db.save_setting("llama_server_bin",     str(bin_path))
     db.save_setting("llama_server_managed", "true" if managed else "false")
