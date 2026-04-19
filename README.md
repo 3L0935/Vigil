@@ -303,6 +303,12 @@ curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/update.sh | bash
 bash update.sh
 ```
 
+**Track a feature branch** (put `VIGIL_BRANCH` AFTER the pipe so `bash` sees it, not `curl`):
+```bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/<branch>/update.sh \
+  | VIGIL_BRANCH=<branch> bash
+```
+
 Stops the running instance, pulls the latest code, syncs dependencies, and restarts Vigil automatically. Your configuration and data are preserved.
 
 ---
