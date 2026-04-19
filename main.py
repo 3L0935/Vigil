@@ -198,10 +198,9 @@ def _dictation_worker():
                 inject(text)
                 if widget:
                     widget.set_expression("happy")
-                    # Hold "Done!" briefly so the state is visible for short
-                    # dictations where transcription+injection finish faster
-                    # than the pill's fade-in.
-                    root.after(500, widget.hide)
+                    # Hold "Done!" long enough to register — 500ms proved too
+                    # brief in practice once the 252ms fade-out is added on top.
+                    root.after(1200, widget.hide)
             else:
                 log.info("No speech detected.")
                 if widget:
