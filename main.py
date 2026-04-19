@@ -399,9 +399,70 @@ def _quit():
     log.info("Shutdown complete.")
 
 
+def _cli_reconfigure_hotkeys() -> int:
+    """`vigil --reconfigure-hotkeys` — re-run the hotkey wizard standalone.
+
+    Useful after a WM switch or when the initial first_run bind failed.
+    Does not start the full app.
+    """
+    import first_run
+    db.init()
+    _load_settings()
+    try:
+        result = first_run.setup_hotkeys()
+    except Exception as exc:
+        print(f"Reconfigure failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Hotkey adapter: {result}")
+    return 0
+
+
+def _cli_uninstall_hotkeys() -> int:
+    """`vigil --uninstall-hotkeys` — remove all Vigil-managed bindings.
+
+    Safe to call when Vigil is not running: iterates every known adapter
+    that flagged is_available() and clears its managed state. Used by
+    uninstall.sh before removing files.
+    """
+    from hotkey import pick_adapter
+    db.init()
+    adapter = pick_adapter()
+    print(f"Compositor adapter: {adapter.name}")
+    removed = 0
+    for action_id in list(adapter.list_registered() or ["dictate", "assistant"]):
+        if adapter.unregister(action_id):
+            removed += 1
+            print(f"  - unbound {action_id}")
+    try:
+        adapter.shutdown()
+    except Exception:
+        pass
+    db.save_setting("hotkey_adapter", "")
+    print(f"Done — {removed} action(s) cleared.")
+    return 0
+
+
 def main():
     global transcriber, tray, widget, root, settings_win
     global hotkey_listener
+
+    # CLI utilities short-circuit before the full Tk/UI init.
+    if len(sys.argv) > 1:
+        arg = sys.argv[1]
+        if arg == "--reconfigure-hotkeys":
+            sys.exit(_cli_reconfigure_hotkeys())
+        if arg == "--uninstall-hotkeys":
+            sys.exit(_cli_uninstall_hotkeys())
+        if arg in ("-h", "--help"):
+            print(
+                "Vigil — voice dictation and AI assistant\n\n"
+                "Usage:\n"
+                "  vigil                       run the app\n"
+                "  vigil --reconfigure-hotkeys re-run the compositor hotkey wizard\n"
+                "  vigil --uninstall-hotkeys   remove every vigil-managed binding\n"
+                "  vigil -h | --help           show this help\n"
+            )
+            sys.exit(0)
 
     db.init()
     if setup_utils.needs_first_run():
