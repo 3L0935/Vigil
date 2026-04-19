@@ -257,43 +257,56 @@ class KdeAdapter(HotkeyAdapter):
             return False
 
     def _purge_stale_actions(self) -> None:
-        """Clear renamed actions (e.g. 'assist' → 'assistant') from both the
-        config file and KDE's runtime component. Called once per adapter
-        init. Orphan entries otherwise show up as duplicate rows in System
-        Settings → Shortcuts → Vigil and can steal the user's chosen combo."""
-        if self._kga_iface is None or self._bus is None:
-            return
-        try:
-            import dbus
-            empty = dbus.Array([], signature="i")
-            for stale_name in _STALE_ACTION_NAMES:
-                desc = [_APP_ID, stale_name, "Vigil",
-                        _DESCRIPTIONS.get(stale_name, stale_name)]
-                try:
-                    self._kga_iface.setForeignShortcut(desc, empty)
-                except Exception:
-                    pass
-        except Exception:
-            pass  # best-effort runtime purge
+        """If KDE's runtime vigil component holds a stale action descriptor
+        (e.g. 'assist' from pre-refactor installs), nuke the whole component
+        via cleanUp() and let the subsequent register() calls re-create just
+        the current actions from scratch. Also strips the stale keys from
+        kglobalshortcutsrc so KConfig reload won't resurrect them.
 
-        # Strip stale keys from kglobalshortcutsrc so the next KConfig reload
-        # doesn't resurrect them.
+        setForeignShortcut([]) alone merely empties the binding — the
+        descriptor row persists in System Settings → Shortcuts → Vigil with
+        'Aucun raccourci actif'. Only cleanUp() actually removes it."""
+        # 1. Strip stale keys from kglobalshortcutsrc FIRST so KDE's
+        #    KConfig watcher doesn't re-load them when cleanUp + re-register
+        #    churns the component.
+        stripped = False
         try:
             cfg = configparser.RawConfigParser(strict=False)
             cfg.optionxform = str
             cfg.read(_KGLOBAL_CONFIG)
             if cfg.has_section(_APP_ID):
-                changed = False
                 for stale_name in _STALE_ACTION_NAMES:
                     if cfg.has_option(_APP_ID, stale_name):
                         cfg.remove_option(_APP_ID, stale_name)
-                        changed = True
-                        log.info("KGlobalAccel: purged stale action '%s'", stale_name)
-                if changed:
+                        stripped = True
+                        log.info("KGlobalAccel: stripped stale key '%s' from config",
+                                 stale_name)
+                if stripped:
                     with open(_KGLOBAL_CONFIG, "w") as f:
                         cfg.write(f, space_around_delimiters=False)
         except Exception as exc:
-            log.warning("KGlobalAccel: stale-action config purge failed: %s", exc)
+            log.warning("KGlobalAccel: config purge failed: %s", exc)
+
+        # 2. Check KDE runtime: does the vigil component hold any stale
+        #    action? If yes, cleanUp() the component — all descriptors drop,
+        #    our upcoming register() calls rebuild just the current set.
+        if self._kga_iface is None or self._bus is None:
+            return
+        try:
+            import dbus
+            comp_path = str(self._kga_iface.getComponent(_APP_ID))
+            comp_obj = self._bus.get_object("org.kde.kglobalaccel", comp_path)
+            comp_iface = dbus.Interface(
+                comp_obj, dbus_interface="org.kde.kglobalaccel.Component")
+            runtime_actions = [str(a) for a in comp_iface.shortcutNames()]
+            stale_present = [n for n in runtime_actions if n in _STALE_ACTION_NAMES]
+            if stale_present:
+                log.info("KGlobalAccel: component has stale actions %s — cleanUp()",
+                         stale_present)
+                comp_iface.cleanUp()
+                time.sleep(0.3)  # let KDE process
+        except Exception as exc:
+            log.debug("KGlobalAccel: component inspection failed: %s", exc)
 
     def _release_stale_writher(self) -> None:
         """Empty + cleanUp() legacy 'writher' component so KDE doesn't
