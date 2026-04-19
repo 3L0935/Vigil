@@ -322,18 +322,26 @@ def _build_tray_tip() -> str:
 
 def _restart_hotkeys():
     global hotkey_listener
-    if hotkey_listener:
-        try:
-            hotkey_listener.stop()
-        except Exception:
-            pass
-    hotkey_listener = HotkeyListener(
-        on_press_cb=_on_hotkey_press,
-        on_release_cb=_on_hotkey_release,
-        on_assist_press_cb=_on_assist_press,
-        on_assist_release_cb=_on_assist_release,
-    )
-    hotkey_listener.start()
+    if hotkey_listener is None:
+        hotkey_listener = HotkeyListener(
+            on_press_cb=_on_hotkey_press,
+            on_release_cb=_on_hotkey_release,
+            on_assist_press_cb=_on_assist_press,
+            on_assist_release_cb=_on_assist_release,
+        )
+        hotkey_listener.start()
+    else:
+        # Atomic rebind preserves adapter state (KGA signal handler, pynput
+        # thread, D-Bus loop) — avoids the transient "no shortcuts" window
+        # that full teardown+rebuild used to create.
+        ok = hotkey_listener.rebind(
+            dict_combo=config.HOTKEY,
+            asst_combo=config.ASSISTANT_HOTKEY,
+        )
+        if not ok:
+            log.warning("Hotkey rebind returned partial failure — check logs.")
+            if widget:
+                widget.show_message("Hotkey rebind failed — see logs", 3000)
     if tray:
         tray.set_tooltip(_build_tray_tip())
         tray.update_hotkey_labels(

@@ -112,6 +112,31 @@ class HotkeyListener:
             "ok" if assist_ok else ("FAIL" if self._on_assist_press else "skipped"),
         )
 
+    def rebind(self, dict_combo: str | None = None,
+               asst_combo: str | None = None) -> bool:
+        """Swap combos in place without tearing down the adapter.
+
+        Returns True only when every requested binding succeeded. Callers
+        (e.g. settings window Save) should check and surface failures.
+        """
+        a = self._adapter
+        ok = True
+        if dict_combo is not None:
+            a.unregister("dictate")
+            a.set_callback("dictate", self._toggle_dictation)
+            if not a.register("dictate", dict_combo,
+                              command=["vigil-trigger", "dictate"]):
+                ok = False
+        if asst_combo is not None and self._on_assist_press:
+            a.unregister("assistant")
+            a.set_callback("assistant", self._toggle_assistant)
+            if not a.register("assistant", asst_combo,
+                              command=["vigil-trigger", "assistant"]):
+                ok = False
+        log.info("Hotkey rebind via %s: dictate=%s assist=%s -> %s",
+                 a.name, dict_combo, asst_combo, "ok" if ok else "partial")
+        return ok
+
     def stop(self):
         a = self._adapter
         try:
