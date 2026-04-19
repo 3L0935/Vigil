@@ -64,7 +64,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
 ```
 
 Or, if you already have the repo cloned:
@@ -295,7 +295,7 @@ Requires Piper and voice files. Go to Settings → Re-run setup and select TTS a
 
 **One-liner:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/update.sh | bash
 ```
 
 **Or, if you have the repo cloned:**
@@ -311,7 +311,7 @@ Stops the running instance, pulls the latest code, syncs dependencies, and resta
 
 **One-liner:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash
 ```
 
 **From the app:**

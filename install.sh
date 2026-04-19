@@ -2,7 +2,7 @@
 # Vigil — distro-agnostic installer
 set -euo pipefail
 
-REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
+REPO_URL="https://github.com/3L0935/Vigil.git"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -125,4 +125,4 @@ echo ""
 echo "  Run Vigil:  vigil"
 echo "  Or launch from your application menu."
 echo ""
-echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash"
+echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash"
