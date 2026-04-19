@@ -87,6 +87,17 @@ refresh_desktop "$AUTOSTART_DIR/vigil.desktop"
 # Prompt the icon cache to re-read (best-effort, no-op if missing)
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 
+# ── 3b. Ensure vigil-trigger wrapper exists (added by newer versions) ────────
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+if [[ -d "$BIN_DIR" && ! -x "$BIN_DIR/vigil-trigger" ]]; then
+    step "Installing vigil-trigger CLI wrapper..."
+    cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
+#!/usr/bin/env bash
+exec uv --directory "$INSTALL_DIR" run python -m vigil_trigger "\$@"
+LAUNCHER
+    chmod +x "$BIN_DIR/vigil-trigger"
+fi
+
 # ── 4. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."
 # Preserve TTS if it was installed (piper-tts is an optional dep — uv sync drops it without --extra)

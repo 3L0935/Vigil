@@ -41,6 +41,7 @@ from hotkey import HotkeyListener
 from tray_qt import TrayIcon
 from widget import RecordingWidget
 import assistant
+import service as dbus_service
 import tts
 from llm_manager import manager as _llm_manager
 import config
@@ -349,6 +350,10 @@ def _quit():
             hotkey_listener.stop()
         except Exception:
             pass
+    try:
+        dbus_service.stop()
+    except Exception:
+        pass
     log.info("Quitting...")
     _llm_manager.shutdown()
     _pipeline_queue.put(_STOP)
@@ -401,6 +406,12 @@ def main():
                 flush=True,
             )
         sys.exit(0)
+    # Fail fast if another Vigil is already running — avoid wasting ~1s on
+    # Whisper load + widget/tray init before the bus name collision would kick
+    # us out anyway.
+    if dbus_service.is_running():
+        log.info("Another Vigil instance is already running — exiting.")
+        sys.exit(0)
     _load_settings()
     tts.init()
 
@@ -445,6 +456,16 @@ def main():
     t1.start()
     t2 = threading.Thread(target=_assistant_worker, daemon=True)
     t2.start()
+
+    # D-Bus service: exposes org.vigil.Service.Trigger(action) so external
+    # callers (vigil-trigger CLI, compositor key bindings) can toggle
+    # recording. Also functions as a single-instance lock via bus-name
+    # ownership.
+    if not dbus_service.start(on_dictate=_tray_toggle_dictation,
+                              on_assistant=_tray_toggle_assistant):
+        log.info("D-Bus service failed to start — another Vigil may have "
+                 "claimed the name between probe and start. Exiting.")
+        sys.exit(0)
 
     hotkey_listener = HotkeyListener(
         on_press_cb=_on_hotkey_press,

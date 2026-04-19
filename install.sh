@@ -59,6 +59,12 @@ exec uv --directory "$INSTALL_DIR" run python main.py "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/vigil"
 
+cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
+#!/usr/bin/env bash
+exec uv --directory "$INSTALL_DIR" run python -m vigil_trigger "\$@"
+LAUNCHER
+chmod +x "$BIN_DIR/vigil-trigger"
+
 # ── Create .desktop entry ────────────────────────────────────────────────────
 step "Creating desktop entry..."
 mkdir -p "$DESKTOP_DIR"
