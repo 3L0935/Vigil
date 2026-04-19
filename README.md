@@ -261,22 +261,22 @@ For CI / headless installs, set `VIGIL_SKIP_HOTKEYS=1` before running `install.s
 
 ## Troubleshooting
 
-**llama-server not reachable**  
+**llama-server not reachable**
 The tray tooltip shows a warning at startup. llama-server is launched automatically by the process manager when needed. If it fails, check the log (`~/.local/share/vigil/vigil.log`) or re-run setup from Settings.
 
-**Hotkey not detected (X11)**  
+**Hotkey not detected (X11)**
 Some keyboard layouts map modifier keys differently. Check the app log for the registered combo.
 
-**Hotkey not firing (any Wayland compositor)**  
+**Hotkey not firing (any Wayland compositor)**
 Run `vigil --reconfigure-hotkeys` — common after a compositor upgrade or WM switch. If you're on wlroots/COSMIC/labwc, Vigil prints the binding command at first-run; you need to add it to your compositor config manually and invoke `vigil-trigger dictate` / `vigil-trigger assistant` from there.
 
-**Hotkeys didn't bind after a fresh reboot (KDE)**  
+**Hotkeys didn't bind after a fresh reboot (KDE)**
 There's a known race between Vigil autostart and KWin input initialisation. The packaged `.desktop` file pins autostart to phase 2 with a 5s fallback delay, which avoids it in practice. If the race still bites, just restart Vigil — the bindings will take on the second try.
 
-**No audio / microphone not found**  
+**No audio / microphone not found**
 Vigil uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
 
-**Dictation pastes nothing (Wayland)**  
+**Dictation pastes nothing (Wayland)**
 Vigil tries `wtype` first, then `xdotool`, then clipboard. Install at least one:
 ```bash
 # Recommended (native Wayland, all apps)
@@ -286,7 +286,7 @@ sudo pacman -S xdotool
 ```
 On KDE Plasma, `wtype` may log `Compositor does not support the virtual keyboard protocol` — this is harmless; `xdotool` takes over automatically.
 
-**TTS not playing**  
+**TTS not playing**
 Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
 
 ---
@@ -314,7 +314,7 @@ Stops the running instance, pulls the latest code, syncs dependencies, and resta
 curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash
 ```
 
-**From the app:**  
+**From the app:**
 Settings → Uninstall — removes data directory, desktop entries, and launcher.
 
 **Manually (if you have the repo):**
