@@ -18,6 +18,8 @@ updates only its own key in the [vigil] section, preserving siblings.
 from __future__ import annotations
 
 import configparser
+import shutil
+import subprocess
 import os
 import threading
 import time
@@ -102,6 +104,45 @@ _STALE_SECTIONS = ("writher", "writher_test", "vigil_test", "diag")
 # the config file and KDE's runtime component during adapter init.
 _ACTION_ALIASES = {"assist": "assistant"}
 _STALE_ACTION_NAMES = ("assist",)
+
+
+def _release_stuck_modifiers() -> None:
+    """Best-effort workaround for KWin global-shortcut modifier stickiness.
+
+    On KDE Plasma Wayland, after KWin delivers a globalShortcutPressed
+    signal it sometimes never forwards the modifier key-up events to the
+    input pipeline. The user ends up with Ctrl "held" from the kernel's
+    view — Alt+F4 becomes Ctrl+Alt+F4 (TTY switch), arrows/typing stop
+    working until they wiggle the modifiers manually.
+
+    Fire a no-op modifier release via wtype (preferred on Wayland) or
+    xdotool (XWayland fallback). Silent if neither tool is installed —
+    users affected by the stickiness can install wtype to get the fix.
+
+    Fires in a daemon thread so it doesn't block the Vigil callback.
+    """
+    candidates: list[list[str]] = []
+    if shutil.which("wtype"):
+        # -m clears a modifier via the virtual-keyboard protocol.
+        candidates.append(
+            ["wtype", "-m", "ctrl", "-m", "alt", "-m", "shift", "-m", "logo"]
+        )
+    if shutil.which("xdotool"):
+        candidates.append(
+            ["xdotool",
+             "keyup", "ctrl", "keyup", "alt",
+             "keyup", "shift", "keyup", "super"]
+        )
+
+    for cmd in candidates:
+        try:
+            subprocess.run(cmd, check=False,
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL,
+                           timeout=0.5)
+            return  # first one that ran
+        except Exception:
+            continue
 
 
 def _sync_one_shortcut_to_config(action_id: str, combo: str) -> None:
@@ -352,6 +393,10 @@ class KdeAdapter(HotkeyAdapter):
         name = str(shortcut_unique)
         log.debug("KGlobalAccel: pressed component=%s shortcut=%s",
                   component_unique, name)
+        # Fire-and-forget release of modifiers in case KWin didn't forward
+        # the key-up events (KDE Plasma Wayland bug — results in stuck Ctrl
+        # that turns Alt+F4 into a TTY switch).
+        threading.Thread(target=_release_stuck_modifiers, daemon=True).start()
         # Route legacy names (e.g. "assist") to the current callback
         # ("assistant") so users upgrading from pre-refactor installs don't
         # lose their hotkey even before _purge_stale_actions cleans KDE.
