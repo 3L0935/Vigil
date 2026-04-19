@@ -9,3 +9,5 @@ Terminal=false
 Categories=Utility;Accessibility;Audio;
 Keywords=voice;dictation;whisper;ai;assistant;
 StartupNotify=false
+X-KDE-autostart-phase=2
+X-GNOME-Autostart-Delay=5

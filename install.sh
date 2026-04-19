@@ -74,6 +74,8 @@ Terminal=false
 Categories=Utility;Audio;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
+X-KDE-autostart-phase=2
+X-GNOME-Autostart-Delay=5
 DESKTOP
 
 # ── Optional autostart ───────────────────────────────────────────────────────
