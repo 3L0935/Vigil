@@ -29,6 +29,11 @@ def test_ensure_running_managed_spawns_process():
         args = mock_popen.call_args[0][0]
         assert "/usr/bin/llama-server" in args
         assert "/models/qwen.gguf" in args
+        # -c must always be passed so llama-server doesn't fall back to the
+        # GGUF's n_ctx_train (can be 32k–128k, blows VRAM).
+        assert "-c" in args
+        ctx_value = args[args.index("-c") + 1]
+        assert int(ctx_value) > 0
 
 
 def test_ensure_running_unmanaged_does_not_spawn():

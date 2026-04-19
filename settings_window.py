@@ -188,6 +188,7 @@ class SettingsWindow:
         self._answer_timeout_var = None
         self._assistant_name_var = None
         self._llm_gpu_layers_var = None
+        self._llm_ctx_size_var = None
 
     def show(self):
         if self._win is not None:
@@ -303,6 +304,23 @@ class SettingsWindow:
             pad,
             values=["off", "10", "20", "33", "99"],
             variable=self._llm_gpu_layers_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
+        # ── Context size (-c) ─────────────────────────────────────────
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_ctx_size"),
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._llm_ctx_size_var = tk.StringVar(
+            master=self._win, value=db.get_setting("llama_ctx_size", "4096"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["2048", "4096", "8192", "16384", "32768"],
+            variable=self._llm_ctx_size_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
             button_hover_color=T.BG_HOVER, text_color=T.FG,
             dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
@@ -751,6 +769,8 @@ class SettingsWindow:
                 str(db.get_setting("overlay_answer_timeout", "8")))
         if self._llm_gpu_layers_var:
             self._llm_gpu_layers_var.set(db.get_setting("llm_gpu_layers", "99"))
+        if self._llm_ctx_size_var:
+            self._llm_ctx_size_var.set(db.get_setting("llama_ctx_size", "4096"))
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
@@ -976,6 +996,13 @@ class SettingsWindow:
             old_ngl = db.get_setting("llm_gpu_layers", "99")
             db.save_setting("llm_gpu_layers", ngl)
             if ngl != old_ngl:
+                from llm_manager import manager as _mgr
+                _mgr.shutdown()
+        if self._llm_ctx_size_var:
+            ctx = self._llm_ctx_size_var.get()
+            old_ctx = db.get_setting("llama_ctx_size", "4096")
+            db.save_setting("llama_ctx_size", ctx)
+            if ctx != old_ctx:
                 from llm_manager import manager as _mgr
                 _mgr.shutdown()
         if self._assistant_name_var:

@@ -43,6 +43,12 @@ class LlamaServerManager:
         except ValueError:
             return -1
 
+    def _ctx_size(self) -> int:
+        try:
+            return int(db.get_setting("llama_ctx_size", "4096"))
+        except ValueError:
+            return 4096
+
     def _server_url(self) -> str:
         # DB is the source of truth for the URL (set by settings_window / setup).
         # Hardcoded default matches config.LLAMA_SERVER_URL; avoids importing
@@ -87,7 +93,8 @@ class LlamaServerManager:
             )
         port = urllib.parse.urlparse(self._server_url()).port or 8080
         cmd = [bin_path, "--model", model_path,
-               "--port", str(port), "--host", "127.0.0.1"]
+               "--port", str(port), "--host", "127.0.0.1",
+               "-c", str(self._ctx_size())]
         ngl = self._gpu_layers()
         if ngl >= 0:
             cmd += ["-ngl", str(ngl)]
