@@ -27,6 +27,23 @@ vigil-trigger = "vigil_trigger:main"
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
+# Flat layout with a `hotkey/` package + `img/` asset dir confuses
+# setuptools auto-discovery ("Multiple top-level packages discovered").
+# Pin the included packages + explicitly list top-level modules so
+# `uv sync` can always rebuild the editable install.
+[tool.setuptools]
+py-modules = [
+    "main", "app_launcher", "assistant", "brand", "compositor", "config",
+    "database", "first_run", "injector", "json_repair", "llm_backend",
+    "llm_manager", "locales", "logger", "obsidian", "platform_linux",
+    "recorder", "service", "settings_window", "setup_utils", "theme",
+    "transcriber", "tray_qt", "tts", "vigil_trigger", "widget",
+]
+
+[tool.setuptools.packages.find]
+include = ["hotkey*"]
+exclude = ["img*", "tests*", "docs*"]
+
 [project.optional-dependencies]
 tts-piper = ["piper-tts"]
 
