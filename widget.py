@@ -98,23 +98,26 @@ _STATE_STYLE = {
 
 # Eye theme per expression (eye_rgb, glow_rgb for the SVG-like dot rendering)
 _EYE_THEME = {
-    "idle":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "listening":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "thinking":   {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "writing":    {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "coding":     {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "happy":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "error":      {"eye": (255, 68, 68),   "glow": (255, 68, 68)},
-    "alert":      {"eye": (255, 170, 0),   "glow": (255, 170, 0)},
-    "surprised":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "wink":       {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "sleep":      {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "sad":        {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "idle":       {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    # listening + assistant both mean "mic is live" — red pulse
+    "listening":  {"eye": (220, 60, 60),  "glow": (220, 60, 60)},
+    "assistant":  {"eye": (220, 60, 60),  "glow": (220, 60, 60)},
+    # thinking = assistant LLM call, writing = dictation transcribe
+    "thinking":   {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    "writing":    {"eye": (60, 210, 90),  "glow": (60, 210, 90)},
+    "coding":     {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    # done — warm beige ring
+    "happy":      {"eye": (220, 195, 150), "glow": (220, 195, 150)},
+    "error":      {"eye": (255, 68, 68),  "glow": (255, 68, 68)},
+    "alert":      {"eye": (255, 170, 0),  "glow": (255, 170, 0)},
+    "surprised":  {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    "wink":       {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    "sleep":      {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    "sad":        {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
     "love":       {"eye": (255, 107, 157), "glow": (255, 107, 157)},
-    "loading":    {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "recording":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "processing": {"eye": (0, 212, 255), "glow": (0, 212, 255)},
-    "assistant":  {"eye": (0, 212, 255), "glow": (0, 212, 255)},
+    "loading":    {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
+    "recording":  {"eye": (220, 60, 60),  "glow": (220, 60, 60)},
+    "processing": {"eye": (0, 212, 255),  "glow": (0, 212, 255)},
 }
 
 _IDLE_STYLE = _STATE_STYLE["idle"]
@@ -1417,15 +1420,10 @@ class RecordingWidget:
             else:
                 self._canvas.itemconfig(self._dot_id, state="hidden")
 
-        # Waveform bars — live audio level for recording/assistant,
-        # synthetic idle pulse (green) during dictation's "writing" state.
-        writing = (self._mode == self.PROCESSING and self._expression == "writing")
-        if self._mode in (self.RECORDING, self.ASSISTANT) or writing:
-            if writing:
-                level = 0.7
-            else:
-                with self._level_lock:
-                    level = self._level
+        # Waveform bars (recording + assistant both show animated bars)
+        if self._mode in (self.RECORDING, self.ASSISTANT):
+            with self._level_lock:
+                level = self._level
             max_amp = (_H - 16) / 2
             wave_start_x = _TEXT_X + 90
             t = self._tick * 0.12
@@ -1436,16 +1434,9 @@ class RecordingWidget:
                 cx = wave_start_x + i * (_BAR_W + _BAR_GAP) + _BAR_W // 2
                 self._canvas.coords(bid, cx, mid_y - amp, cx, mid_y + amp)
                 opacity = 0.25 + 0.35 * val
-                if writing:
-                    # green tint: scale G channel full, R/B channels dimmed
-                    r = int(60 * opacity)
-                    g = int(255 * opacity)
-                    b = int(80 * opacity)
-                    fill = f"#{r:02x}{g:02x}{b:02x}"
-                else:
-                    c_val = int(255 * opacity)
-                    fill = f"#{c_val:02x}{c_val:02x}{c_val:02x}"
-                self._canvas.itemconfig(bid, fill=fill, state="normal")
+                c_val = int(255 * opacity)
+                self._canvas.itemconfig(bid, fill=f"#{c_val:02x}{c_val:02x}{c_val:02x}",
+                                        state="normal")
 
         elif self._mode == self.PROCESSING:
             for bid in self._bar_ids:
