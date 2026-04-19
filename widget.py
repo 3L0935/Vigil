@@ -22,6 +22,7 @@ import time
 import tkinter as tk
 import config
 import tts
+import brand
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
 from logger import log
 
@@ -47,8 +48,7 @@ _AVA_CY     = _H // 2        # center-y
 
 # ── layout ────────────────────────────────────────────────────────────────
 _SEP_X     = 48              # separator x after avatar
-_DOT_X     = _SEP_X + 10    # indicator dot center x = 58
-_TEXT_X    = _SEP_X + 22    # status text start x = 70 (shifted 12px right for dot)
+_TEXT_X    = _SEP_X + 22    # status text start x = 70
 _WAVE_X    = 0               # computed dynamically based on text
 
 # Waveform (JSX-style: 5 thin bars, listening/recording only)
@@ -456,13 +456,11 @@ class AnswerCard:
                           bg="#0a0a12", highlightthickness=0)
         ava_c.pack(side=tk.LEFT, padx=(10, 0))
         cy = _CARD_HEADER_H // 2
-        # Vigil iris (ring + pupil + shine) at ~18px
-        ava_c.create_oval(2, cy - 9, 20, cy + 9,
-                          fill="#0a0a12", outline="#00d4ff", width=1)
-        ava_c.create_oval(8, cy - 3, 14, cy + 3,
-                          fill="#00d4ff", outline="")
-        ava_c.create_oval(6, cy - 6, 9, cy - 3,
-                          fill="white", outline="")
+        # Real Vigil iris — shared rendering with tray + .desktop icon,
+        # instead of a hand-rolled 3-oval approximation.
+        self._ava_pil = brand.render_vigil_eye(size=18, idle=True, almond=False)
+        self._ava_tk  = ImageTk.PhotoImage(self._ava_pil)
+        ava_c.create_image(11, cy, image=self._ava_tk, anchor="center")
 
         tk.Frame(hdr, bg="#0d1a1f", width=1).pack(
             side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
@@ -732,7 +730,6 @@ class RecordingWidget:
         self._text_id    = None
         self._label_id   = None    # status label (JSX-style)
         self._sep_ids    = []      # separator lines
-        self._dot_id     = None   # pulsing color dot: red=dictate, violet=assistant
         self._close_id   = None    # close button × on the right edge
         self._after_anim = None
         self._after_fade = None
@@ -1131,13 +1128,6 @@ class RecordingWidget:
                             fill="#222230", width=1)
         self._sep_ids.append(sep)
 
-        # ── Indicator dot (red=dictate, violet=assistant) ─────────
-        self._dot_id = c.create_oval(
-            _DOT_X - 3, _H // 2 - 3,
-            _DOT_X + 3, _H // 2 + 3,
-            fill="#ff4444", outline="", state="hidden",
-        )
-
         # ── Status label text (JSX-style) ─────────────────────────
         self._label_id = c.create_text(
             _TEXT_X, _H // 2,
@@ -1402,27 +1392,6 @@ class RecordingWidget:
 
         # Update label
         self._update_label()
-
-        # Indicator dot — pulsing red for dictation, violet for assistant
-        if self._dot_id is not None:
-            if self._mode == self.RECORDING:
-                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.1))
-                r = int(100 + 155 * val)
-                g = int(20 * val)
-                b = int(20 * val)
-                self._canvas.itemconfig(self._dot_id,
-                                        fill=f"#{r:02x}{g:02x}{b:02x}",
-                                        state="normal")
-            elif self._mode == self.ASSISTANT:
-                val = 0.35 + 0.65 * abs(math.sin(self._tick * 0.08))
-                r = int(48 + 112 * val)
-                g = int(40 + 104 * val)
-                b = int(96 + 159 * val)
-                self._canvas.itemconfig(self._dot_id,
-                                        fill=f"#{r:02x}{g:02x}{b:02x}",
-                                        state="normal")
-            else:
-                self._canvas.itemconfig(self._dot_id, state="hidden")
 
         # Waveform bars (recording + assistant both show animated bars)
         if self._mode in (self.RECORDING, self.ASSISTANT):
