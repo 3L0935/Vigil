@@ -41,6 +41,7 @@ from hotkey import HotkeyListener
 from tray_qt import TrayIcon
 from widget import RecordingWidget
 import assistant
+import service as dbus_service
 import tts
 from llm_manager import manager as _llm_manager
 import config
@@ -321,18 +322,26 @@ def _build_tray_tip() -> str:
 
 def _restart_hotkeys():
     global hotkey_listener
-    if hotkey_listener:
-        try:
-            hotkey_listener.stop()
-        except Exception:
-            pass
-    hotkey_listener = HotkeyListener(
-        on_press_cb=_on_hotkey_press,
-        on_release_cb=_on_hotkey_release,
-        on_assist_press_cb=_on_assist_press,
-        on_assist_release_cb=_on_assist_release,
-    )
-    hotkey_listener.start()
+    if hotkey_listener is None:
+        hotkey_listener = HotkeyListener(
+            on_press_cb=_on_hotkey_press,
+            on_release_cb=_on_hotkey_release,
+            on_assist_press_cb=_on_assist_press,
+            on_assist_release_cb=_on_assist_release,
+        )
+        hotkey_listener.start()
+    else:
+        # Atomic rebind preserves adapter state (KGA signal handler, pynput
+        # thread, D-Bus loop) — avoids the transient "no shortcuts" window
+        # that full teardown+rebuild used to create.
+        ok = hotkey_listener.rebind(
+            dict_combo=config.HOTKEY,
+            asst_combo=config.ASSISTANT_HOTKEY,
+        )
+        if not ok:
+            log.warning("Hotkey rebind returned partial failure — check logs.")
+            if widget:
+                widget.show_message("Hotkey rebind failed — see logs", 3000)
     if tray:
         tray.set_tooltip(_build_tray_tip())
         tray.update_hotkey_labels(
@@ -349,6 +358,10 @@ def _quit():
             hotkey_listener.stop()
         except Exception:
             pass
+    try:
+        dbus_service.stop()
+    except Exception:
+        pass
     log.info("Quitting...")
     _llm_manager.shutdown()
     _pipeline_queue.put(_STOP)
@@ -386,9 +399,70 @@ def _quit():
     log.info("Shutdown complete.")
 
 
+def _cli_reconfigure_hotkeys() -> int:
+    """`vigil --reconfigure-hotkeys` — re-run the hotkey wizard standalone.
+
+    Useful after a WM switch or when the initial first_run bind failed.
+    Does not start the full app.
+    """
+    import first_run
+    db.init()
+    _load_settings()
+    try:
+        result = first_run.setup_hotkeys()
+    except Exception as exc:
+        print(f"Reconfigure failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Hotkey adapter: {result}")
+    return 0
+
+
+def _cli_uninstall_hotkeys() -> int:
+    """`vigil --uninstall-hotkeys` — remove all Vigil-managed bindings.
+
+    Safe to call when Vigil is not running: iterates every known adapter
+    that flagged is_available() and clears its managed state. Used by
+    uninstall.sh before removing files.
+    """
+    from hotkey import pick_adapter
+    db.init()
+    adapter = pick_adapter()
+    print(f"Compositor adapter: {adapter.name}")
+    removed = 0
+    for action_id in list(adapter.list_registered() or ["dictate", "assistant"]):
+        if adapter.unregister(action_id):
+            removed += 1
+            print(f"  - unbound {action_id}")
+    try:
+        adapter.shutdown()
+    except Exception:
+        pass
+    db.save_setting("hotkey_adapter", "")
+    print(f"Done — {removed} action(s) cleared.")
+    return 0
+
+
 def main():
     global transcriber, tray, widget, root, settings_win
     global hotkey_listener
+
+    # CLI utilities short-circuit before the full Tk/UI init.
+    if len(sys.argv) > 1:
+        arg = sys.argv[1]
+        if arg == "--reconfigure-hotkeys":
+            sys.exit(_cli_reconfigure_hotkeys())
+        if arg == "--uninstall-hotkeys":
+            sys.exit(_cli_uninstall_hotkeys())
+        if arg in ("-h", "--help"):
+            print(
+                "Vigil — voice dictation and AI assistant\n\n"
+                "Usage:\n"
+                "  vigil                       run the app\n"
+                "  vigil --reconfigure-hotkeys re-run the compositor hotkey wizard\n"
+                "  vigil --uninstall-hotkeys   remove every vigil-managed binding\n"
+                "  vigil -h | --help           show this help\n"
+            )
+            sys.exit(0)
 
     db.init()
     if setup_utils.needs_first_run():
@@ -400,6 +474,12 @@ def main():
                 "Run manually: uv run python first_run.py",
                 flush=True,
             )
+        sys.exit(0)
+    # Fail fast if another Vigil is already running — avoid wasting ~1s on
+    # Whisper load + widget/tray init before the bus name collision would kick
+    # us out anyway.
+    if dbus_service.is_running():
+        log.info("Another Vigil instance is already running — exiting.")
         sys.exit(0)
     _load_settings()
     tts.init()
@@ -445,6 +525,16 @@ def main():
     t1.start()
     t2 = threading.Thread(target=_assistant_worker, daemon=True)
     t2.start()
+
+    # D-Bus service: exposes org.vigil.Service.Trigger(action) so external
+    # callers (vigil-trigger CLI, compositor key bindings) can toggle
+    # recording. Also functions as a single-instance lock via bus-name
+    # ownership.
+    if not dbus_service.start(on_dictate=_tray_toggle_dictation,
+                              on_assistant=_tray_toggle_assistant):
+        log.info("D-Bus service failed to start — another Vigil may have "
+                 "claimed the name between probe and start. Exiting.")
+        sys.exit(0)
 
     hotkey_listener = HotkeyListener(
         on_press_cb=_on_hotkey_press,

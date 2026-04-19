@@ -16,10 +16,12 @@ dependencies = [
     "PyGObject>=3.42.0",
     "huggingface-hub>=0.23.0",
     "PyQt6>=6.4.0",
+    "jeepney>=0.8.0",
 ]
 
 [project.scripts]
 vigil = "main:main"
+vigil-trigger = "vigil_trigger:main"
 
 [build-system]
 requires = ["setuptools>=42"]

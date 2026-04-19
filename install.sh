@@ -2,7 +2,7 @@
 # Vigil — distro-agnostic installer
 set -euo pipefail
 
-REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
+REPO_URL="https://github.com/3L0935/Vigil.git"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -55,9 +55,16 @@ step "Creating launcher: $BIN_DIR/vigil"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/vigil" << LAUNCHER
 #!/usr/bin/env bash
-exec uv --directory "$INSTALL_DIR" run python main.py "\$@"
+# -- separates uv run flags from program args; without it, uv eats --help.
+exec uv --directory "$INSTALL_DIR" run -- python main.py "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/vigil"
+
+cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
+#!/usr/bin/env bash
+exec uv --directory "$INSTALL_DIR" run -- python -m vigil_trigger "\$@"
+LAUNCHER
+chmod +x "$BIN_DIR/vigil-trigger"
 
 # ── Create .desktop entry ────────────────────────────────────────────────────
 step "Creating desktop entry..."
@@ -74,6 +81,8 @@ Terminal=false
 Categories=Utility;Audio;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
+X-KDE-autostart-phase=2
+X-GNOME-Autostart-Delay=5
 DESKTOP
 
 # ── Optional autostart ───────────────────────────────────────────────────────
@@ -94,6 +103,14 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
 fi
 
+# ── Compositor detection (informational) ────────────────────────────────────
+COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+    "from compositor import detect; print(detect())" 2>/dev/null || echo "unknown")
+echo ""
+step "Compositor detected: $COMPOSITOR"
+echo "  Hotkeys will be bound automatically during first-run setup."
+echo "  Set VIGIL_SKIP_HOTKEYS=1 to skip (useful for CI / headless installs)."
+
 # ── First-run setup ──────────────────────────────────────────────────────────
 echo ""
 step "Running first-time setup wizard..."
@@ -109,4 +126,4 @@ echo ""
 echo "  Run Vigil:  vigil"
 echo "  Or launch from your application menu."
 echo ""
-echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash"
+echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash"

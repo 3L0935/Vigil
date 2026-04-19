@@ -46,7 +46,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 - **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
 - **Full settings UI** — all configuration from the settings window; no editing config files
 - **Multi-language** — English, French, Italian; add more via `locales.py`
-- **X11 + Wayland** — global hotkeys via pynput (X11) or KGlobalAccel D-Bus (KDE Wayland)
+- **X11 + universal Wayland hotkeys** — native binding on KDE (KGlobalAccel), GNOME (gsettings), Hyprland, Sway, niri; graceful manual-instructions fallback elsewhere
 - **Fully offline** after initial model download
 
 ---
@@ -64,7 +64,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
 ```
 
 Or, if you already have the repo cloned:
@@ -197,8 +197,10 @@ setup_utils.py         — terminal detection, first-run detection
 first_run.py           — interactive setup wizard (phases 0–3)
 install.sh             — distro-agnostic installer
 uninstall.sh           — data + desktop entry cleanup
-hotkey.py              — HotkeyListener: X11 (pynput) / Wayland KDE (KGlobalAccel)
-hotkey_kglobalaccel.py — KGlobalAccel D-Bus (Wayland KDE only)
+compositor.py          — env-based compositor detection (KDE, GNOME, Hyprland, Sway, niri, wlr, X11)
+hotkey/                — per-compositor adapters (base, kde, x11, gnome, hyprland, sway, niri, manual)
+service.py             — D-Bus service exposing org.vigil.Service.Trigger(action)
+vigil_trigger.py       — tiny CLI invoked by non-KDE compositor bindings (jeepney)
 platform_linux.py      — is_wayland() / is_x11()
 recorder.py            — sounddevice audio capture
 transcriber.py         — faster-whisper wrapper
@@ -229,27 +231,52 @@ Configurable from Settings. Default:
 
 Format: `Ctrl+Alt+W`, `Meta+D`, `Shift+F9`, etc.
 
-**X11:** uses pynput GlobalHotKeys — works on all X11 desktop environments.  
-**Wayland KDE:** uses KGlobalAccel D-Bus — system-level, works even in Wayland-native apps. Falls back to pynput if KDE is not detected.  
-**Wayland (non-KDE):** KGlobalAccel is unavailable; use the tray icon **Dictate / Assistant** buttons as fallback.
+### Compositor support
+
+| Compositor | Mechanism | User burden |
+|---|---|---|
+| X11 (any WM) | pynput GlobalHotKeys | none |
+| KDE Plasma 6 | KGlobalAccel D-Bus | none |
+| GNOME Wayland | `gsettings` custom-keybindings | none (silent gsettings call) |
+| Hyprland | managed block in `hyprland.conf` + `hyprctl reload` | one Y/N prompt at install |
+| Sway | managed block in `sway/config` + `swaymsg reload` | one Y/N prompt at install |
+| niri | managed block inside `config.kdl`'s `binds { }` + live-reload | one Y/N prompt at install |
+| wlroots / COSMIC / unknown | manual instructions printed — user binds by hand | one-time config edit |
+
+Non-KDE compositors execute `vigil-trigger <action>` on press; the CLI dials the D-Bus service (`org.vigil.Service.Trigger`) exposed by the running Vigil. Bindings live at the compositor level, so a temporary Vigil restart never loses them.
+
+### CLI helpers
+
+```bash
+vigil --reconfigure-hotkeys   # re-run the wizard after a WM switch or failed bind
+vigil --uninstall-hotkeys     # remove every Vigil-managed binding
+vigil-trigger dictate         # manual invocation (exit 1 if Vigil isn't running)
+```
+
+### Skip at install
+
+For CI / headless installs, set `VIGIL_SKIP_HOTKEYS=1` before running `install.sh` or `first_run.py`.
 
 ---
 
 ## Troubleshooting
 
-**llama-server not reachable**  
+**llama-server not reachable**
 The tray tooltip shows a warning at startup. llama-server is launched automatically by the process manager when needed. If it fails, check the log (`~/.local/share/vigil/vigil.log`) or re-run setup from Settings.
 
-**Hotkey not detected (X11)**  
+**Hotkey not detected (X11)**
 Some keyboard layouts map modifier keys differently. Check the app log for the registered combo.
 
-**Hotkey not working (Wayland non-KDE)**  
-KGlobalAccel is KDE-only. On GNOME Wayland, use the tray buttons instead.
+**Hotkey not firing (any Wayland compositor)**
+Run `vigil --reconfigure-hotkeys` — common after a compositor upgrade or WM switch. If you're on wlroots/COSMIC/labwc, Vigil prints the binding command at first-run; you need to add it to your compositor config manually and invoke `vigil-trigger dictate` / `vigil-trigger assistant` from there.
 
-**No audio / microphone not found**  
+**Hotkeys didn't bind after a fresh reboot (KDE)**
+There's a known race between Vigil autostart and KWin input initialisation. The packaged `.desktop` file pins autostart to phase 2 with a 5s fallback delay, which avoids it in practice. If the race still bites, just restart Vigil — the bindings will take on the second try.
+
+**No audio / microphone not found**
 Vigil uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
 
-**Dictation pastes nothing (Wayland)**  
+**Dictation pastes nothing (Wayland)**
 Vigil tries `wtype` first, then `xdotool`, then clipboard. Install at least one:
 ```bash
 # Recommended (native Wayland, all apps)
@@ -259,7 +286,7 @@ sudo pacman -S xdotool
 ```
 On KDE Plasma, `wtype` may log `Compositor does not support the virtual keyboard protocol` — this is harmless; `xdotool` takes over automatically.
 
-**TTS not playing**  
+**TTS not playing**
 Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
 
 ---
@@ -268,12 +295,18 @@ Requires Piper and voice files. Go to Settings → Re-run setup and select TTS a
 
 **One-liner:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/update.sh | bash
 ```
 
 **Or, if you have the repo cloned:**
 ```bash
 bash update.sh
+```
+
+**Track a feature branch** — use `env` so the var applies to `bash`, not `curl`, and the syntax works in both bash and fish:
+```bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/<branch>/update.sh \
+  | env VIGIL_BRANCH=<branch> bash
 ```
 
 Stops the running instance, pulls the latest code, syncs dependencies, and restarts Vigil automatically. Your configuration and data are preserved.
@@ -284,10 +317,10 @@ Stops the running instance, pulls the latest code, syncs dependencies, and resta
 
 **One-liner:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/WritHer-Linux/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash
 ```
 
-**From the app:**  
+**From the app:**
 Settings → Uninstall — removes data directory, desktop entries, and launcher.
 
 **Manually (if you have the repo):**

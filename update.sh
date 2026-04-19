@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Vigil — update script
 # Stops the running instance, pulls the latest code, syncs deps, and restarts.
+#
+# Env vars:
+#   VIGIL_BRANCH   branch to track (default: main). Use this to test a feature
+#                  branch before it's merged, e.g.:
+#                    VIGIL_BRANCH=feat/wayland-hotkeys-universal bash update.sh
 set -euo pipefail
 
-REPO_URL="https://github.com/3L0935/WritHer-Linux.git"
+REPO_URL="https://github.com/3L0935/Vigil.git"
+VIGIL_BRANCH="${VIGIL_BRANCH:-main}"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$(pwd)}")" 2>/dev/null && pwd || pwd)"
@@ -25,6 +31,13 @@ if [[ ! -d "$INSTALL_DIR/.git" ]]; then
     git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
 elif ! git -C "$INSTALL_DIR" remote get-url origin &>/dev/null; then
     git -C "$INSTALL_DIR" remote add origin "$REPO_URL"
+else
+    # Silently migrate old WritHer-Linux remote to the renamed Vigil repo.
+    CURRENT_URL=$(git -C "$INSTALL_DIR" remote get-url origin)
+    if [[ "$CURRENT_URL" == *"WritHer-Linux"* ]]; then
+        step "Updating remote URL: WritHer-Linux → Vigil"
+        git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    fi
 fi
 
 # ── 1. Stop running instance ─────────────────────────────────────────────────
@@ -54,8 +67,8 @@ else
 fi
 
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
-step "Fetching latest changes..."
-git -C "$INSTALL_DIR" fetch --depth=1 origin main
+step "Fetching $VIGIL_BRANCH..."
+git -C "$INSTALL_DIR" fetch --depth=1 origin "$VIGIL_BRANCH"
 git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 
 # ── 3. Refresh .desktop entries ───────────────────────────────────────────────
@@ -74,6 +87,8 @@ Terminal=false
 Categories=Utility;Audio;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
+X-KDE-autostart-phase=2
+X-GNOME-Autostart-Delay=5
 DESKTOP
 }
 
@@ -85,6 +100,26 @@ refresh_desktop "$AUTOSTART_DIR/vigil.desktop"
 # Prompt the icon cache to re-read (best-effort, no-op if missing)
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 
+# ── 3b. Refresh bin wrappers (covers new vigil-trigger + fixes --help swallow) ─
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+if [[ -d "$BIN_DIR" ]]; then
+    if [[ -x "$BIN_DIR/vigil" ]]; then
+        step "Refreshing vigil wrapper..."
+        cat > "$BIN_DIR/vigil" << LAUNCHER
+#!/usr/bin/env bash
+# -- separates uv run flags from program args; without it, uv eats --help.
+exec uv --directory "$INSTALL_DIR" run -- python main.py "\$@"
+LAUNCHER
+        chmod +x "$BIN_DIR/vigil"
+    fi
+    step "Installing/refreshing vigil-trigger CLI wrapper..."
+    cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
+#!/usr/bin/env bash
+exec uv --directory "$INSTALL_DIR" run -- python -m vigil_trigger "\$@"
+LAUNCHER
+    chmod +x "$BIN_DIR/vigil-trigger"
+fi
+
 # ── 4. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."
 # Preserve TTS if it was installed (piper-tts is an optional dep — uv sync drops it without --extra)
@@ -93,6 +128,19 @@ if uv --directory "$INSTALL_DIR" run python -c "import piper" 2>/dev/null; then
     SYNC_EXTRAS="--extra tts-piper"
 fi
 uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
+
+# ── 4b. Detect compositor change ──────────────────────────────────────────────
+STORED_ADAPTER=$(uv --directory "$INSTALL_DIR" run python -c \
+    "import database; database.init(); print(database.get_setting('hotkey_adapter', ''))" \
+    2>/dev/null || echo "")
+CURRENT_COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+    "from compositor import detect; print(detect())" 2>/dev/null || echo "")
+if [[ -n "$STORED_ADAPTER" && -n "$CURRENT_COMPOSITOR" \
+      && "$STORED_ADAPTER" != "$CURRENT_COMPOSITOR" \
+      && "$STORED_ADAPTER" != "skipped" && "$STORED_ADAPTER" != "manual" ]]; then
+    warn "Compositor changed: last bound via '$STORED_ADAPTER', now running '$CURRENT_COMPOSITOR'."
+    echo "  Run: vigil --reconfigure-hotkeys"
+fi
 
 # ── 5. Restart if it was running ─────────────────────────────────────────────
 if [[ "$WAS_RUNNING" == true ]]; then
