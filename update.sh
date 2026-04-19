@@ -100,13 +100,22 @@ refresh_desktop "$AUTOSTART_DIR/vigil.desktop"
 # Prompt the icon cache to re-read (best-effort, no-op if missing)
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 
-# ── 3b. Ensure vigil-trigger wrapper exists (added by newer versions) ────────
+# ── 3b. Refresh bin wrappers (covers new vigil-trigger + fixes --help swallow) ─
 BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
-if [[ -d "$BIN_DIR" && ! -x "$BIN_DIR/vigil-trigger" ]]; then
-    step "Installing vigil-trigger CLI wrapper..."
+if [[ -d "$BIN_DIR" ]]; then
+    if [[ -x "$BIN_DIR/vigil" ]]; then
+        step "Refreshing vigil wrapper..."
+        cat > "$BIN_DIR/vigil" << LAUNCHER
+#!/usr/bin/env bash
+# -- separates uv run flags from program args; without it, uv eats --help.
+exec uv --directory "$INSTALL_DIR" run -- python main.py "\$@"
+LAUNCHER
+        chmod +x "$BIN_DIR/vigil"
+    fi
+    step "Installing/refreshing vigil-trigger CLI wrapper..."
     cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
 #!/usr/bin/env bash
-exec uv --directory "$INSTALL_DIR" run python -m vigil_trigger "\$@"
+exec uv --directory "$INSTALL_DIR" run -- python -m vigil_trigger "\$@"
 LAUNCHER
     chmod +x "$BIN_DIR/vigil-trigger"
 fi
