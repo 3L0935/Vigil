@@ -224,8 +224,15 @@ class KdeAdapter(HotkeyAdapter):
             log.warning("KGlobalAccel: missing deps: %s", exc)
             return False
         try:
-            dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-            self._bus = dbus.SessionBus()
+            # Must pass mainloop + private=True same as service.py. Without it,
+            # connect_to_signal() bombs at runtime with "connection must be
+            # attached to a main loop" and KDE's keypress never reaches our
+            # callback — registration succeeds, signal handler never wires,
+            # shortcuts look bound but never fire. SessionBus() without
+            # args may also return a cached singleton that has lost its
+            # mainloop; private=True forces a fresh connection.
+            mainloop = dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+            self._bus = dbus.SessionBus(mainloop=mainloop, private=True)
             kga_obj = self._bus.get_object("org.kde.kglobalaccel", "/kglobalaccel")
             self._kga_iface = dbus.Interface(kga_obj,
                                              dbus_interface="org.kde.KGlobalAccel")
