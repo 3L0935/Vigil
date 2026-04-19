@@ -94,6 +94,15 @@ _DESCRIPTIONS = {
 # Stale component IDs from earlier development names.
 _STALE_SECTIONS = ("writher", "writher_test", "vigil_test", "diag")
 
+# Actions whose name changed across versions. When an old name appears in
+# kglobalshortcutsrc (pre-refactor install), KDE keeps it registered — a user
+# who had bound the old name ends up with an orphan action that doesn't fire
+# any callback. `_ACTION_ALIASES` routes presses of the old name to the new
+# callback at runtime; `_STALE_ACTION_NAMES` lists names to purge from both
+# the config file and KDE's runtime component during adapter init.
+_ACTION_ALIASES = {"assist": "assistant"}
+_STALE_ACTION_NAMES = ("assist",)
+
 
 def _sync_one_shortcut_to_config(action_id: str, combo: str) -> None:
     """Update one key in the [vigil] section without disturbing siblings.
@@ -163,6 +172,7 @@ class KdeAdapter(HotkeyAdapter):
 
         if not self._stale_cleaned:
             self._release_stale_writher()
+            self._purge_stale_actions()
             self._stale_cleaned = True
 
         _sync_one_shortcut_to_config(action_id, combo)
@@ -246,6 +256,45 @@ class KdeAdapter(HotkeyAdapter):
             log.warning("KGlobalAccel: init failed: %s", exc)
             return False
 
+    def _purge_stale_actions(self) -> None:
+        """Clear renamed actions (e.g. 'assist' → 'assistant') from both the
+        config file and KDE's runtime component. Called once per adapter
+        init. Orphan entries otherwise show up as duplicate rows in System
+        Settings → Shortcuts → Vigil and can steal the user's chosen combo."""
+        if self._kga_iface is None or self._bus is None:
+            return
+        try:
+            import dbus
+            empty = dbus.Array([], signature="i")
+            for stale_name in _STALE_ACTION_NAMES:
+                desc = [_APP_ID, stale_name, "Vigil",
+                        _DESCRIPTIONS.get(stale_name, stale_name)]
+                try:
+                    self._kga_iface.setForeignShortcut(desc, empty)
+                except Exception:
+                    pass
+        except Exception:
+            pass  # best-effort runtime purge
+
+        # Strip stale keys from kglobalshortcutsrc so the next KConfig reload
+        # doesn't resurrect them.
+        try:
+            cfg = configparser.RawConfigParser(strict=False)
+            cfg.optionxform = str
+            cfg.read(_KGLOBAL_CONFIG)
+            if cfg.has_section(_APP_ID):
+                changed = False
+                for stale_name in _STALE_ACTION_NAMES:
+                    if cfg.has_option(_APP_ID, stale_name):
+                        cfg.remove_option(_APP_ID, stale_name)
+                        changed = True
+                        log.info("KGlobalAccel: purged stale action '%s'", stale_name)
+                if changed:
+                    with open(_KGLOBAL_CONFIG, "w") as f:
+                        cfg.write(f, space_around_delimiters=False)
+        except Exception as exc:
+            log.warning("KGlobalAccel: stale-action config purge failed: %s", exc)
+
     def _release_stale_writher(self) -> None:
         """Empty + cleanUp() legacy 'writher' component so KDE doesn't
         re-claim our combos on its next kglobalshortcutsrc rewrite."""
@@ -287,9 +336,14 @@ class KdeAdapter(HotkeyAdapter):
             log.warning("KGlobalAccel: signal connect failed: %s", exc)
 
     def _on_pressed(self, component_unique, shortcut_unique, timestamp):
+        name = str(shortcut_unique)
         log.debug("KGlobalAccel: pressed component=%s shortcut=%s",
-                  component_unique, shortcut_unique)
-        cb = self._callbacks.get(str(shortcut_unique))
+                  component_unique, name)
+        # Route legacy names (e.g. "assist") to the current callback
+        # ("assistant") so users upgrading from pre-refactor installs don't
+        # lose their hotkey even before _purge_stale_actions cleans KDE.
+        resolved = _ACTION_ALIASES.get(name, name)
+        cb = self._callbacks.get(resolved)
         if cb is None:
             return
         try:
