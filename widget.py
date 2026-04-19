@@ -1279,6 +1279,10 @@ class RecordingWidget:
             drift = int(math.sin(t * 0.06) * ig_r * 0.2)
             _iris(s_cx + drift, s_cy, glow_a=100)
 
+        elif expr == "writing":
+            drift = int(math.sin(t * 0.1) * ig_r * 0.25)
+            _iris(s_cx + drift, s_cy, glow_a=120)
+
         elif expr == "coding":
             blink = 1.0 if (t % 15) < 10 else 0.2
             _iris(s_cx, s_cy,
