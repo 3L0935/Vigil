@@ -242,6 +242,8 @@ class KdeAdapter(HotkeyAdapter):
         if not self._signal_connected:
             self._connect_signal()
 
+        self._schedule_grab_nudges(action_id, action, keys, flags)
+
         log.info("KGlobalAccel registered %s=%s", action_id, combo)
         return True
 
@@ -297,6 +299,45 @@ class KdeAdapter(HotkeyAdapter):
         except Exception as exc:
             log.warning("KGlobalAccel: init failed: %s", exc)
             return False
+
+    def _schedule_grab_nudges(self, action_id: str, action: list,
+                              keys, flags) -> None:
+        """Re-issue the register sequence at T+10s and T+30s.
+
+        On Plasma 6 autostart, the first doRegister/setForeignShortcut
+        call can complete silently — KGA's table ends up correct
+        (`getGlobalShortcutsByKey(Alt+X)` resolves to vigil.dictate,
+        `isGlobalShortcutAvailable` returns false), but KWin's Wayland
+        keyboard-grab filter never installs the grab. Keypresses bypass
+        vigil for the whole session. Polling `/component/kwin`
+        shortcutNames() as a readiness proxy is not sufficient: KWin
+        registers its 344 default actions synchronously at kwin_wayland
+        init, long before its input pipeline is ready to accept new
+        component grabs.
+
+        Re-calling the same register triple after KWin has had more
+        wall-clock time to warm up fixes the grab in practice.
+        Idempotent: if the grab is already installed, re-registering is
+        a no-op on KGA's side. Runs in a daemon thread so registration
+        stays non-blocking.
+        """
+        def nudge_sequence() -> None:
+            for delay, mark in ((10.0, 10), (20.0, 30)):
+                time.sleep(delay)
+                try:
+                    self._kga_iface.doRegister(action)
+                    self._kga_iface.setShortcut(action, keys, flags)
+                    self._kga_iface.setForeignShortcut(action, keys)
+                    log.debug("KGlobalAccel: re-nudged %s at T+%ds",
+                              action_id, mark)
+                except Exception as exc:
+                    log.debug("KGlobalAccel: nudge %s at T+%ds failed: %s",
+                              action_id, mark, exc)
+
+        threading.Thread(
+            target=nudge_sequence, daemon=True,
+            name=f"vigil-kga-nudge-{action_id}",
+        ).start()
 
     def _wait_kwin_ready(self, timeout: float = 60.0) -> bool:
         """Block until KWin has populated its own global-shortcut list.
