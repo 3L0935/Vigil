@@ -287,6 +287,7 @@ class KdeAdapter(HotkeyAdapter):
             kga_obj = self._bus.get_object("org.kde.kglobalaccel", "/kglobalaccel")
             self._kga_iface = dbus.Interface(kga_obj,
                                              dbus_interface="org.kde.KGlobalAccel")
+            self._wait_kwin_ready()
             self._loop = GLib.MainLoop()
             t = threading.Thread(target=self._loop.run, daemon=True,
                                  name="vigil-kga-loop")
@@ -296,6 +297,51 @@ class KdeAdapter(HotkeyAdapter):
         except Exception as exc:
             log.warning("KGlobalAccel: init failed: %s", exc)
             return False
+
+    def _wait_kwin_ready(self, timeout: float = 60.0) -> bool:
+        """Block until KWin has populated its own global-shortcut list.
+
+        At graphical-session.target the `org.kde.kglobalaccel` D-Bus name
+        is claimed early by kwin_wayland, but the key-grab subsystem is
+        still warming up. Registering during that window makes
+        doRegister/setForeignShortcut return success silently — the
+        action exists in KGA but KWin never installs the grab, so the
+        keys never fire for the entire Vigil session (until the user
+        relaunches, by which time KWin is ready).
+
+        Proxy for readiness: KWin registers dozens of default actions
+        (Switch to Desktop N, view_actual_size, ...). Once shortcutNames()
+        on /component/kwin returns non-empty, the grab path is proven
+        functional. Manual relaunch: first iteration succeeds (<50 ms).
+        """
+        if self._kga_iface is None or self._bus is None:
+            return False
+        import dbus
+        deadline = time.monotonic() + timeout
+        attempt = 0
+        while time.monotonic() < deadline:
+            attempt += 1
+            try:
+                path = str(self._kga_iface.getComponent("kwin"))
+                if path:
+                    comp = self._bus.get_object("org.kde.kglobalaccel", path)
+                    iface = dbus.Interface(
+                        comp,
+                        dbus_interface="org.kde.kglobalaccel.Component")
+                    names = list(iface.shortcutNames())
+                    if names:
+                        log.info(
+                            "KWin KGA ready after %d probe(s), %d default shortcuts",
+                            attempt, len(names))
+                        return True
+            except Exception:
+                pass
+            time.sleep(0.5)
+        log.warning(
+            "KWin KGA not reporting shortcuts after %.0fs — registering "
+            "anyway, hotkeys may not fire until next Vigil restart",
+            timeout)
+        return False
 
     def _purge_stale_actions(self) -> None:
         """Remove renamed actions (e.g. 'assist' → 'assistant') from both
