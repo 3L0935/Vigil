@@ -214,6 +214,7 @@ class KdeAdapter(HotkeyAdapter):
         if not self._stale_cleaned:
             self._release_stale_writher()
             self._purge_stale_actions()
+            self._reset_vigil_component()
             self._stale_cleaned = True
 
         _sync_one_shortcut_to_config(action_id, combo)
@@ -241,8 +242,6 @@ class KdeAdapter(HotkeyAdapter):
 
         if not self._signal_connected:
             self._connect_signal()
-
-        self._schedule_grab_nudges(action_id, action, keys, flags)
 
         log.info("KGlobalAccel registered %s=%s", action_id, combo)
         return True
@@ -300,44 +299,47 @@ class KdeAdapter(HotkeyAdapter):
             log.warning("KGlobalAccel: init failed: %s", exc)
             return False
 
-    def _schedule_grab_nudges(self, action_id: str, action: list,
-                              keys, flags) -> None:
-        """Re-issue the register sequence at T+10s and T+30s.
+    def _reset_vigil_component(self) -> None:
+        """cleanUp() our own KGA component before first register.
 
-        On Plasma 6 autostart, the first doRegister/setForeignShortcut
-        call can complete silently — KGA's table ends up correct
-        (`getGlobalShortcutsByKey(Alt+X)` resolves to vigil.dictate,
-        `isGlobalShortcutAvailable` returns false), but KWin's Wayland
-        keyboard-grab filter never installs the grab. Keypresses bypass
-        vigil for the whole session. Polling `/component/kwin`
-        shortcutNames() as a readiness proxy is not sufficient: KWin
-        registers its 344 default actions synchronously at kwin_wayland
-        init, long before its input pipeline is ready to accept new
-        component grabs.
+        Empirically, on Plasma 6 Wayland autostart, doRegister +
+        setForeignShortcut install the KGA action descriptor but skip
+        the Wayland keyboard-grab install. `getGlobalShortcutsByKey`
+        resolves correctly, `isGlobalShortcutAvailable` returns false,
+        yet physical keypresses bypass vigil for the whole session.
+        Re-issuing the register triple from the same D-Bus client is a
+        no-op — KGA dedupes it. Killing vigil and relaunching it from
+        a fresh process DOES install the grab, because a new D-Bus
+        sender triggers full re-registration path in KGA.
+        Verified in-session: kill+restart at T+30min after autostart
+        fixes the grab; two nudges from the same process at T+10s/T+30s
+        do not.
 
-        Re-calling the same register triple after KWin has had more
-        wall-clock time to warm up fixes the grab in practice.
-        Idempotent: if the grab is already installed, re-registering is
-        a no-op on KGA's side. Runs in a daemon thread so registration
-        stays non-blocking.
+        Best we can do without re-exec'ing: call Component.cleanUp() on
+        the pre-existing /component/vigil that KGA loaded from
+        kglobalshortcutsrc at session start. That drops KGA's cached
+        state for our bindings. When doRegister fires a moment later,
+        KGA treats it as a brand-new component creation, which
+        plausibly re-attempts the Wayland grab install.
+
+        First-ever install has nothing to clean up — silent skip. Only
+        runs once per Vigil session (guarded by _stale_cleaned).
         """
-        def nudge_sequence() -> None:
-            for delay, mark in ((10.0, 10), (20.0, 30)):
-                time.sleep(delay)
-                try:
-                    self._kga_iface.doRegister(action)
-                    self._kga_iface.setShortcut(action, keys, flags)
-                    self._kga_iface.setForeignShortcut(action, keys)
-                    log.debug("KGlobalAccel: re-nudged %s at T+%ds",
-                              action_id, mark)
-                except Exception as exc:
-                    log.debug("KGlobalAccel: nudge %s at T+%ds failed: %s",
-                              action_id, mark, exc)
-
-        threading.Thread(
-            target=nudge_sequence, daemon=True,
-            name=f"vigil-kga-nudge-{action_id}",
-        ).start()
+        if self._kga_iface is None or self._bus is None:
+            return
+        try:
+            import dbus
+            path = str(self._kga_iface.getComponent(_APP_ID))
+            if not path:
+                return
+            comp = self._bus.get_object("org.kde.kglobalaccel", path)
+            iface = dbus.Interface(
+                comp, dbus_interface="org.kde.kglobalaccel.Component")
+            iface.cleanUp()
+            time.sleep(0.3)
+            log.info("KGlobalAccel: pre-register cleanUp of /component/vigil")
+        except Exception as exc:
+            log.debug("KGlobalAccel: component reset skipped: %s", exc)
 
     def _wait_kwin_ready(self, timeout: float = 60.0) -> bool:
         """Block until KWin has populated its own global-shortcut list.
