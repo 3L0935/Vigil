@@ -87,16 +87,15 @@ Terminal=false
 Categories=Utility;Audio;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
-X-KDE-autostart-phase=2
-X-GNOME-Autostart-Delay=5
 DESKTOP
 }
 
-step "Refreshing .desktop entries..."
+step "Refreshing .desktop entry..."
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
 refresh_desktop "$DESKTOP_DIR/vigil.desktop"
-refresh_desktop "$AUTOSTART_DIR/vigil.desktop"
+# Clean up any legacy autostart file from older installs
+AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/vigil.desktop"
+[[ -f "$AUTOSTART" ]] && rm -f "$AUTOSTART"
 # Prompt the icon cache to re-read (best-effort, no-op if missing)
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 

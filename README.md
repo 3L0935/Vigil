@@ -78,7 +78,7 @@ The installer will:
 1. Install [uv](https://docs.astral.sh/uv/) if not present
 2. Set up the Python virtual environment and dependencies
 3. Create a `vigil` launcher in `~/.local/bin/`
-4. Create a `.desktop` entry (app launcher + optional autostart)
+4. Create a `.desktop` entry (app launcher)
 5. Run the interactive first-run setup wizard
 
 ---
@@ -269,9 +269,6 @@ Some keyboard layouts map modifier keys differently. Check the app log for the r
 
 **Hotkey not firing (any Wayland compositor)**
 Run `vigil --reconfigure-hotkeys` — common after a compositor upgrade or WM switch. If you're on wlroots/COSMIC/labwc, Vigil prints the binding command at first-run; you need to add it to your compositor config manually and invoke `vigil-trigger dictate` / `vigil-trigger assistant` from there.
-
-**Hotkeys didn't bind after a fresh reboot (KDE)**
-There's a known race between Vigil autostart and KWin input initialisation. The packaged `.desktop` file pins autostart to phase 2 with a 5s fallback delay, which avoids it in practice. If the race still bites, just restart Vigil — the bindings will take on the second try.
 
 **No audio / microphone not found**
 Vigil uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
