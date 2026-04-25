@@ -482,6 +482,14 @@ def main():
         log.info("Another Vigil instance is already running — exiting.")
         sys.exit(0)
     _load_settings()
+
+    # KDE Plasma 6 Wayland workaround: the first vigil process of a session
+    # registers KGA actions but never installs the Wayland keyboard grab.
+    # Re-exec from a fresh D-Bus client name so the actual grab installs.
+    # No-op on every other compositor and on subsequent same-session vigils.
+    from hotkey.kde import preflight_grab_install
+    preflight_grab_install()
+
     tts.init()
 
     root = tk.Tk()

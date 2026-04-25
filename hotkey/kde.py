@@ -21,8 +21,10 @@ import configparser
 import shutil
 import subprocess
 import os
+import sys
 import threading
 import time
+from pathlib import Path
 from typing import Callable
 
 from hotkey.base import HotkeyAdapter
@@ -493,3 +495,95 @@ class KdeAdapter(HotkeyAdapter):
             cb()
         except Exception as exc:
             log.error("KGlobalAccel callback error: %s", exc)
+
+
+# ── First-launch grab preflight (KDE Plasma 6 Wayland) ────────────────────────
+
+_GRAB_RETRY_ENV = "VIGIL_GRAB_RETRIED"
+_GRAB_MARKER_NAME = "vigil-grab-ready"
+
+
+def _grab_marker_path() -> Path | None:
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime:
+        return None
+    return Path(runtime) / _GRAB_MARKER_NAME
+
+
+def preflight_grab_install() -> None:
+    """First-launch workaround for KDE Plasma 6 Wayland KGA grab bug.
+
+    On the first vigil process of a graphical session, doRegister installs
+    the action descriptor but never installs the actual Wayland keyboard
+    grab — physical Alt+X bypasses vigil for the whole session even though
+    every D-Bus probe reports the binding as present. The empirical fix is
+    to register from a fresh D-Bus client name, i.e. exec a new process.
+
+    This function does the dance transparently:
+      1. Skip if VIGIL_GRAB_RETRIED is set (we are already the second-gen
+         process — fall through to normal start-up).
+      2. Skip if the per-session marker file exists (a previous vigil this
+         session has already paid the preflight).
+      3. Skip on non-Wayland (X11 KGA uses real X grabs, no bug here) or
+         non-KDE (function is a no-op, safe to call unconditionally).
+      4. Otherwise: build a KdeAdapter, register both shortcuts so KGA
+         caches our descriptor, touch the marker, and os.execve ourselves
+         with VIGIL_GRAB_RETRIED=1 so the new process bypasses the
+         workaround. Do NOT call adapter.shutdown() before exec — that
+         would unregister the bindings we just installed and put the next
+         process back in the broken first-launch state.
+
+    Caller: main(), after _load_settings() (we read config.HOTKEY) and
+    before any heavy init (Tk, Whisper, tray) so the wasted startup cost
+    is minimal. Wrapped in try/except so any failure falls through to
+    normal start-up — user keeps the existing "restart vigil" workaround.
+    """
+    try:
+        from compositor import detect as _detect
+        import platform_linux
+        if _detect() != "kde" or not platform_linux.is_wayland():
+            return
+        marker = _grab_marker_path()
+        if marker is None:
+            log.debug("preflight: XDG_RUNTIME_DIR unset, skipping")
+            return
+
+        if os.environ.get(_GRAB_RETRY_ENV) == "1":
+            # We are the post-exec process: the grab is installed (or as
+            # good as it gets). Touch the session marker so any subsequent
+            # vigil launched in this session skips the preflight + re-exec
+            # entirely. Marker lives in $XDG_RUNTIME_DIR (tmpfs, cleared on
+            # logout) so a fresh session correctly re-runs the workaround.
+            try:
+                marker.touch()
+            except Exception:
+                pass
+            return
+
+        if marker.exists():
+            return
+
+        import config
+        adapter = KdeAdapter()
+        if not adapter.is_available():
+            return
+
+        log.info("KDE first-launch grab preflight: registering + re-execing")
+        ok_d = adapter.register("dictate", config.HOTKEY)
+        ok_a = adapter.register("assistant", config.ASSISTANT_HOTKEY)
+        if not (ok_d or ok_a):
+            log.warning("preflight: both registers failed, skipping re-exec")
+            return
+
+        # Do NOT call adapter.shutdown() here — its unregister() empties
+        # the bindings we just installed, putting the next process back in
+        # the broken first-launch state. os.execve replaces the process,
+        # which closes the D-Bus connection cleanly without disturbing
+        # KGA's cached descriptor.
+        new_env = dict(os.environ, **{_GRAB_RETRY_ENV: "1"})
+        log.info("preflight: os.execve to install grab via fresh D-Bus client")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.execve(sys.executable, [sys.executable] + sys.argv, new_env)
+    except Exception as exc:
+        log.warning("preflight: unexpected failure (%s) — continuing normal startup", exc)
