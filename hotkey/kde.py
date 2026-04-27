@@ -517,21 +517,35 @@ def preflight_grab_install() -> None:
     the action descriptor but never installs the actual Wayland keyboard
     grab — physical Alt+X bypasses vigil for the whole session even though
     every D-Bus probe reports the binding as present. The empirical fix is
-    to register from a fresh D-Bus client name, i.e. exec a new process.
+    to register from a **truly** fresh D-Bus client (new PID, new bus name).
 
-    This function does the dance transparently:
-      1. Skip if VIGIL_GRAB_RETRIED is set (we are already the second-gen
-         process — fall through to normal start-up).
-      2. Skip if the per-session marker file exists (a previous vigil this
-         session has already paid the preflight).
-      3. Skip on non-Wayland (X11 KGA uses real X grabs, no bug here) or
+    First attempt used `os.execve` — failed in practice (2026-04-27 test):
+    the dbus-python socket FD is not marked FD_CLOEXEC, so execve preserved
+    the same D-Bus client name (`:1.X`). KGA tracks clients via
+    `NameOwnerChanged` and saw the same sender re-register → no grab install.
+
+    Current approach mirrors the proven user workaround `pkill vigil &&
+    vigil`: register from vigil#1, spawn a fresh subprocess, then `os._exit`.
+    Process death triggers kernel FD cleanup → D-Bus emits NameOwnerChanged
+    loss → KGA cleans tracking. vigil#2 connects with a brand-new bus name
+    and its register succeeds in installing the grab.
+
+    Flow:
+      1. Skip on non-Wayland (X11 KGA uses real X grabs, no bug here) or
          non-KDE (function is a no-op, safe to call unconditionally).
-      4. Otherwise: build a KdeAdapter, register both shortcuts so KGA
-         caches our descriptor, touch the marker, and os.execve ourselves
-         with VIGIL_GRAB_RETRIED=1 so the new process bypasses the
-         workaround. Do NOT call adapter.shutdown() before exec — that
-         would unregister the bindings we just installed and put the next
-         process back in the broken first-launch state.
+      2. If VIGIL_GRAB_RETRIED=1 → we're vigil#2: sleep 0.3s so KGA has
+         time to process vigil#1's NameLost before HotkeyListener.start()
+         issues the real register, then touch the per-session marker and
+         return to normal start-up.
+      3. If the per-session marker exists → preflight already paid this
+         session, skip (subsequent same-session launches are clean).
+      4. Otherwise vigil#1: register both shortcuts so KGA caches our
+         descriptor under our (about-to-die) bus name, then
+         subprocess.Popen vigil#2 with VIGIL_GRAB_RETRIED=1 and os._exit(0).
+
+    Why os._exit and not sys.exit: atexit handlers could fire unregister
+    calls or close the D-Bus connection in unexpected ways. We need an
+    atomic process death so the kernel cleans FDs deterministically.
 
     Caller: main(), after _load_settings() (we read config.HOTKEY) and
     before any heavy init (Tk, Whisper, tray) so the wasted startup cost
@@ -549,11 +563,10 @@ def preflight_grab_install() -> None:
             return
 
         if os.environ.get(_GRAB_RETRY_ENV) == "1":
-            # We are the post-exec process: the grab is installed (or as
-            # good as it gets). Touch the session marker so any subsequent
-            # vigil launched in this session skips the preflight + re-exec
-            # entirely. Marker lives in $XDG_RUNTIME_DIR (tmpfs, cleared on
-            # logout) so a fresh session correctly re-runs the workaround.
+            # vigil#2 post-spawn: give KGA a moment to process vigil#1's
+            # NameOwnerChanged loss before HotkeyListener.start()'s register
+            # arrives under our fresh bus name. Then mark the session done.
+            time.sleep(0.3)
             try:
                 marker.touch()
             except Exception:
@@ -568,22 +581,26 @@ def preflight_grab_install() -> None:
         if not adapter.is_available():
             return
 
-        log.info("KDE first-launch grab preflight: registering + re-execing")
+        log.info("KDE first-launch grab preflight: registering + spawning fresh process")
         ok_d = adapter.register("dictate", config.HOTKEY)
         ok_a = adapter.register("assistant", config.ASSISTANT_HOTKEY)
         if not (ok_d or ok_a):
-            log.warning("preflight: both registers failed, skipping re-exec")
+            log.warning("preflight: both registers failed, skipping respawn")
             return
 
-        # Do NOT call adapter.shutdown() here — its unregister() empties
-        # the bindings we just installed, putting the next process back in
-        # the broken first-launch state. os.execve replaces the process,
-        # which closes the D-Bus connection cleanly without disturbing
-        # KGA's cached descriptor.
+        # subprocess.Popen forks a real new process: new PID, new D-Bus
+        # connection (close_fds=True is the default on py3.7+ Unix, so
+        # our bus socket does NOT leak into the child — that's load-bearing,
+        # otherwise we recreate the execve bug). Don't pass
+        # start_new_session: keep stdio inherited so logs in the user's
+        # terminal stay visible.
         new_env = dict(os.environ, **{_GRAB_RETRY_ENV: "1"})
-        log.info("preflight: os.execve to install grab via fresh D-Bus client")
+        log.info("preflight: subprocess.Popen vigil#2 + os._exit(0)")
         sys.stdout.flush()
         sys.stderr.flush()
-        os.execve(sys.executable, [sys.executable] + sys.argv, new_env)
+        subprocess.Popen([sys.executable] + sys.argv, env=new_env)
+        # Hard exit (not sys.exit): atexit could fire unregister calls and
+        # tear down the bindings we just installed.
+        os._exit(0)
     except Exception as exc:
         log.warning("preflight: unexpected failure (%s) — continuing normal startup", exc)
