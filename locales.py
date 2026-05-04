@@ -75,17 +75,8 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         # search_files
         "file_no_results":      "No files matching '{query}' in {folder}.",
-        "file_results_found": (
-            "Found in {folder}:\n{list}\n\n"
-            "Tell the user what you found and ask which to open. They can reply "
-            "with a number to open one."
-        ),
-        "file_results_similar": (
-            "No exact match for '{query}' in {folder}, but found similar files:\n"
-            "{list}\n\n"
-            "Tell the user the requested file does not exist, and offer one of "
-            "these as an alternative. They can reply with a number to open one."
-        ),
+        "file_results_found":   "Found in {folder}:\n{list}",
+        "file_results_similar": "No exact match for '{query}' in {folder}. Similar files:\n{list}",
         "file_opened":          "Opening {name}.",
         "file_open_failed":     "Could not open '{path}'.",
         "retry_launch_ctx": (
@@ -201,17 +192,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         ),
 
         "file_no_results":      "Nessun file corrispondente a '{query}' in {folder}.",
-        "file_results_found": (
-            "Trovato in {folder}:\n{list}\n\n"
-            "Di' all'utente cosa hai trovato e chiedi quale aprire. Può rispondere "
-            "con un numero per aprirne uno."
-        ),
-        "file_results_similar": (
-            "Nessuna corrispondenza esatta per '{query}' in {folder}, ma trovati "
-            "file simili:\n{list}\n\n"
-            "Di' all'utente che il file richiesto non esiste, e offri uno di questi "
-            "come alternativa. Può rispondere con un numero per aprirne uno."
-        ),
+        "file_results_found":   "Trovato in {folder}:\n{list}",
+        "file_results_similar": "Nessuna corrispondenza esatta per '{query}' in {folder}. File simili:\n{list}",
         "file_opened":          "Apro {name}.",
         "file_open_failed":     "Impossibile aprire '{path}'.",
         "retry_launch_ctx": (
@@ -336,18 +318,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         ),
 
         "file_no_results":      "Aucun fichier correspondant à « {query} » dans {folder}.",
-        "file_results_found": (
-            "Trouvé dans {folder} :\n{list}\n\n"
-            "Dis à l'utilisateur ce que tu as trouvé et demande lequel ouvrir. Il "
-            "peut répondre par un numéro pour en ouvrir un."
-        ),
-        "file_results_similar": (
-            "Aucune correspondance exacte pour « {query} » dans {folder}, mais "
-            "fichiers similaires trouvés :\n{list}\n\n"
-            "Dis à l'utilisateur que le fichier demandé n'existe pas, et propose "
-            "l'un de ceux-ci comme alternative. Il peut répondre par un numéro "
-            "pour en ouvrir un."
-        ),
+        "file_results_found":   "Trouvé dans {folder} :\n{list}",
+        "file_results_similar": "Aucune correspondance exacte pour « {query} » dans {folder}. Fichiers similaires :\n{list}",
         "file_opened":          "Ouverture de {name}.",
         "file_open_failed":     "Impossible d'ouvrir « {path} ».",
         "retry_launch_ctx": (

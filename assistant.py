@@ -122,7 +122,7 @@ def register_action(name: str, fn) -> None:
 
 # ── Tool definitions ──────────────────────────────────────────────────────
 
-_SEARCH_TOOLS = {"search_web", "search_obsidian_vault"}
+_SEARCH_TOOLS = {"search_web", "search_obsidian_vault", "search_files"}
 
 _WEB_SEARCH_TOOL = {
     "type": "function",

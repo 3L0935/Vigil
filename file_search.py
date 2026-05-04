@@ -126,16 +126,17 @@ def _path_tokens(path: Path, root: Path) -> set[str]:
 def _token_matches(file_tokens: set[str], syns: frozenset[str]) -> bool:
     """A query synonym matches if EITHER:
        - it equals a file token exactly (digit synonyms like '03' need this), OR
-       - it shares a 4+ char substring with a file token (handles plurals,
-         minor spelling variations: 'facture' ↔ 'factures', 'doc' ↔ 'docs').
+       - it shares a 3+ char substring with a 3+ char file token (handles
+         plurals, mild STT misreads: 'flo' ↔ 'flow', 'facture' ↔ 'factures').
     Substring is symmetric — query token in file token, or file token in
-    query token — so 'facture' matches 'factures' and vice versa."""
+    query token. 3-char floor avoids exploding false positives on noise like
+    'le' / 'de' (already filtered as stopwords too)."""
     for s in syns:
         if s in file_tokens:
             return True
-        if len(s) >= 4:
+        if len(s) >= 3:
             for ft in file_tokens:
-                if len(ft) >= 4 and (s in ft or ft in s):
+                if len(ft) >= 3 and (s in ft or ft in s):
                     return True
     return False
 
