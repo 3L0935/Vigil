@@ -120,6 +120,42 @@ def check_deps() -> str | None:
         )
 
 
+def prewarm() -> None:
+    """Trigger the KDE Wayland Fake-Input permission prompt at startup.
+
+    On Plasma 6 Wayland, the first time a process tries to synthesise a
+    keystroke (via wtype's virtual-keyboard protocol or xdotool's XWayland
+    XTEST), KWin pops a 'Une application demande des privilèges spéciaux'
+    dialog and the keystroke is dropped until the user clicks OK. By
+    issuing one no-op call at startup, we surface that prompt while the
+    user is already waiting for the app to come up — the first real
+    dictation then types immediately instead of getting silently swallowed.
+
+    Payload: release modifiers (no-op when none are held). Choosing this
+    over `wtype ""` because empty-string wtype calls are silently rejected
+    by the protocol on some compositor versions, while -m release always
+    reaches the permission gate. Fire-and-forget.
+    """
+    if not is_wayland():
+        return
+    cmd: list[str] | None = None
+    if shutil.which("wtype"):
+        cmd = ["wtype", "-m", "ctrl", "-m", "alt", "-m", "shift", "-m", "logo"]
+    elif shutil.which("xdotool"):
+        cmd = ["xdotool", "keyup", "ctrl", "keyup", "alt",
+               "keyup", "shift", "keyup", "super"]
+    if cmd is None:
+        return
+    try:
+        subprocess.run(cmd, check=False,
+                       stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL,
+                       timeout=2)
+        log.info("Injector prewarm: triggered Wayland input permission prompt")
+    except Exception as exc:
+        log.debug("Injector prewarm skipped (%s)", exc)
+
+
 def inject(text: str):
     if not text:
         return

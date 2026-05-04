@@ -522,6 +522,11 @@ def main():
         log.warning("Injection deps: %s", _inj_warn.replace("\n", " | "))
         root.after(2000, lambda: widget.show_message(_inj_warn, 6000))
 
+    # KDE Plasma 6 Wayland: trigger the Fake-Input permission prompt now,
+    # while the user is already watching the app start, so the first real
+    # dictation isn't swallowed by the dialog. Cheap no-op for everyone else.
+    injector.prewarm()
+
     # Check llama-server connectivity at startup
     if not assistant.ping_llama_server():
         log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
