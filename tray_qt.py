@@ -12,7 +12,12 @@ def _pil_to_qicon(img: Image.Image) -> QIcon:
     img = img.convert("RGBA")
     w, h = img.size
     data = img.tobytes("raw", "RGBA")
-    qimg = QImage(data, w, h, QImage.Format.Format_RGBA8888)
+    # .copy() forces Qt to own the pixel buffer. Without it QImage holds a
+    # raw pointer into our local `data` bytes, which gets gc'd as soon as
+    # the function returns — KDE's StatusNotifier daemon then fetches an
+    # invisible icon (manifested as a blank tray slot on second launch when
+    # the timing window narrows).
+    qimg = QImage(data, w, h, QImage.Format.Format_RGBA8888).copy()
     return QIcon(QPixmap.fromImage(qimg))
 
 

@@ -245,6 +245,8 @@ Format: `Ctrl+Alt+W`, `Meta+D`, `Shift+F9`, etc.
 
 Non-KDE compositors execute `vigil-trigger <action>` on press; the CLI dials the D-Bus service (`org.vigil.Service.Trigger`) exposed by the running Vigil. Bindings live at the compositor level, so a temporary Vigil restart never loses them.
 
+**KDE Plasma 6 Wayland note:** there's a long-standing KGlobalAccel quirk where the very first process to register a global shortcut in a fresh session gets the action descriptor accepted but never receives the Wayland keyboard grab — physical key presses bypass the app for the whole session. Vigil works around this transparently with a silent self-respawn on first launch of each session: it registers, cleanly releases, and re-execs itself from a fresh D-Bus client name so the grab installs correctly. You won't notice it (~2s extra startup once per session); your hotkeys just work after a reboot, no manual restart needed.
+
 ### CLI helpers
 
 ```bash
