@@ -15,6 +15,16 @@ _playing = threading.Event()
 _voice_cache: dict = {}
 _voice_cache_lock = threading.Lock()
 
+# Active OutputStream + lock. Using an explicit stream object (instead of
+# sd.play()) gives us deterministic stop(): we abort+close the stream rather
+# than relying on the module-level sd.stop() which races with input streams
+# that recorder.start() opens immediately after. Also avoids the use-after-
+# free where sd.play(audio) keeps a raw pointer into the numpy buffer that
+# Python may gc as soon as the producing thread returns.
+_stream: "sd.OutputStream | None" = None
+_stream_lock = threading.Lock()
+_stop_event = threading.Event()
+
 _PIPER_DIR = Path.home() / ".local" / "share" / "vigil" / "tts" / "piper"
 
 _BUILTIN_VOICES = {
@@ -148,8 +158,24 @@ def preview(voice_name: str, speaker_id: int | None = None) -> None:
 
 
 def stop() -> None:
+    """Interrupt any running TTS playback. Idempotent.
+
+    Sets the stop flag so the playback loop breaks at the next chunk
+    boundary (~200ms), and aborts+closes the OutputStream so PortAudio
+    releases the device immediately. Safe to call from any thread; safe to
+    call back-to-back with a fresh speak()."""
+    global _stream
+    _stop_event.set()
+    with _stream_lock:
+        s = _stream
+        _stream = None
+    if s is not None:
+        try:
+            s.abort()  # immediate; drops queued buffers without waiting
+            s.close()
+        except Exception as exc:
+            log.debug("TTS stream close on stop(): %s", exc)
     _playing.clear()
-    sd.stop()
 
 
 def is_playing() -> bool:
@@ -171,26 +197,66 @@ def _get_piper_voice(voice: str):
 
 
 def _speak_piper(text: str, voice: str, volume: float = 1.0, speaker_id: int | None = None) -> None:
+    """Synthesise + play, interruptible by stop().
+
+    Playback uses an explicit OutputStream and a chunked blocking write so
+    that (a) the audio buffer stays referenced for the full duration (no
+    use-after-free in PortAudio's C backend, the cause of the SIGSEGV
+    observed when interrupting TTS with a hotkey), and (b) stop() can break
+    the loop at the next ~200ms boundary instead of relying on the racy
+    module-level sd.stop()."""
+    global _stream
     try:
         from piper.config import SynthesisConfig
+        # New TTS request — clear any pending stop from a previous interrupt.
+        _stop_event.clear()
         pv = _get_piper_voice(voice)
         syn_config = SynthesisConfig(speaker_id=speaker_id) if speaker_id is not None else None
         chunks = [c.audio_float_array for c in pv.synthesize(text, syn_config=syn_config)]
-        if not chunks:
+        if not chunks or _stop_event.is_set():
             return
-        audio = np.concatenate(chunks).astype(np.float32) * volume
+        audio = (np.concatenate(chunks).astype(np.float32) * volume).reshape(-1, 1)
+        sample_rate = pv.config.sample_rate
+
         _playing.set()
-        sd.stop()  # flush any lingering stream (e.g. aborted recorder stream) before playing
-        sd.play(audio, samplerate=pv.config.sample_rate)
-        threading.Thread(target=_wait_audio_done, daemon=True).start()
+        # Open a fresh stream (closing any leftover from a previous TTS that
+        # was just interrupted). Done under the lock so stop() can't race.
+        with _stream_lock:
+            if _stream is not None:
+                try:
+                    _stream.abort()
+                    _stream.close()
+                except Exception:
+                    pass
+            _stream = sd.OutputStream(samplerate=sample_rate, channels=1, dtype="float32")
+            _stream.start()
+            local_stream = _stream
+
+        # Blocking chunked write: ~200ms slices so stop() interrupts quickly.
+        chunk_size = max(1, sample_rate // 5)
+        try:
+            for i in range(0, len(audio), chunk_size):
+                if _stop_event.is_set():
+                    break
+                local_stream.write(audio[i:i + chunk_size])
+        except Exception as exc:
+            # Stream torn down by stop() while we were writing — expected.
+            log.debug("TTS stream write interrupted: %s", exc)
+        finally:
+            with _stream_lock:
+                # Only close if we still own it (stop() may have replaced it
+                # with None and closed it itself).
+                if _stream is local_stream:
+                    try:
+                        _stream.stop()
+                        _stream.close()
+                    except Exception:
+                        pass
+                    _stream = None
+            _playing.clear()
     except Exception as exc:
         log.error("Piper TTS error: %s", exc, exc_info=True)
         _playing.clear()
-
-
-def _wait_audio_done() -> None:
-    sd.wait()
-    _playing.clear()
 
 
 def fetch_voices(lang: str) -> list:
