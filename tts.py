@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from pathlib import Path
 import threading
 import numpy as np
@@ -158,24 +159,30 @@ def preview(voice_name: str, speaker_id: int | None = None) -> None:
 
 
 def stop() -> None:
-    """Interrupt any running TTS playback. Idempotent.
+    """Interrupt any running TTS playback. Idempotent, safe from any thread.
 
-    Sets the stop flag so the playback loop breaks at the next chunk
-    boundary (~200ms), and aborts+closes the OutputStream so PortAudio
-    releases the device immediately. Safe to call from any thread; safe to
-    call back-to-back with a fresh speak()."""
-    global _stream
+    Signals the playback thread to break at its next chunk boundary
+    (~200ms) — that thread closes the OutputStream itself in its finally
+    block. We deliberately do NOT call abort()/close() here from the hotkey
+    thread: doing so concurrently with the piper thread's in-flight
+    stream.write() raced inside PortAudio/PipeWire's C backend and crashed
+    with SIGSEGV.
+
+    After signalling, briefly poll-wait for the stream to be released so
+    the caller (typically recorder.start() chained right after) doesn't
+    open an InputStream while PortAudio is still tearing down the output.
+    Bounded so the hotkey thread doesn't hang if playback is stuck."""
     _stop_event.set()
-    with _stream_lock:
-        s = _stream
-        _stream = None
-    if s is not None:
-        try:
-            s.abort()  # immediate; drops queued buffers without waiting
-            s.close()
-        except Exception as exc:
-            log.debug("TTS stream close on stop(): %s", exc)
     _playing.clear()
+    deadline = time.monotonic() + 0.4
+    while True:
+        with _stream_lock:
+            if _stream is None:
+                return
+        if time.monotonic() > deadline:
+            log.warning("TTS stop: playback stream still open after 400ms")
+            return
+        time.sleep(0.02)
 
 
 def is_playing() -> bool:
