@@ -1,6 +1,7 @@
 """llama-server assistant with function calling for web search and vault search."""
 
 import json
+import re
 import subprocess
 import threading
 import time as _time
@@ -22,14 +23,47 @@ _conversation_history: list[dict] = []
 _last_interaction: float = 0.0
 _waiting_for_reply: bool = False
 _pending_candidates: list[str] = []
-_pending_action: str = ""      # "launch" or "close"
+_pending_action: str = ""      # "launch" | "close" | "open_file"
 
 _WORD_TO_NUM: dict[str, int] = {
+    # cardinals
     "one": 1, "un": 1, "uno": 1,
     "two": 2, "deux": 2, "due": 2,
     "three": 3, "trois": 3, "tre": 3,
     "four": 4, "quatre": 4, "quattro": 4,
+    "five": 5, "cinq": 5, "cinque": 5,
+    # ordinals (user often replies "la première" / "the first")
+    "first":  1, "premier": 1, "premiere": 1, "première": 1, "primo": 1, "prima": 1,
+    "second": 2, "deuxieme": 2, "deuxième": 2, "seconde": 2, "secondo": 2, "seconda": 2,
+    "third":  3, "troisieme": 3, "troisième": 3, "terzo": 3, "terza": 3,
+    "fourth": 4, "quatrieme": 4, "quatrième": 4, "quarto": 4, "quarta": 4,
+    "fifth":  5, "cinquieme": 5, "cinquième": 5, "quinto": 5, "quinta": 5,
 }
+
+# Phonetic Whisper-FR mistranscriptions of the digit "1" — interjections that
+# the user may not actually have said but that come out when they say "1".
+# Ambiguous (could just mean "huh?"), so only accepted as a number reply when
+# the whole transcript is short (≤ 2 words). Avoids treating "hein attends
+# c'est quoi" as choice #1.
+_PHONETIC_ONE = frozenset({"hein", "han", "ein", "in"})
+
+# Hardcoded keywords that trigger a context reset without going through the
+# LLM. Faster than a tool call, frees one tool slot for the small model, and
+# the regex match is unambiguous on these phrasings (fr/en/it). Match is on
+# the full transcript lowercased+stripped — substring match so things like
+# "non, nettoie la conv" still work.
+_CLEAR_CONTEXT_PATTERNS = (
+    "nettoie la conv", "nettoie la conversation", "efface la conv",
+    "efface la conversation", "repart à zéro", "repart a zero",
+    "recommence", "remet à zéro", "remet a zero",
+    "clear context", "reset context", "start over", "start fresh",
+    "pulisci la conversazione", "ricomincia", "azzera",
+)
+
+
+def _is_clear_context_request(text: str) -> bool:
+    t = text.strip().lower()
+    return any(p in t for p in _CLEAR_CONTEXT_PATTERNS)
 
 
 def reset_context() -> None:
@@ -55,14 +89,25 @@ def context_level() -> int:
 
 
 def _parse_number(text: str) -> int | None:
-    t = text.strip().lower()
+    """Tolerant number parser for voice replies. Handles:
+       - bare digits with trailing punctuation: "1", "1.", "2 !"
+       - cardinals fr/en/it: "un", "deux", "two", "due"
+       - ordinals fr/en/it: "première", "second", "troisième", "primo"
+       - phonetic Whisper-FR misreads of "1" (hein, han, ein, in) when the
+         transcript is short — Whisper sometimes hears "1" as the interjection.
+    Returns None if nothing parseable is found."""
+    t = text.strip().lower().rstrip(".,!?;: ")
     try:
         return int(t)
     except ValueError:
         pass
-    for word, num in _WORD_TO_NUM.items():
-        if word in t.split():
-            return num
+    words = re.findall(r"\w+", t, flags=re.UNICODE)
+    short = len(words) <= 2
+    for w in words:
+        if w in _WORD_TO_NUM:
+            return _WORD_TO_NUM[w]
+        if w in _PHONETIC_ONE and short:
+            return 1
     return None
 
 
@@ -125,12 +170,17 @@ _OPEN_SETTINGS_TOOL = {
     "function": {
         "name": "open_settings",
         "description": (
-            "Open Vigil's OWN settings/configuration panel. "
+            "Open VIGIL'S OWN settings/configuration panel (the assistant's "
+            "preferences window). "
             "Use ONLY when the user explicitly wants to configure Vigil itself: "
-            "'ouvre les paramètres de Vigil', 'open Vigil settings', 'show settings', "
-            "'apri le impostazioni'. "
-            "Do NOT use for OS settings, KDE settings, system settings, or any other "
-            "application's settings — use launch_app for those instead."
+            "'ouvre les paramètres de Vigil', 'open Vigil settings', "
+            "'apri le impostazioni di Vigil'. "
+            "Do NOT use for: 'system settings', 'KDE settings', 'PC settings', "
+            "'paramètres du PC', 'paramètres système', 'impostazioni di sistema' "
+            "→ those mean the OS settings panel, call "
+            "app_action(name='System Settings', action='launch') instead. "
+            "If the user just says 'ouvre les paramètres' without naming the "
+            "target, assume Vigil's own (this is the assistant after all)."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -141,54 +191,50 @@ _CLOSE_SETTINGS_TOOL = {
     "function": {
         "name": "close_settings",
         "description": (
-            "Close the Vigil settings window if it is currently open. Use when the user asks "
-            "to close or hide the settings: 'ferme les paramètres', 'close settings', "
-            "'hide settings', 'chiudi le impostazioni'."
+            "Close VIGIL'S OWN settings window if it is open. Use when the user "
+            "asks to close/hide Vigil's settings: 'ferme les paramètres', "
+            "'close settings', 'chiudi le impostazioni'. "
+            "Do NOT use to close OS/system settings — for those use "
+            "app_action(name='System Settings', action='close')."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
 }
 
-_LAUNCH_APP_TOOL = {
+_APP_ACTION_TOOL = {
     "type": "function",
     "function": {
-        "name": "launch_app",
+        "name": "app_action",
         "description": (
-            "Launch an INSTALLED desktop application by name (a program that lives "
-            "on this computer, not a website). "
-            "Examples: 'lance Kitty', 'ouvre Firefox', 'open Thunderbird', "
-            "'lancia Gimp', 'démarre VLC', 'start Steam'. "
-            "Do NOT use for websites like YouTube, Netflix, GitHub, Gmail → use "
-            "open_url instead. "
-            "Do NOT use for opening a specific file or folder → use open_path instead. "
-            "If you are not certain of the exact name, try your best guess — if not "
-            "found, the system will suggest matching installed apps so you can retry."
+            "Launch OR close an INSTALLED desktop application (a program that "
+            "lives on this computer, not a website). One tool, one parameter "
+            "picks the verb. "
+            "Examples (launch): 'lance Kitty' → app_action('Kitty', 'launch'), "
+            "'ouvre Firefox' → app_action('Firefox', 'launch'), "
+            "'démarre VLC' → app_action('VLC', 'launch'). "
+            "Examples (close): 'ferme Firefox' → app_action('Firefox', 'close'), "
+            "'quitte VLC' → app_action('VLC', 'close'), "
+            "'kill Steam' → app_action('Steam', 'close'). "
+            "Do NOT use for websites (YouTube, Gmail, GitHub, Netflix, ...) → "
+            "use open_url. "
+            "Do NOT use for the user's standard folders → use open_folder. "
+            "If launching and the exact name isn't certain, give your best "
+            "guess — the system will suggest installed-app matches if not found."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "app_name": {"type": "string", "description": "Application name to launch"},
+                "name": {
+                    "type": "string",
+                    "description": "Installed application name.",
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["launch", "close"],
+                    "description": "What to do: 'launch' to start, 'close' to stop a running instance.",
+                },
             },
-            "required": ["app_name"],
-        },
-    },
-}
-
-_CLOSE_APP_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "close_app",
-        "description": (
-            "Close a running application by name. Use when the user asks to close, quit, "
-            "kill, or stop a program: 'ferme Firefox', 'close Kitty', 'quitte VLC', "
-            "'chiudi Gimp', 'arrête Zen Browser', 'kill Steam', etc."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "app_name": {"type": "string", "description": "Application name to close"},
-            },
-            "required": ["app_name"],
+            "required": ["name", "action"],
         },
     },
 }
@@ -210,7 +256,7 @@ _OPEN_URL_TOOL = {
             "claude, gemini, wikipedia, drive, maps, discord, whatsapp, telegram, "
             "and ~30 others. "
             "Do NOT use for desktop apps installed on the system (Firefox, VLC, "
-            "Kitty, Steam, Gimp, …) → use launch_app instead. "
+            "Kitty, Steam, Gimp, …) → use app_action instead. "
             "Do NOT use for local folders → use open_folder."
         ),
         "parameters": {
@@ -241,7 +287,7 @@ _OPEN_FOLDER_TOOL = {
             "documents/documenti, pictures/images/immagini, videos/vidéos/video, "
             "music/musique/musica, desktop/bureau/scrivania, "
             "templates/modèles/modelli, public/publique/pubblica. "
-            "Do NOT use to launch an app → use launch_app. "
+            "Do NOT use to launch an app → use app_action. "
             "Do NOT use for websites → use open_url. "
             "Do NOT invent paths or use slashes — pass a folder name only."
         ),
@@ -258,17 +304,50 @@ _OPEN_FOLDER_TOOL = {
     },
 }
 
-_CLEAR_CONTEXT_TOOL = {
+_SEARCH_FILES_TOOL = {
     "type": "function",
     "function": {
-        "name": "clear_context",
+        "name": "search_files",
         "description": (
-            "Clear the conversation history and reset context. "
-            "Use when the user asks to clear, reset, or restart the conversation: "
-            "'nettoie la conv', 'clear context', 'reset context', 'effacer la conversation', "
-            "'pulisci la conversazione', 'start over', 'repart a zero', 'recommence'."
+            "Search the user's standard folders for files matching a query. "
+            "Use when the user asks to find / look for / check whether a "
+            "specific file exists somewhere in their folders: "
+            "'cherche dans mes documents si la facture de mars existe', "
+            "'find my CV in downloads', 'regarde si y a une photo de Paris dans "
+            "mes images', 'cerca la fattura di gennaio nei documenti'. "
+            "Returns two lists: 'found' (files matching ALL query words) and "
+            "'similar' (files matching at least one word — useful as fallback "
+            "suggestions when nothing matches strictly). After the call, the "
+            "user can reply with a number to open one of the suggested files. "
+            "Date/size are omitted by default; set include_date=true if the "
+            "kind of file the user asked for makes the date relevant (invoices, "
+            "screenshots, recent downloads), and include_size=true ONLY if the "
+            "user explicitly asked for size/weight (KB/MB)."
         ),
-        "parameters": {"type": "object", "properties": {}, "required": []},
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "folder": {
+                    "type": "string",
+                    "description": "Standard folder keyword (downloads, documents, pictures, music, videos, desktop, ...).",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "What to look for, in natural language (e.g. 'facture mars', 'photo Paris', 'CV').",
+                },
+                "include_date": {
+                    "type": "boolean",
+                    "description": "Set true when the file type makes the modification date useful (invoices, dated documents). Default false.",
+                    "default": False,
+                },
+                "include_size": {
+                    "type": "boolean",
+                    "description": "Set true ONLY when the user explicitly asked for the file size. Default false.",
+                    "default": False,
+                },
+            },
+            "required": ["folder", "query"],
+        },
     },
 }
 
@@ -279,9 +358,9 @@ _ASK_USER_CHOICE_TOOL = {
         "description": (
             "Ask the user to pick between 2-4 similar installed apps when the request is "
             "genuinely ambiguous. The user replies with a number (1, 2, 3, ...) and the "
-            "chosen app is then launched or closed. Use this ONLY after a launch_app retry "
+            "chosen app is then launched or closed. Use this ONLY after an app_action retry "
             "when several candidates fit the user's intent equally well. "
-            "Do NOT use for single-best-match cases — call launch_app directly instead."
+            "Do NOT use for single-best-match cases — call app_action directly instead."
         ),
         "parameters": {
             "type": "object",
@@ -305,8 +384,8 @@ _ASK_USER_CHOICE_TOOL = {
 
 def _get_tools() -> list[dict]:
     tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-             _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
-             _CLEAR_CONTEXT_TOOL, _ASK_USER_CHOICE_TOOL]
+             _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
+             _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -446,28 +525,37 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 lines.append(f"**{r['title']}**\n{r['excerpt']}")
             return ("\n\n".join(lines), None)
 
-        elif name == "launch_app":
+        elif name == "app_action":
             import app_launcher
-            app_name = args.get("app_name", "")
-            ok, label = app_launcher.launch(app_name)
+            app_name = (args.get("name") or "").strip()
+            action   = args.get("action", "launch")
+            if action not in ("launch", "close"):
+                action = "launch"
+            do = app_launcher.launch if action == "launch" else app_launcher.close
+            ok, label = do(app_name)
             if ok:
-                return (locales.get("app_launched", name=label), None)
+                key = "app_launched" if action == "launch" else "app_closed"
+                return (locales.get(key, name=label), None)
             # Exact match failed — try fuzzy
             candidates = app_launcher.find_candidates(app_name)
             if len(candidates) == 1:
-                ok2, label2 = app_launcher.launch(candidates[0])
-                text = locales.get("app_launched", name=label2) if ok2 else locales.get("app_not_found", name=label2)
+                ok2, label2 = do(candidates[0])
+                if action == "launch":
+                    text = locales.get("app_launched", name=label2) if ok2 else locales.get("app_not_found", name=label2)
+                else:
+                    text = locales.get("app_closed", name=label2) if ok2 else locales.get("app_close_failed", name=label2)
                 return (text, None)
             if len(candidates) > 1:
                 with _context_lock:
                     _waiting_for_reply  = True
                     _pending_candidates = candidates
-                    _pending_action     = "launch"
+                    _pending_action     = action
                 lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
                 return (locales.get("app_candidates", list=lines), None)
-            # Zero candidates — ask the LLM to retry with installed-app hints,
-            # and if the requested name matches a known web shortcut, push it
-            # towards open_url instead of guessing more apps.
+            # Zero candidates. For launch, retry with hints (and URL hint if
+            # the name matches a known web shortcut). For close, just report.
+            if action == "close":
+                return (locales.get("app_close_failed", name=app_name), None)
             retry_ctx = _build_launch_retry_context(app_name, user_text)
             import url_shortcuts
             if url_shortcuts.is_known(app_name):
@@ -477,26 +565,54 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 )
             return (locales.get("app_not_found", name=app_name), retry_ctx)
 
-        elif name == "close_app":
-            import app_launcher
-            app_name = args.get("app_name", "")
-            ok, label = app_launcher.close(app_name)
-            if ok:
-                return (locales.get("app_closed", name=label), None)
-            # Exact match failed — try fuzzy
-            candidates = app_launcher.find_candidates(app_name)
-            if len(candidates) == 1:
-                ok2, label2 = app_launcher.close(candidates[0])
-                text = locales.get("app_closed", name=label2) if ok2 else locales.get("app_close_failed", name=label2)
-                return (text, None)
-            if len(candidates) > 1:
-                with _context_lock:
-                    _waiting_for_reply  = True
-                    _pending_candidates = candidates
-                    _pending_action     = "close"
-                lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
-                return (locales.get("app_candidates", list=lines), None)
-            return (locales.get("app_close_failed", name=app_name), None)
+        elif name == "search_files":
+            import file_search
+            folder = (args.get("folder") or "").strip()
+            query = (args.get("query") or "").strip()
+            include_date = bool(args.get("include_date", False))
+            include_size = bool(args.get("include_size", False))
+            r = file_search.search(folder, query,
+                                   include_size=include_size,
+                                   include_date=include_date)
+            if r["folder_resolved"] is None:
+                return (locales.get("folder_unknown", name=folder), None)
+            results = r["found"] or r["similar"]
+            if not results:
+                return (locales.get("file_no_results",
+                                    folder=r["folder_resolved"],
+                                    query=query), None)
+            # Set multi-turn state so a numbered reply opens a file.
+            paths = [item["path"] for item in results]
+            with _context_lock:
+                _waiting_for_reply  = True
+                _pending_candidates = paths
+                _pending_action     = "open_file"
+            # Build a compact human-readable list. Skip the absolute path in
+            # the LLM's view — paths are noisy tokens. The LLM only needs
+            # name + optional date/size + matched (for similar) to formulate.
+            lines: list[str] = []
+            for i, item in enumerate(results, 1):
+                bits = [item["name"]]
+                extras = []
+                if "mtime" in item:
+                    extras.append(item["mtime"])
+                if "size_kb" in item:
+                    extras.append(f"{item['size_kb']} KB")
+                if "matched" in item:
+                    extras.append("partial: " + ", ".join(item["matched"]))
+                if extras:
+                    bits.append(f"({'; '.join(extras)})")
+                lines.append(f"{i}. {' '.join(bits)}")
+            list_str = "\n".join(lines)
+            if r["found"]:
+                msg = locales.get("file_results_found",
+                                  folder=r["folder_resolved"],
+                                  list=list_str)
+            else:
+                msg = locales.get("file_results_similar",
+                                  folder=r["folder_resolved"],
+                                  query=query, list=list_str)
+            return (msg, None)
 
         elif name == "ask_user_choice":
             options = args.get("options") or []
@@ -547,10 +663,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 return (locales.get("folder_missing", path=str(path)), None)
             return (locales.get("folder_opened", path=str(path)), None)
 
-        elif name == "clear_context":
-            reset_context()
-            return (locales.get("context_cleared"), None)
-
         else:
             return (locales.get("unknown_command", name=name), None)
 
@@ -580,6 +692,13 @@ def process(text: str) -> str:
     _llm_manager.ensure_running()
     log.info("Assistant input: %r", text)
 
+    # Hardcoded shortcut: clear context request bypasses the LLM entirely.
+    # Saves a tool slot for the small model and is unambiguous on the listed
+    # phrasings.
+    if _is_clear_context_request(text):
+        reset_context()
+        return locales.get("context_cleared")
+
     # Snapshot mutable state under the lock
     with _context_lock:
         waiting        = _waiting_for_reply
@@ -601,18 +720,35 @@ def process(text: str) -> str:
     if waiting:
         n = _parse_number(text)
         if n is not None and 1 <= n <= len(candidates):
-            app_name = candidates[n - 1]
-            log.info("Resolving candidate %d: %s (action=%s)", n, app_name, action)
+            chosen = candidates[n - 1]
+            log.info("Resolving candidate %d: %s (action=%s)", n, chosen, action)
             with _context_lock:
                 _waiting_for_reply  = False
                 _pending_candidates = []
                 _pending_action     = ""
-            import app_launcher
-            if action == "launch":
-                ok, label = app_launcher.launch(app_name)
+            if action == "open_file":
+                # `chosen` is an absolute file path here, not an app name.
+                from pathlib import Path as _Path
+                p = _Path(chosen)
+                if not p.exists():
+                    result = locales.get("file_open_failed", path=chosen)
+                else:
+                    try:
+                        subprocess.Popen(
+                            ["xdg-open", chosen],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True,
+                        )
+                        result = locales.get("file_opened", name=p.name)
+                    except Exception:
+                        result = locales.get("file_open_failed", path=chosen)
+            elif action == "launch":
+                import app_launcher
+                ok, label = app_launcher.launch(chosen)
                 result = locales.get("app_launched", name=label) if ok else locales.get("app_not_found", name=label)
             else:
-                ok, label = app_launcher.close(app_name)
+                import app_launcher
+                ok, label = app_launcher.close(chosen)
                 result = locales.get("app_closed", name=label) if ok else locales.get("app_close_failed", name=label)
             with _context_lock:
                 _conversation_history.append({"role": "user",      "content": text})

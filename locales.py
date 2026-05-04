@@ -35,10 +35,12 @@ _STRINGS: dict[str, dict[str, str]] = {
             "then synthesize the results into a concise 2-4 sentence spoken answer. "
             "For all other requests, call the appropriate function. "
             "When the user asks to OPEN something, pick exactly one of three tools "
-            "based on what they named: launch_app for installed desktop programs "
-            "(Firefox, VLC, Kitty, Steam, ...), open_url for websites "
-            "(youtube, github, gmail, netflix, ...), open_folder for the user's "
-            "standard folders (downloads, documents, music, ...). "
+            "based on what they named: app_action(name, 'launch') for installed "
+            "desktop programs (Firefox, VLC, Kitty, Steam, ...), open_url for "
+            "websites (youtube, github, gmail, netflix, ...), open_folder for the "
+            "user's standard folders (downloads, documents, music, ...). "
+            "To CLOSE an app, use app_action(name, 'close'). "
+            "To FIND a specific file inside a folder, use search_files(folder, query). "
             "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "English",
@@ -70,14 +72,30 @@ _STRINGS: dict[str, dict[str, str]] = {
             "meant the website (not an installed app), call open_url(\"{name}\") "
             "instead."
         ),
+
+        # search_files
+        "file_no_results":      "No files matching '{query}' in {folder}.",
+        "file_results_found": (
+            "Found in {folder}:\n{list}\n\n"
+            "Tell the user what you found and ask which to open. They can reply "
+            "with a number to open one."
+        ),
+        "file_results_similar": (
+            "No exact match for '{query}' in {folder}, but found similar files:\n"
+            "{list}\n\n"
+            "Tell the user the requested file does not exist, and offer one of "
+            "these as an alternative. They can reply with a number to open one."
+        ),
+        "file_opened":          "Opening {name}.",
+        "file_open_failed":     "Could not open '{path}'.",
         "retry_launch_ctx": (
             "Application \"{name}\" was not found on this system.\n\n"
             "Installed apps that may match the user's request "
             "(shown as `- Name (GenericName) [Keywords]`):\n{list}\n\n"
             "Rules:\n"
             "1. If ONE app clearly matches the user's intent best (its generic name or "
-            "keywords directly match what the user asked for), call launch_app with its "
-            "exact name copied from the list.\n"
+            "keywords directly match what the user asked for), call app_action with its "
+            "exact name copied from the list and action='launch'.\n"
             "2. If the user's request is generic (e.g. 'music', 'browser', 'terminal') "
             "and two or more apps could reasonably fit, call ask_user_choice with 2-4 "
             "candidates rather than guessing — let the user pick.\n"
@@ -148,10 +166,12 @@ _STRINGS: dict[str, dict[str, str]] = {
             "then synthesize the results into a concise 2-4 sentence spoken answer. "
             "For all other requests, call the appropriate function. "
             "When the user asks to OPEN something, pick exactly one of three tools "
-            "based on what they named: launch_app for installed desktop programs "
-            "(Firefox, VLC, Kitty, Steam, ...), open_url for websites "
-            "(youtube, github, gmail, netflix, ...), open_folder for the user's "
-            "standard folders (downloads, documents, music, ...). "
+            "based on what they named: app_action(name, 'launch') for installed "
+            "desktop programs (Firefox, VLC, Kitty, Steam, ...), open_url for "
+            "websites (youtube, github, gmail, netflix, ...), open_folder for the "
+            "user's standard folders (downloads, documents, music, ...). "
+            "To CLOSE an app, use app_action(name, 'close'). "
+            "To FIND a specific file inside a folder, use search_files(folder, query). "
             "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "Italian",
@@ -179,6 +199,21 @@ _STRINGS: dict[str, dict[str, str]] = {
             "intendeva il sito (e non un'app installata), chiama open_url(\"{name}\") "
             "invece."
         ),
+
+        "file_no_results":      "Nessun file corrispondente a '{query}' in {folder}.",
+        "file_results_found": (
+            "Trovato in {folder}:\n{list}\n\n"
+            "Di' all'utente cosa hai trovato e chiedi quale aprire. Può rispondere "
+            "con un numero per aprirne uno."
+        ),
+        "file_results_similar": (
+            "Nessuna corrispondenza esatta per '{query}' in {folder}, ma trovati "
+            "file simili:\n{list}\n\n"
+            "Di' all'utente che il file richiesto non esiste, e offri uno di questi "
+            "come alternativa. Può rispondere con un numero per aprirne uno."
+        ),
+        "file_opened":          "Apro {name}.",
+        "file_open_failed":     "Impossibile aprire '{path}'.",
         "retry_launch_ctx": (
             "L'applicazione \"{name}\" non è stata trovata su questo sistema.\n\n"
             "Applicazioni installate che potrebbero corrispondere alla richiesta "
@@ -186,8 +221,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Regole:\n"
             "1. Se UNA singola app corrisponde chiaramente meglio all'intento "
             "dell'utente (il suo generic name o le keywords corrispondono direttamente "
-            "a ciò che l'utente ha chiesto), chiama launch_app con il suo nome esatto "
-            "copiato dalla lista.\n"
+            "a ciò che l'utente ha chiesto), chiama app_action con il suo nome esatto "
+            "copiato dalla lista e action='launch'.\n"
             "2. Se la richiesta dell'utente è generica (es. 'musica', 'browser', "
             "'terminale') e due o più applicazioni potrebbero ragionevolmente andare "
             "bene, chiama ask_user_choice con 2-4 candidati invece di indovinare — "
@@ -260,11 +295,14 @@ _STRINGS: dict[str, dict[str, str]] = {
             "concise de 2 à 4 phrases, formulée pour être lue à voix haute. "
             "Pour toutes les autres demandes, appelle la fonction appropriée. "
             "Quand l'utilisateur demande d'OUVRIR quelque chose, choisis exactement "
-            "un des trois outils selon ce qu'il a nommé : launch_app pour les "
-            "programmes installés sur l'ordinateur (Firefox, VLC, Kitty, Steam, …), "
+            "un des trois outils selon ce qu'il a nommé : app_action(name, 'launch') "
+            "pour les programmes installés (Firefox, VLC, Kitty, Steam, …), "
             "open_url pour les sites web (youtube, github, gmail, netflix, …), "
             "open_folder pour les dossiers standards de l'utilisateur "
             "(téléchargements, documents, musique, …). "
+            "Pour FERMER une app, utilise app_action(name, 'close'). "
+            "Pour TROUVER un fichier précis dans un dossier, utilise "
+            "search_files(folder, query). "
             "N'utilise jamais d'emoji ni d'émoticônes dans tes réponses — "
             "ta réponse est lue à voix haute par un TTS."
         ),
@@ -296,6 +334,22 @@ _STRINGS: dict[str, dict[str, str]] = {
             "l'utilisateur voulait le site (et non une application installée), "
             "appelle open_url(\"{name}\") à la place."
         ),
+
+        "file_no_results":      "Aucun fichier correspondant à « {query} » dans {folder}.",
+        "file_results_found": (
+            "Trouvé dans {folder} :\n{list}\n\n"
+            "Dis à l'utilisateur ce que tu as trouvé et demande lequel ouvrir. Il "
+            "peut répondre par un numéro pour en ouvrir un."
+        ),
+        "file_results_similar": (
+            "Aucune correspondance exacte pour « {query} » dans {folder}, mais "
+            "fichiers similaires trouvés :\n{list}\n\n"
+            "Dis à l'utilisateur que le fichier demandé n'existe pas, et propose "
+            "l'un de ceux-ci comme alternative. Il peut répondre par un numéro "
+            "pour en ouvrir un."
+        ),
+        "file_opened":          "Ouverture de {name}.",
+        "file_open_failed":     "Impossible d'ouvrir « {path} ».",
         "retry_launch_ctx": (
             "L'application \"{name}\" n'a pas été trouvée sur ce système.\n\n"
             "Applications installées pouvant correspondre à la demande de l'utilisateur "
@@ -303,7 +357,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Règles :\n"
             "1. Si UNE seule app correspond clairement mieux à l'intention de l'utilisateur "
             "(son generic name ou ses keywords correspondent directement à ce qu'il "
-            "demande), appelle launch_app avec son nom exact copié depuis la liste.\n"
+            "demande), appelle app_action avec son nom exact copié depuis la liste et action='launch'.\n"
             "2. Si la demande de l'utilisateur est générique (ex: 'musique', 'navigateur', "
             "'terminal') et que plusieurs applications pourraient raisonnablement "
             "convenir, appelle ask_user_choice avec 2-4 candidats plutôt que de deviner — "
