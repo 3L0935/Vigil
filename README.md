@@ -114,23 +114,27 @@ If no configuration is detected at launch, Vigil automatically opens a terminal 
 2. Speak a command
 3. Press **`Ctrl+Alt+R`** again — answer appears in the overlay (and spoken aloud if TTS is on)
 
-**Example commands (EN):**
+**What the assistant can do** (all triggered by voice, all multilingual):
 
-- *"Search my notes for the API key for Claude"*
-- *"What is the weather in Paris?"*
-- *"Open settings"* / *"Close settings"*
-- *"Launch Firefox"* / *"Open Kitty"*
-- *"Close Zen Browser"* / *"Quit VLC"*
-- *"Clear context"* / *"Start over"*
+| Capability | Example (EN) | Example (FR) |
+|---|---|---|
+| **Search the web** | *"What's the weather in Paris?"* | *"Donne-moi les news Anthropic"* |
+| **Search Obsidian notes** | *"Search my notes for the Claude API key"* | *"Cherche dans mes notes le mot de passe Bitwarden"* |
+| **Launch a desktop app** | *"Launch Firefox"* / *"Open Kitty"* | *"Lance Firefox"* / *"Ouvre Kitty"* |
+| **Close a running app** | *"Close VLC"* / *"Quit Steam"* | *"Ferme VLC"* / *"Quitte Steam"* |
+| **Open a website** | *"Open YouTube"* / *"Go to GitHub"* | *"Lance YouTube"* / *"Va sur Reddit"* |
+| **Open a standard folder** | *"Open my Downloads"* | *"Ouvre mes téléchargements"* |
+| **Find a file in a folder** | *"Find my CV in Downloads"* | *"Cherche mon CV dans téléchargements"* |
+| **Open Vigil's settings** | *"Open settings"* | *"Ouvre les paramètres"* |
+| **Reset conversation** | *"Clear context"* / *"Start over"* | *"Nettoie la conv"* / *"Repart à zéro"* |
 
-**Example commands (FR):**
+**Smart routing:** the assistant distinguishes apps from websites from folders automatically — *"lance youtube"* opens the YouTube site (you don't need a YouTube app installed), *"lance Firefox"* launches the desktop browser, *"ouvre mes téléchargements"* opens the file manager.
 
-- *"Cherche dans mes notes le mot de passe Bitwarden"*
-- *"Donne moi les nouveautés liées à Anthropic AI"*
-- *"Ouvre les paramètres"* / *"Ferme les paramètres"*
-- *"Lance Kitty"* / *"Ouvre Firefox"*
-- *"Ferme Zen Browser"* / *"Arrête VLC"*
-- *"Nettoie la conv"* / *"Repart à zéro"*
+**Web shortcuts** built-in (~50 sites): youtube, netflix, twitch, spotify, github, gitlab, gmail, outlook, twitter, x, instagram, reddit, tiktok, amazon, chatgpt, claude, gemini, wikipedia, drive, maps, discord, whatsapp, telegram, and more. Just say the name.
+
+**Standard folders** recognised in any language: downloads/téléchargements/scaricati, documents/documenti, pictures/images/immagini, videos/vidéos, music/musique/musica, desktop/bureau/scrivania.
+
+**File search** is fuzzy and multilingual — month names are expanded to digits in both directions (mars ↔ 03, march, marzo), plurals and minor spelling variants are handled (singular query matches plural folder names and vice versa), and dotted-name files like `2026.03.15.pdf` match a query mentioning *"march"* or *"mars"*. If the requested file doesn't exist, the assistant proposes similar files from the same folder and you reply with a number to open one.
 
 **Fuzzy app matching:**
 
@@ -143,7 +147,9 @@ Multiple apps found:
 Reply with the number.
 ```
 
-Press the assistant hotkey again and say *"one"* / *"un"* / *"1"* to confirm. The overlay stays visible (yellow eyes) until you reply or click the close button.
+Press the assistant hotkey again and say *"one"* / *"un"* / *"1"* / *"la première"* / *"second"* to confirm. The reply parser also handles common Whisper-FR misreads of "1" (`hein`, `han`) when the transcript is short. The overlay stays visible (yellow eyes) until you reply or click the close button.
+
+The same multi-turn flow is used by the file-search results — *"ouvre la première"* opens the first match, *"ouvre la deuxième"* the second, etc.
 
 **Multi-turn context:**
 
@@ -209,6 +215,9 @@ assistant.py           — LLM tool-calling: web search, vault search, app launc
 llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
 llm_manager.py         — llama-server process lifecycle management
 obsidian.py            — Obsidian vault search (frontmatter + scoring)
+url_shortcuts.py       — registry of ~50 popular sites (youtube, github, ...) + URL normaliser
+folders.py             — XDG standard-folder resolver with multilingual aliases
+file_search.py         — fuzzy recursive file search (month expansion, plural-tolerant matching)
 database.py            — SQLite: settings KV store
 locales.py             — i18n strings (EN / FR / IT)
 theme.py               — Pandora Blackboard colour palette + fonts
