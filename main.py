@@ -243,7 +243,12 @@ def _assistant_worker():
             else:
                 if widget:
                     widget.set_expression("happy")
-                if tts.is_enabled() and not waiting:
+                # TTS rule: skip while waiting on a numbered reply unless the
+                # answer was synthesised (search_files etc. — those go through
+                # a paraphrase pass and read fine aloud). Raw lists like
+                # app_candidates stay silent.
+                tts_ok = (not waiting) or assistant.was_last_synthesised()
+                if tts.is_enabled() and tts_ok:
                     try:
                         tts.speak(result)
                     except Exception as tts_exc:

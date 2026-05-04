@@ -25,6 +25,17 @@ _waiting_for_reply: bool = False
 _pending_candidates: list[str] = []
 _pending_action: str = ""      # "launch" | "close" | "open_file"
 
+# True when the most recent process() result came from the synthesis pass
+# (raw tool result re-fed to the LLM for a spoken-language paraphrase).
+# Lets main.py decide whether to TTS while in waiting state — search_files
+# results are paraphrased and worth speaking, app_candidates lists are raw
+# and would sound bad.
+_last_was_synthesised: bool = False
+
+
+def was_last_synthesised() -> bool:
+    return _last_was_synthesised
+
 _WORD_TO_NUM: dict[str, int] = {
     # cardinals
     "one": 1, "un": 1, "uno": 1,
@@ -703,6 +714,9 @@ def process(text: str) -> str:
     _llm_manager.ensure_running()
     log.info("Assistant input: %r", text)
 
+    global _last_was_synthesised
+    _last_was_synthesised = False
+
     # Hardcoded shortcut: clear context request bypasses the LLM entirely.
     # Saves a tool slot for the small model and is unambiguous on the listed
     # phrasings.
@@ -868,6 +882,7 @@ def process(text: str) -> str:
                         if syn_content:
                             log.info("Synthesis: %s", syn_content[:120])
                             raw_result = syn_content
+                            _last_was_synthesised = True
                         else:
                             log.warning("Synthesis empty — using raw result")
                 else:
