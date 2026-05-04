@@ -643,7 +643,16 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 )
             except Exception as exc:
                 return (locales.get("url_invalid", target=target), None)
-            return (locales.get("url_opened", url=url), None)
+            # TTS-friendly: return the spoken keyword if it's a known shortcut,
+            # else extract just the hostname stem ("https://www.example.com/x"
+            # → "example"). Avoids reading "https colon slash slash..." aloud.
+            if url_shortcuts.is_known(target):
+                display = target
+            else:
+                from urllib.parse import urlparse
+                host = urlparse(url).netloc.removeprefix("www.")
+                display = host.split(".")[0] if host else target
+            return (locales.get("url_opened", url=display), None)
 
         elif name == "open_folder":
             import folders
@@ -661,7 +670,9 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 )
             except Exception:
                 return (locales.get("folder_missing", path=str(path)), None)
-            return (locales.get("folder_opened", path=str(path)), None)
+            # TTS-friendly: pass the keyword the user actually said rather than
+            # the absolute filesystem path (which would be read literally).
+            return (locales.get("folder_opened", path=folder_name), None)
 
         else:
             return (locales.get("unknown_command", name=name), None)
