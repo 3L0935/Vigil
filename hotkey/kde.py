@@ -588,6 +588,19 @@ def preflight_grab_install() -> None:
             log.warning("preflight: both registers failed, skipping respawn")
             return
 
+        # Mime a clean shutdown before os._exit. Without this, vigil#1 dies
+        # without ever calling unregister(); KGA still tracks our actions
+        # under the about-to-die bus name when vigil#2's register lands,
+        # which falls into KGA's "same component, reconnecting client" code
+        # path and skips the Wayland grab install. setShortcut(empty,
+        # NoAutoloading) is what shutdown() does — issuing it explicitly
+        # forces KGA to drop the action so vigil#2 register is a true
+        # fresh creation. The 0.5s sleep gives KGA time to process the
+        # empty-shortcut updates before the new client arrives.
+        adapter.unregister("dictate")
+        adapter.unregister("assistant")
+        time.sleep(0.5)
+
         # subprocess.Popen forks a real new process: new PID, new D-Bus
         # connection (close_fds=True is the default on py3.7+ Unix, so
         # our bus socket does NOT leak into the child — that's load-bearing,
