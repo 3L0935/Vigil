@@ -1,6 +1,7 @@
 """llama-server assistant with function calling for web search and vault search."""
 
 import json
+import subprocess
 import threading
 import time as _time
 from datetime import datetime
@@ -153,11 +154,15 @@ _LAUNCH_APP_TOOL = {
     "function": {
         "name": "launch_app",
         "description": (
-            "Launch an installed application by name. Use when the user asks to open or launch "
-            "a program: 'lance Kitty', 'ouvre Firefox', 'open Thunderbird', 'lancia Gimp', "
-            "'démarre VLC', 'start Steam', etc. "
-            "If you are not certain of the exact name, try your best guess — if not found, "
-            "the system will suggest matching installed apps so you can retry."
+            "Launch an INSTALLED desktop application by name (a program that lives "
+            "on this computer, not a website). "
+            "Examples: 'lance Kitty', 'ouvre Firefox', 'open Thunderbird', "
+            "'lancia Gimp', 'démarre VLC', 'start Steam'. "
+            "Do NOT use for websites like YouTube, Netflix, GitHub, Gmail → use "
+            "open_url instead. "
+            "Do NOT use for opening a specific file or folder → use open_path instead. "
+            "If you are not certain of the exact name, try your best guess — if not "
+            "found, the system will suggest matching installed apps so you can retry."
         ),
         "parameters": {
             "type": "object",
@@ -184,6 +189,71 @@ _CLOSE_APP_TOOL = {
                 "app_name": {"type": "string", "description": "Application name to close"},
             },
             "required": ["app_name"],
+        },
+    },
+}
+
+_OPEN_URL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_url",
+        "description": (
+            "Open a WEBSITE in the user's default browser. Use when the user wants "
+            "a website / online service rather than a desktop application. "
+            "Examples (voice): 'lance youtube' → open_url('youtube'), "
+            "'ouvre github' → open_url('github'), 'open netflix' → "
+            "open_url('netflix'), 'va sur reddit' → open_url('reddit'), "
+            "'open my gmail' → open_url('gmail'). "
+            "Pass the SITE KEYWORD as the user spoke it. Known keywords include: "
+            "youtube, netflix, twitch, spotify, soundcloud, github, gitlab, gmail, "
+            "outlook, twitter, x, instagram, reddit, tiktok, amazon, chatgpt, "
+            "claude, gemini, wikipedia, drive, maps, discord, whatsapp, telegram, "
+            "and ~30 others. "
+            "Do NOT use for desktop apps installed on the system (Firefox, VLC, "
+            "Kitty, Steam, Gimp, …) → use launch_app instead. "
+            "Do NOT use for local folders → use open_folder."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Site keyword the user spoke (e.g. 'youtube', 'github', 'gmail').",
+                },
+            },
+            "required": ["target"],
+        },
+    },
+}
+
+_OPEN_FOLDER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_folder",
+        "description": (
+            "Open one of the user's standard folders in the file manager. "
+            "Examples (voice): 'ouvre mon dossier téléchargements' → "
+            "open_folder('downloads'), 'open my documents' → "
+            "open_folder('documents'), 'apri le immagini' → "
+            "open_folder('pictures'), 'ouvre ma musique' → open_folder('music'). "
+            "Pass a SHORT FOLDER NAME the user mentioned. Recognised names "
+            "(any language): downloads/téléchargements/scaricati, "
+            "documents/documenti, pictures/images/immagini, videos/vidéos/video, "
+            "music/musique/musica, desktop/bureau/scrivania, "
+            "templates/modèles/modelli, public/publique/pubblica. "
+            "Do NOT use to launch an app → use launch_app. "
+            "Do NOT use for websites → use open_url. "
+            "Do NOT invent paths or use slashes — pass a folder name only."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Folder keyword the user spoke (e.g. 'downloads', 'documents', 'musique').",
+                },
+            },
+            "required": ["name"],
         },
     },
 }
@@ -235,8 +305,8 @@ _ASK_USER_CHOICE_TOOL = {
 
 def _get_tools() -> list[dict]:
     tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-             _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL, _CLEAR_CONTEXT_TOOL,
-             _ASK_USER_CHOICE_TOOL]
+             _LAUNCH_APP_TOOL, _CLOSE_APP_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
+             _CLEAR_CONTEXT_TOOL, _ASK_USER_CHOICE_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     return tools
@@ -395,8 +465,16 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                     _pending_action     = "launch"
                 lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
                 return (locales.get("app_candidates", list=lines), None)
-            # Zero candidates — ask the LLM to retry with installed-app hints
+            # Zero candidates — ask the LLM to retry with installed-app hints,
+            # and if the requested name matches a known web shortcut, push it
+            # towards open_url instead of guessing more apps.
             retry_ctx = _build_launch_retry_context(app_name, user_text)
+            import url_shortcuts
+            if url_shortcuts.is_known(app_name):
+                retry_ctx = (
+                    retry_ctx + "\n\n"
+                    + locales.get("retry_launch_url_hint", name=app_name)
+                )
             return (locales.get("app_not_found", name=app_name), retry_ctx)
 
         elif name == "close_app":
@@ -434,6 +512,40 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 _pending_action     = action
             lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(opts))
             return (locales.get("app_candidates", list=lines), None)
+
+        elif name == "open_url":
+            import url_shortcuts
+            target = (args.get("target") or "").strip()
+            url = url_shortcuts.resolve(target)
+            if not url:
+                return (locales.get("url_invalid", target=target), None)
+            try:
+                subprocess.Popen(
+                    ["xdg-open", url],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            except Exception as exc:
+                return (locales.get("url_invalid", target=target), None)
+            return (locales.get("url_opened", url=url), None)
+
+        elif name == "open_folder":
+            import folders
+            folder_name = (args.get("name") or "").strip()
+            path = folders.resolve(folder_name)
+            if path is None:
+                return (locales.get("folder_unknown", name=folder_name), None)
+            if not path.exists():
+                return (locales.get("folder_missing", path=str(path)), None)
+            try:
+                subprocess.Popen(
+                    ["xdg-open", str(path)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            except Exception:
+                return (locales.get("folder_missing", path=str(path)), None)
+            return (locales.get("folder_opened", path=str(path)), None)
 
         elif name == "clear_context":
             reset_context()

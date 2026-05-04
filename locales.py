@@ -34,6 +34,11 @@ _STRINGS: dict[str, dict[str, str]] = {
             "When the user asks you to search the web or their notes, call the search tool, "
             "then synthesize the results into a concise 2-4 sentence spoken answer. "
             "For all other requests, call the appropriate function. "
+            "When the user asks to OPEN something, pick exactly one of three tools "
+            "based on what they named: launch_app for installed desktop programs "
+            "(Firefox, VLC, Kitty, Steam, ...), open_url for websites "
+            "(youtube, github, gmail, netflix, ...), open_folder for the user's "
+            "standard folders (downloads, documents, music, ...). "
             "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "English",
@@ -53,6 +58,18 @@ _STRINGS: dict[str, dict[str, str]] = {
         # multi-turn context
         "context_cleared":      "Conversation cleared.",
         "app_candidates":       "Multiple apps found:\n{list}\nReply with the number.",
+
+        # open_url / open_folder
+        "url_opened":           "Opening {url}.",
+        "url_invalid":          "Cannot open '{target}' — unknown site.",
+        "folder_opened":        "Opening {path}.",
+        "folder_unknown":       "Folder '{name}' is not a known standard folder.",
+        "folder_missing":       "Folder '{path}' does not exist.",
+        "retry_launch_url_hint": (
+            "NOTE: \"{name}\" is also the name of a popular website. If the user "
+            "meant the website (not an installed app), call open_url(\"{name}\") "
+            "instead."
+        ),
         "retry_launch_ctx": (
             "Application \"{name}\" was not found on this system.\n\n"
             "Installed apps that may match the user's request "
@@ -130,6 +147,11 @@ _STRINGS: dict[str, dict[str, str]] = {
             "When the user asks you to search the web or their notes, call the search tool, "
             "then synthesize the results into a concise 2-4 sentence spoken answer. "
             "For all other requests, call the appropriate function. "
+            "When the user asks to OPEN something, pick exactly one of three tools "
+            "based on what they named: launch_app for installed desktop programs "
+            "(Firefox, VLC, Kitty, Steam, ...), open_url for websites "
+            "(youtube, github, gmail, netflix, ...), open_folder for the user's "
+            "standard folders (downloads, documents, music, ...). "
             "Never use emojis or emoticons in any response — your output is read aloud by TTS."
         ),
         "lang_name": "Italian",
@@ -146,6 +168,17 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         "context_cleared":      "Conversazione cancellata.",
         "app_candidates":       "Più applicazioni trovate:\n{list}\nRispondi con il numero.",
+
+        "url_opened":           "Apro {url}.",
+        "url_invalid":          "Impossibile aprire '{target}' — sito sconosciuto.",
+        "folder_opened":        "Apro {path}.",
+        "folder_unknown":       "La cartella '{name}' non è una cartella standard riconosciuta.",
+        "folder_missing":       "La cartella '{path}' non esiste.",
+        "retry_launch_url_hint": (
+            "NOTA: \"{name}\" è anche il nome di un sito web popolare. Se l'utente "
+            "intendeva il sito (e non un'app installata), chiama open_url(\"{name}\") "
+            "invece."
+        ),
         "retry_launch_ctx": (
             "L'applicazione \"{name}\" non è stata trovata su questo sistema.\n\n"
             "Applicazioni installate che potrebbero corrispondere alla richiesta "
@@ -226,6 +259,12 @@ _STRINGS: dict[str, dict[str, str]] = {
             "appelle l'outil de recherche, puis synthétise les résultats en une réponse "
             "concise de 2 à 4 phrases, formulée pour être lue à voix haute. "
             "Pour toutes les autres demandes, appelle la fonction appropriée. "
+            "Quand l'utilisateur demande d'OUVRIR quelque chose, choisis exactement "
+            "un des trois outils selon ce qu'il a nommé : launch_app pour les "
+            "programmes installés sur l'ordinateur (Firefox, VLC, Kitty, Steam, …), "
+            "open_url pour les sites web (youtube, github, gmail, netflix, …), "
+            "open_folder pour les dossiers standards de l'utilisateur "
+            "(téléchargements, documents, musique, …). "
             "N'utilise jamais d'emoji ni d'émoticônes dans tes réponses — "
             "ta réponse est lue à voix haute par un TTS."
         ),
@@ -246,6 +285,17 @@ _STRINGS: dict[str, dict[str, str]] = {
         # multi-turn context
         "context_cleared":      "Conversation effacée.",
         "app_candidates":       "Plusieurs applications trouvées :\n{list}\nRépondez par le numéro.",
+
+        "url_opened":           "Ouverture de {url}.",
+        "url_invalid":          "Impossible d'ouvrir « {target} » — site inconnu.",
+        "folder_opened":        "Ouverture de {path}.",
+        "folder_unknown":       "Le dossier « {name} » n'est pas un dossier standard reconnu.",
+        "folder_missing":       "Le dossier « {path} » n'existe pas.",
+        "retry_launch_url_hint": (
+            "NOTE : « {name} » est aussi le nom d'un site web populaire. Si "
+            "l'utilisateur voulait le site (et non une application installée), "
+            "appelle open_url(\"{name}\") à la place."
+        ),
         "retry_launch_ctx": (
             "L'application \"{name}\" n'a pas été trouvée sur ce système.\n\n"
             "Applications installées pouvant correspondre à la demande de l'utilisateur "
