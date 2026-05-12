@@ -53,7 +53,7 @@ class LlamaServerManager:
         # DB is the source of truth for the URL (set by settings_window / setup).
         # Hardcoded default matches config.LLAMA_SERVER_URL; avoids importing
         # config here (config.py imports pynput which fails in headless test envs).
-        return db.get_setting("llama_server_url", "http://localhost:8080")
+        return db.get_setting("llama_server_url", "http://localhost:8081")
 
     # ── Public API ────────────────────────────────────────────────────────
 

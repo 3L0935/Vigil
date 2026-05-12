@@ -20,8 +20,7 @@ COMPUTE_TYPE = "int8"
 
 # ── llama-server (assistant) ─────────────────────────────────────────────
 # llama-server exposes an OpenAI-compatible API at /v1/chat/completions.
-# Same port as LMAgent-plus default (8080) for easy future integration.
-LLAMA_SERVER_URL = "http://localhost:8080"
+LLAMA_SERVER_URL = "http://localhost:8081"
 LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from DB llama_model
 
 # ── Assistant identity ────────────────────────────────────────────────────
