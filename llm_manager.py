@@ -115,7 +115,7 @@ class LlamaServerManager:
             env=env,
         )
         try:
-            self._wait_health(timeout=30)
+            self._wait_health(timeout=90)
         except RuntimeError:
             self._process.terminate()
             try:
