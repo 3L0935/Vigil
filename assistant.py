@@ -7,11 +7,16 @@ import threading
 import time as _time
 from datetime import datetime
 from pathlib import Path
+from json_repair import repair_json
 from logger import log
 import config
 import locales
 from llm_backend import LlamaServerBackend
 from llm_manager import manager as _llm_manager
+import app_launcher
+import url_shortcuts
+import folders
+import file_search
 
 _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
 
@@ -140,9 +145,9 @@ _WEB_SEARCH_TOOL = {
     "function": {
         "name": "search_web",
         "description": (
-            "Search the web via DuckDuckGo. Use when the user asks about current events, "
-            "facts, prices, news, or anything that requires up-to-date information from the internet. "
-            "Examples: 'cherche sur internet', 'search the web', 'look up', 'what is X', 'latest news about X'."
+            "Search the web via DuckDuckGo. Use for facts, news, prices, or real-time "
+            "information the model does not know internally. "
+            "Example: \"cherche sur internet\" or \"what is X\" >> calls with query parameter."
         ),
         "parameters": {
             "type": "object",
@@ -160,9 +165,9 @@ _OBSIDIAN_TOOL = {
     "function": {
         "name": "search_obsidian_vault",
         "description": (
-            "Search the user's Obsidian vault for notes matching a query. "
-            "Use when the user says 'check dans ma vault', 'cherche dans mes notes', "
-            "'look in my vault', 'search my notes', or similar."
+            "Search the user's Obsidian vault (.md notes) for content matching a query. "
+            "Use when the user asks about information in their notes or saved documents. "
+            "Example: \"cherche dans ma vault\" or \"look in my notes\" >> search the vault."
         ),
         "parameters": {
             "type": "object",
@@ -181,17 +186,11 @@ _OPEN_SETTINGS_TOOL = {
     "function": {
         "name": "open_settings",
         "description": (
-            "Open VIGIL'S OWN settings/configuration panel (the assistant's "
-            "preferences window). "
-            "Use ONLY when the user explicitly wants to configure Vigil itself: "
-            "'ouvre les paramètres de Vigil', 'open Vigil settings', "
-            "'apri le impostazioni di Vigil'. "
-            "Do NOT use for: 'system settings', 'KDE settings', 'PC settings', "
-            "'paramètres du PC', 'paramètres système', 'impostazioni di sistema' "
-            "→ those mean the OS settings panel, call "
-            "app_action(name='System Settings', action='launch') instead. "
-            "If the user just says 'ouvre les paramètres' without naming the "
-            "target, assume Vigil's own (this is the assistant after all)."
+            "Open Vigil's own settings/preferences window. Use ONLY when the user asks to "
+            "configure Vigil itself. If the user says \"parametres\" without naming a target, "
+            "assume Vigil's settings. "
+            "Example: \"ouvre les paramètres de Vigil\" >> open_settings()."
+            "Do NOT use for OS/system settings -- use app_action('System Settings', 'launch')."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -202,11 +201,9 @@ _CLOSE_SETTINGS_TOOL = {
     "function": {
         "name": "close_settings",
         "description": (
-            "Close VIGIL'S OWN settings window if it is open. Use when the user "
-            "asks to close/hide Vigil's settings: 'ferme les paramètres', "
-            "'close settings', 'chiudi le impostazioni'. "
-            "Do NOT use to close OS/system settings — for those use "
-            "app_action(name='System Settings', action='close')."
+            "Close Vigil's own settings window."
+            "Example: \"ferme les paramètres\" >> close_settings()."
+            "Do NOT use for OS/system settings -- use app_action('System Settings', 'close')."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -217,20 +214,12 @@ _APP_ACTION_TOOL = {
     "function": {
         "name": "app_action",
         "description": (
-            "Launch OR close an INSTALLED desktop application (a program that "
-            "lives on this computer, not a website). One tool, one parameter "
-            "picks the verb. "
-            "Examples (launch): 'lance Kitty' → app_action('Kitty', 'launch'), "
-            "'ouvre Firefox' → app_action('Firefox', 'launch'), "
-            "'démarre VLC' → app_action('VLC', 'launch'). "
-            "Examples (close): 'ferme Firefox' → app_action('Firefox', 'close'), "
-            "'quitte VLC' → app_action('VLC', 'close'), "
-            "'kill Steam' → app_action('Steam', 'close'). "
-            "Do NOT use for websites (YouTube, Gmail, GitHub, Netflix, ...) → "
-            "use open_url. "
-            "Do NOT use for the user's standard folders → use open_folder. "
-            "If launching and the exact name isn't certain, give your best "
-            "guess — the system will suggest installed-app matches if not found."
+            "Launch or close an INSTALLED desktop application (not a website). "
+            "The 'action' parameter specifies 'launch' or 'close'. If the exact name "
+            "is uncertain, give your best guess -- the system will suggest matches. "
+            "Examples: \"lance Firefox\" >> app_action('Firefox', 'launch'), "
+            "            \"ferme VLC\" >> app_action('VLC', 'close')."
+            "Do NOT use for: websites (use open_url), local folders (use open_folder)."
         ),
         "parameters": {
             "type": "object",
@@ -255,20 +244,10 @@ _OPEN_URL_TOOL = {
     "function": {
         "name": "open_url",
         "description": (
-            "Open a WEBSITE in the user's default browser. Use when the user wants "
-            "a website / online service rather than a desktop application. "
-            "Examples (voice): 'lance youtube' → open_url('youtube'), "
-            "'ouvre github' → open_url('github'), 'open netflix' → "
-            "open_url('netflix'), 'va sur reddit' → open_url('reddit'), "
-            "'open my gmail' → open_url('gmail'). "
-            "Pass the SITE KEYWORD as the user spoke it. Known keywords include: "
-            "youtube, netflix, twitch, spotify, soundcloud, github, gitlab, gmail, "
-            "outlook, twitter, x, instagram, reddit, tiktok, amazon, chatgpt, "
-            "claude, gemini, wikipedia, drive, maps, discord, whatsapp, telegram, "
-            "and ~30 others. "
-            "Do NOT use for desktop apps installed on the system (Firefox, VLC, "
-            "Kitty, Steam, Gimp, …) → use app_action instead. "
-            "Do NOT use for local folders → use open_folder."
+            "Open a website in the default browser. Pass the site keyword as the user "
+            "spoke it (e.g. 'youtube', 'github', 'gmail'). ~50 sites are recognized. "
+            "Example: \"ouvre YouTube\" >> open_url('youtube')."
+            "Do NOT use for: desktop apps (use app_action), folders (use open_folder)."
         ),
         "parameters": {
             "type": "object",
@@ -288,19 +267,12 @@ _OPEN_FOLDER_TOOL = {
     "function": {
         "name": "open_folder",
         "description": (
-            "Open one of the user's standard folders in the file manager. "
-            "Examples (voice): 'ouvre mon dossier téléchargements' → "
-            "open_folder('downloads'), 'open my documents' → "
-            "open_folder('documents'), 'apri le immagini' → "
-            "open_folder('pictures'), 'ouvre ma musique' → open_folder('music'). "
-            "Pass a SHORT FOLDER NAME the user mentioned. Recognised names "
-            "(any language): downloads/téléchargements/scaricati, "
-            "documents/documenti, pictures/images/immagini, videos/vidéos/video, "
-            "music/musique/musica, desktop/bureau/scrivania, "
-            "templates/modèles/modelli, public/publique/pubblica. "
-            "Do NOT use to launch an app → use app_action. "
-            "Do NOT use for websites → use open_url. "
-            "Do NOT invent paths or use slashes — pass a folder name only."
+            "Open one of the user's standard folders (Documents, Downloads, Pictures, "
+            "Videos, Music, Desktop, Templates, Public) in the file manager. "
+            "Pass a short folder keyword the user mentioned (in any language). "
+            "Example: \"ouvre mes téléchargements\" >> open_folder('downloads')."
+            "Do NOT use for: apps (use app_action), websites (use open_url)."
+            "Do NOT invent paths or use slashes."
         ),
         "parameters": {
             "type": "object",
@@ -320,20 +292,12 @@ _SEARCH_FILES_TOOL = {
     "function": {
         "name": "search_files",
         "description": (
-            "Search the user's standard folders for files matching a query. "
-            "Use when the user asks to find / look for / check whether a "
-            "specific file exists somewhere in their folders: "
-            "'cherche dans mes documents si la facture de mars existe', "
-            "'find my CV in downloads', 'regarde si y a une photo de Paris dans "
-            "mes images', 'cerca la fattura di gennaio nei documenti'. "
-            "Returns two lists: 'found' (files matching ALL query words) and "
-            "'similar' (files matching at least one word — useful as fallback "
-            "suggestions when nothing matches strictly). After the call, the "
-            "user can reply with a number to open one of the suggested files. "
-            "Date/size are omitted by default; set include_date=true if the "
-            "kind of file the user asked for makes the date relevant (invoices, "
-            "screenshots, recent downloads), and include_size=true ONLY if the "
-            "user explicitly asked for size/weight (KB/MB)."
+            "Search standard folders for a specific file by name or keywords. "
+            "After the results, the user can reply with a number to open the chosen file. "
+            "Set include_date=true for time-sensitive files (invoices, screenshots). "
+            "Set include_size=true ONLY if the user explicitly asks for file size. "
+            "Example: \"cherche facture de mars dans downloads\" >> "
+            "        search_files(folder='downloads', query='facture mars')."
         ),
         "parameters": {
             "type": "object",
@@ -394,25 +358,21 @@ _ASK_USER_CHOICE_TOOL = {
 
 
 def _get_tools() -> list[dict]:
-    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-             _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
-             _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
-    if config.OBSIDIAN_VAULT_PATH:
-        tools.append(_OBSIDIAN_TOOL)
-    return tools
+    """Return tool definitions, cached after first build."""
+    if not hasattr(_get_tools, "_cache"):
+        tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
+                 _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
+                 _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
+        if config.OBSIDIAN_VAULT_PATH:
+            tools.append(_OBSIDIAN_TOOL)
+        _get_tools._cache = tools
+    return _get_tools._cache
 
 
 # ── System prompt ─────────────────────────────────────────────────────────
 
 def _system_prompt() -> str:
-    now = datetime.now()
-    return locales.get(
-        "system_prompt",
-        name=getattr(config, "ASSISTANT_NAME", "Vigil"),
-        now=now.strftime("%Y-%m-%d %H:%M"),
-        weekday=now.strftime("%A"),
-        lang_name=locales.get("lang_name"),
-    )
+    return locales.get("system_prompt", name=getattr(config, "ASSISTANT_NAME", "Vigil"))
 
 
 # ── Function dispatcher ───────────────────────────────────────────────────
@@ -437,7 +397,6 @@ def _extract_intent_tokens(text: str) -> list[str]:
     that actually identify the app (e.g. 'musique', 'navigateur')."""
     if not text:
         return []
-    import re
     words = re.findall(r"[\w'’-]+", text.lower())
     return [w for w in words if w and w not in _RETRY_STOPWORDS and len(w) > 2]
 
@@ -451,7 +410,6 @@ def _build_launch_retry_context(app_name: str, user_text: str) -> str:
     mistranscribed sentence. Language follows config.LANGUAGE so the model's
     plain-text fallback ends up in the user's language.
     """
-    import app_launcher
     seen: set[str] = set()
     cands: list[str] = []
     # 1. Intent tokens from user's raw utterance (most semantic)
@@ -537,7 +495,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             return ("\n\n".join(lines), None)
 
         elif name == "app_action":
-            import app_launcher
             app_name = (args.get("name") or "").strip()
             action   = args.get("action", "launch")
             if action not in ("launch", "close"):
@@ -568,7 +525,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             if action == "close":
                 return (locales.get("app_close_failed", name=app_name), None)
             retry_ctx = _build_launch_retry_context(app_name, user_text)
-            import url_shortcuts
             if url_shortcuts.is_known(app_name):
                 retry_ctx = (
                     retry_ctx + "\n\n"
@@ -577,7 +533,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             return (locales.get("app_not_found", name=app_name), retry_ctx)
 
         elif name == "search_files":
-            import file_search
             folder = (args.get("folder") or "").strip()
             query = (args.get("query") or "").strip()
             include_date = bool(args.get("include_date", False))
@@ -641,7 +596,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             return (locales.get("app_candidates", list=lines), None)
 
         elif name == "open_url":
-            import url_shortcuts
             target = (args.get("target") or "").strip()
             url = url_shortcuts.resolve(target)
             if not url:
@@ -666,7 +620,6 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             return (locales.get("url_opened", url=display), None)
 
         elif name == "open_folder":
-            import folders
             folder_name = (args.get("name") or "").strip()
             path = folders.resolve(folder_name)
             if path is None:
@@ -768,18 +721,16 @@ def process(text: str) -> str:
                     except Exception:
                         result = locales.get("file_open_failed", path=chosen)
             elif action == "launch":
-                import app_launcher
                 ok, label = app_launcher.launch(chosen)
                 result = locales.get("app_launched", name=label) if ok else locales.get("app_not_found", name=label)
             else:
-                import app_launcher
                 ok, label = app_launcher.close(chosen)
                 result = locales.get("app_closed", name=label) if ok else locales.get("app_close_failed", name=label)
             with _context_lock:
                 _conversation_history.append({"role": "user",      "content": text})
                 _conversation_history.append({"role": "assistant",  "content": result})
-                if len(_conversation_history) > 20:
-                    _conversation_history = _conversation_history[-20:]
+                if len(_conversation_history) > 16:
+                    _conversation_history = _conversation_history[-16:]
                 _last_interaction = _time.monotonic()
             return result
         else:
@@ -817,7 +768,6 @@ def process(text: str) -> str:
                 try:
                     args = json.loads(raw_args)
                 except json.JSONDecodeError:
-                    from json_repair import repair_json
                     args = repair_json(raw_args) or {}
             else:
                 args = raw_args
@@ -846,7 +796,6 @@ def process(text: str) -> str:
                                 try:
                                     retry_args = json.loads(retry_raw)
                                 except json.JSONDecodeError:
-                                    from json_repair import repair_json
                                     retry_args = repair_json(retry_raw) or {}
                             else:
                                 retry_args = retry_raw
@@ -906,8 +855,8 @@ def process(text: str) -> str:
         if not _context_cleared_flag:
             _conversation_history.append({"role": "user",      "content": text})
             _conversation_history.append({"role": "assistant",  "content": result})
-            if len(_conversation_history) > 20:
-                _conversation_history = _conversation_history[-20:]
+            if len(_conversation_history) > 16:
+                _conversation_history = _conversation_history[-16:]
         _last_interaction = _time.monotonic()
 
     return result
