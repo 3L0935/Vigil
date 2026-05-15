@@ -89,6 +89,8 @@ def _load_settings():
     config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
     provider = db.get_setting("llm_provider", "llama_cpp")
     config.LLM_PROVIDER = provider
+    ollama_key = db.get_setting("ollama_api_key", "")
+    config.OLLAMA_API_KEY = ollama_key
     hk_dict = db.get_setting("hotkey_dict", "")
     if hk_dict:
         config.HOTKEY = hk_dict
