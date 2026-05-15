@@ -899,6 +899,10 @@ class SettingsWindow:
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
+    def _on_whisper_change(self, value: str):
+        if self._on_whisper_change_cb:
+            self._on_whisper_change_cb(value)
+
     def _fetch_ollama_models(self):
         """Fetch available models from Ollama API and populate the dropdown."""
         import threading
@@ -915,6 +919,8 @@ class SettingsWindow:
                 headers["Authorization"] = f"Bearer {key}"
 
         def _do():
+            models = []
+            err_msg = ""
             try:
                 import httpx
                 with httpx.Client(timeout=10) as client:
@@ -923,10 +929,9 @@ class SettingsWindow:
                     data = resp.json()
                 models = [m["name"] for m in data.get("models", [])]
             except Exception as e:
-                models = []
                 err_msg = str(e)
 
-            self._win.after(0, lambda: self._update_ollama_models(models, err_msg if not models else ""))
+            self._win.after(0, lambda: self._update_ollama_models(models, err_msg))
 
         # Show loading state
         if self._ollama_fetch_label:
