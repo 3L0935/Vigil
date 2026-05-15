@@ -189,6 +189,12 @@ class SettingsWindow:
         self._assistant_name_var = None
         self._llm_gpu_layers_var = None
         self._llm_ctx_size_var = None
+        self._provider_var = None
+        self._ollama_model_var = None
+        self._ollama_url_var = None
+        self._ollama_api_key_var = None
+        self._llama_pack_row = None       # frame contenant les widgets llama.cpp
+        self._ollama_pack_row = None      # frame contenant les widgets Ollama
 
     def show(self):
         if self._win is not None:
@@ -254,13 +260,37 @@ class SettingsWindow:
             command=self._on_whisper_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
 
-        # ── LLM Model ──────────────────────────────────────────────────────
+        # ── LLM Provider ──────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
             fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text=locales.get("setting_llm_model"),
+        ctk.CTkLabel(pad, text="LLM Provider",
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
-        llm_row = ctk.CTkFrame(pad, fg_color="transparent")
+        self._provider_var = tk.StringVar(
+            master=self._win,
+            value=db.get_setting("llm_provider", "llama_cpp"))
+        ctk.CTkOptionMenu(
+            pad,
+            values=["llama_cpp", "ollama"],
+            variable=self._provider_var,
+            fg_color=T.BG_CARD, button_color=T.BG_HOVER,
+            button_hover_color=T.BG_HOVER, text_color=T.FG,
+            dropdown_fg_color=T.BG_CARD, dropdown_text_color=T.FG,
+            dropdown_hover_color=T.BG_HOVER,
+            font=T.FONT_SMALL, corner_radius=6,
+            command=self._on_provider_change,
+        ).pack(fill="x", pady=(0, T.PAD_L))
+
+        # ── llama.cpp settings pack ────────────────────────────────────────
+        self._llama_pack_row = ctk.CTkFrame(pad, fg_color="transparent")
+
+        # ── LLM Model ──────────────────────────────────────────────────────
+        ctk.CTkFrame(self._llama_pack_row, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(self._llama_pack_row, text=locales.get("setting_llm_model"),
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        llm_row = ctk.CTkFrame(self._llama_pack_row, fg_color="transparent")
         llm_row.pack(fill="x", pady=(0, T.PAD_L))
         self._llm_model_var = tk.StringVar(master=self._win, value=db.get_setting("llama_model", ""))
         ctk.CTkEntry(llm_row, textvariable=self._llm_model_var,
@@ -275,15 +305,15 @@ class SettingsWindow:
                       command=self._browse_model).pack(side="right")
 
         # ── LLM Unload Timeout ────────────────────────────────────────────
-        ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
-            fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text=locales.get("setting_llm_unload"),
+        ctk.CTkFrame(self._llama_pack_row, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(self._llama_pack_row, text=locales.get("setting_llm_unload"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_timeout_var = tk.StringVar(
             master=self._win, value=db.get_setting("llama_unload_timeout", "120"))
         ctk.CTkOptionMenu(
-            pad,
+            self._llama_pack_row,
             values=["60", "120", "300", "0"],
             variable=self._llm_timeout_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
@@ -295,13 +325,13 @@ class SettingsWindow:
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── GPU Layers (ngl) ──────────────────────────────────────────
-        ctk.CTkLabel(pad, text=locales.get("setting_llm_gpu_layers"),
+        ctk.CTkLabel(self._llama_pack_row, text=locales.get("setting_llm_gpu_layers"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_gpu_layers_var = tk.StringVar(
             master=self._win, value=db.get_setting("llm_gpu_layers", "99"))
         ctk.CTkOptionMenu(
-            pad,
+            self._llama_pack_row,
             values=["off", "10", "20", "33", "99"],
             variable=self._llm_gpu_layers_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
@@ -312,13 +342,13 @@ class SettingsWindow:
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── Context size (-c) ─────────────────────────────────────────
-        ctk.CTkLabel(pad, text=locales.get("setting_llm_ctx_size"),
+        ctk.CTkLabel(self._llama_pack_row, text=locales.get("setting_llm_ctx_size"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._llm_ctx_size_var = tk.StringVar(
             master=self._win, value=db.get_setting("llama_ctx_size", "4096"))
         ctk.CTkOptionMenu(
-            pad,
+            self._llama_pack_row,
             values=["2048", "4096", "8192", "16384", "32768"],
             variable=self._llm_ctx_size_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
@@ -329,15 +359,58 @@ class SettingsWindow:
         ).pack(fill="x", pady=(0, T.PAD_L))
 
         # ── LLM Server URL ────────────────────────────────────────────
-        ctk.CTkLabel(pad, text=locales.get("setting_llm_url"),
+        ctk.CTkLabel(self._llama_pack_row, text=locales.get("setting_llm_url"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
         self._llm_url_var = tk.StringVar(master=self._win, value=getattr(config, "LLAMA_SERVER_URL", ""))
-        ctk.CTkEntry(pad, textvariable=self._llm_url_var,
+        ctk.CTkEntry(self._llama_pack_row, textvariable=self._llm_url_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        # Initial visibility: llama_cpp visible by default
+        self._llama_pack_row.pack(fill="x")
+
+        # ── Ollama settings pack (hidden by default) ───────────────────────
+        self._ollama_pack_row = ctk.CTkFrame(pad, fg_color="transparent")
+
+        # Ollama URL
+        ctk.CTkLabel(self._ollama_pack_row, text="Ollama URL",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._ollama_url_var = tk.StringVar(
+            master=self._win, value=db.get_setting("ollama_url", "http://localhost:11434"))
+        ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_url_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        # Ollama Model
+        ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(self._ollama_pack_row, text="Ollama Model",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._ollama_model_var = tk.StringVar(
+            master=self._win, value=db.get_setting("ollama_model", "qwen2.5:7b"))
+        ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_model_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        # Ollama API Key (optional, for Cloud)
+        ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
+                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
+        ctk.CTkLabel(self._ollama_pack_row, text="API Key (optional, for Ollama Cloud)",
+                     font=T.FONT_TITLE, text_color=T.FG,
+                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        self._ollama_api_key_var = tk.StringVar(
+            master=self._win, value=db.get_setting("ollama_api_key", ""))
+        ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_api_key_var,
+                     fg_color=T.BG_INPUT, border_color=T.BORDER,
+                     text_color=T.FG, font=T.FONT_SMALL,
+                     height=32, corner_radius=6, show="*").pack(fill="x", pady=(0, T.PAD_L))
 
         # Separator
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
@@ -771,12 +844,35 @@ class SettingsWindow:
             self._llm_gpu_layers_var.set(db.get_setting("llm_gpu_layers", "99"))
         if self._llm_ctx_size_var:
             self._llm_ctx_size_var.set(db.get_setting("llama_ctx_size", "4096"))
+        if self._provider_var:
+            self._provider_var.set(db.get_setting("llm_provider", "llama_cpp"))
+        if self._ollama_model_var:
+            self._ollama_model_var.set(db.get_setting("ollama_model", "qwen2.5:7b"))
+        if self._ollama_url_var:
+            self._ollama_url_var.set(db.get_setting("ollama_url", "http://localhost:11434"))
+        if self._ollama_api_key_var:
+            self._ollama_api_key_var.set(db.get_setting("ollama_api_key", ""))
+        # Sync provider panel visibility
+        self._on_provider_change(self._provider_var.get() if self._provider_var else "llama_cpp")
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
     def _on_whisper_change(self, value: str):
         if self._on_whisper_change_cb:
             self._on_whisper_change_cb(value)
+
+    def _on_provider_change(self, value: str):
+        """Show/hide provider-specific settings panels."""
+        if value == "ollama":
+            if self._llama_pack_row:
+                self._llama_pack_row.pack_forget()
+            if self._ollama_pack_row:
+                self._ollama_pack_row.pack(fill="x")
+        else:
+            if self._ollama_pack_row:
+                self._ollama_pack_row.pack_forget()
+            if self._llama_pack_row:
+                self._llama_pack_row.pack(fill="x")
 
     def _browse_model(self):
         self._win.withdraw()
@@ -1010,6 +1106,30 @@ class SettingsWindow:
             if name:
                 config.ASSISTANT_NAME = name
                 db.save_setting("assistant_name", name)
+        if self._provider_var:
+            provider = self._provider_var.get()
+            old_provider = db.get_setting("llm_provider", "llama_cpp")
+            config.LLM_PROVIDER = provider
+            db.save_setting("llm_provider", provider)
+            if provider != old_provider:
+                from llm_manager import manager as _mgr
+                _mgr.shutdown()
+                import assistant as _assistant
+                _assistant.reload_backend()
+        if self._ollama_model_var:
+            model = self._ollama_model_var.get().strip()
+            if model:
+                db.save_setting("ollama_model", model)
+                config.OLLAMA_MODEL = model
+        if self._ollama_url_var:
+            url = self._ollama_url_var.get().strip()
+            if url:
+                db.save_setting("ollama_url", url)
+                config.OLLAMA_URL = url
+        if self._ollama_api_key_var:
+            key = self._ollama_api_key_var.get().strip()
+            db.save_setting("ollama_api_key", key)
+            config.OLLAMA_API_KEY = key
         if self._tts_speaker_fr_var:
             try:
                 db.save_setting("tts_speaker_fr", str(int(self._tts_speaker_fr_var.get())))
