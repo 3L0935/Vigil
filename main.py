@@ -534,9 +534,12 @@ def main():
     # dictation isn't swallowed by the dialog. Cheap no-op for everyone else.
     injector.prewarm()
 
-    # Check llama-server connectivity at startup
+    # Check LLM backend connectivity at startup
     if not assistant.ping_llama_server():
-        log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
+        if config.LLM_PROVIDER == "ollama":
+            log.warning("Ollama is not reachable at %s", config.OLLAMA_URL)
+        else:
+            log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
         tray.set_tooltip(locales.get("tray_ollama_down"))
 
     transcriber = Transcriber()
