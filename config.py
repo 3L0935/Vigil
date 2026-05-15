@@ -32,7 +32,7 @@ LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from 
 # ── Ollama defaults ────────────────────────────────────────────────────────
 OLLAMA_LOCAL_URL = "http://localhost:11434"
 OLLAMA_CLOUD_URL = "https://ollama.com"
-OLLAMA_MODEL = "qwen2.5:7b"  # display default; runtime comes from DB ollama_model
+OLLAMA_MODEL = ""  # runtime comes from DB ollama_model
 OLLAMA_API_KEY = ""  # only used for ollama_cloud
 
 # ── Assistant identity ────────────────────────────────────────────────────

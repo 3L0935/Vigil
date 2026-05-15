@@ -400,15 +400,23 @@ class SettingsWindow:
         model_row = ctk.CTkFrame(self._ollama_pack_row, fg_color="transparent")
         model_row.pack(fill="x", pady=(0, T.PAD_L))
 
-        saved_model = db.get_setting("ollama_model", "qwen2.5:7b")
-        self._ollama_model_var = tk.StringVar(master=self._win, value=saved_model)
-
-        # Dropdown (populated on fetch)
-        self._ollama_model_dropdown = _ScrollableDropdown(
-            model_row,
-            values=[saved_model] if saved_model else [],
-            variable=self._ollama_model_var,
-        )
+        saved_model = db.get_setting("ollama_model", "")
+        if saved_model:
+            self._ollama_model_var = tk.StringVar(master=self._win, value=saved_model)
+            # Dropdown (populated on fetch)
+            self._ollama_model_dropdown = _ScrollableDropdown(
+                model_row,
+                values=[saved_model],
+                variable=self._ollama_model_var,
+            )
+        else:
+            placeholder = "No models — press Refresh"
+            self._ollama_model_var = tk.StringVar(master=self._win, value=placeholder)
+            self._ollama_model_dropdown = _ScrollableDropdown(
+                model_row,
+                values=[placeholder],
+                variable=self._ollama_model_var,
+            )
         self._ollama_model_dropdown.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
 
         # Refresh button
@@ -883,7 +891,7 @@ class SettingsWindow:
             provider = db.get_setting("llm_provider", "llama_cpp")
             self._provider_var.set(provider)
         if self._ollama_model_var:
-            self._ollama_model_var.set(db.get_setting("ollama_model", "qwen2.5:7b"))
+            self._ollama_model_var.set(db.get_setting("ollama_model", ""))
         if self._ollama_url_var:
             provider = db.get_setting("llm_provider", "llama_cpp")
             if provider == "ollama_local":
@@ -948,7 +956,7 @@ class SettingsWindow:
             self._ollama_fetch_btn.configure(state="normal", text="Refresh")
 
         if models:
-            saved = db.get_setting("ollama_model", "qwen2.5:7b")
+            saved = db.get_setting("ollama_model", "")
             if saved not in models:
                 models.insert(0, saved)  # keep saved model as first option
 
