@@ -87,6 +87,8 @@ def _load_settings():
     config.TTS_MODE     = db.get_setting("tts_mode",     "overlay")
     config.TTS_VOICE_FR = db.get_setting("tts_voice_fr", "")
     config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
+    provider = db.get_setting("llm_provider", "llama_cpp")
+    config.LLM_PROVIDER = provider
     hk_dict = db.get_setting("hotkey_dict", "")
     if hk_dict:
         config.HOTKEY = hk_dict

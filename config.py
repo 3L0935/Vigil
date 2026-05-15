@@ -18,10 +18,19 @@ SAMPLE_RATE = 16000
 DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
 
+# ── LLM Provider ───────────────────────────────────────────────────────────
+# "llama_cpp" = llama-server local (managed or external)
+# "ollama"    = Ollama daemon (http://localhost:11434)
+LLM_PROVIDER = "llama_cpp"
+
 # ── llama-server (assistant) ─────────────────────────────────────────────
 # llama-server exposes an OpenAI-compatible API at /v1/chat/completions.
 LLAMA_SERVER_URL = "http://localhost:8081"
 LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from DB llama_model
+
+# ── Ollama defaults ────────────────────────────────────────────────────────
+OLLAMA_URL = "http://localhost:11434"
+OLLAMA_MODEL = "qwen2.5:7b"  # display default; runtime comes from DB ollama_model
 
 # ── Assistant identity ────────────────────────────────────────────────────
 ASSISTANT_NAME = "Vigil"
