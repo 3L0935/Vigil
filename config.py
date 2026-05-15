@@ -19,8 +19,9 @@ DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
 
 # ── LLM Provider ───────────────────────────────────────────────────────────
-# "llama_cpp" = llama-server local (managed or external)
-# "ollama"    = Ollama daemon (http://localhost:11434)
+# "llama_cpp"    = llama-server local (managed or external)
+# "ollama_local" = Ollama daemon local (http://localhost:11434, no auth)
+# "ollama_cloud" = Ollama-compatible cloud API (URL + API key required)
 LLM_PROVIDER = "llama_cpp"
 
 # ── llama-server (assistant) ─────────────────────────────────────────────
@@ -29,9 +30,10 @@ LLAMA_SERVER_URL = "http://localhost:8081"
 LLAMA_MODEL = "qwen2.5-7b-instruct"  # display default; runtime path comes from DB llama_model
 
 # ── Ollama defaults ────────────────────────────────────────────────────────
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_LOCAL_URL = "http://localhost:11434"
+OLLAMA_CLOUD_URL = "https://ollama.com"
 OLLAMA_MODEL = "qwen2.5:7b"  # display default; runtime comes from DB ollama_model
-OLLAMA_API_KEY = ""  # empty = local Ollama; set for Ollama Cloud
+OLLAMA_API_KEY = ""  # only used for ollama_cloud
 
 # ── Assistant identity ────────────────────────────────────────────────────
 ASSISTANT_NAME = "Vigil"

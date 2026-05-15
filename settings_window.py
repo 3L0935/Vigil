@@ -271,7 +271,7 @@ class SettingsWindow:
             value=db.get_setting("llm_provider", "llama_cpp"))
         ctk.CTkOptionMenu(
             pad,
-            values=["llama_cpp", "ollama"],
+            values=["llama_cpp", "ollama_local", "ollama_cloud"],
             variable=self._provider_var,
             fg_color=T.BG_CARD, button_color=T.BG_HOVER,
             button_hover_color=T.BG_HOVER, text_color=T.FG,
@@ -375,12 +375,12 @@ class SettingsWindow:
         # ── Ollama settings pack (hidden by default) ───────────────────────
         self._ollama_pack_row = ctk.CTkFrame(pad, fg_color="transparent")
 
-        # Ollama URL
+        # Ollama URL (auto-switched by _on_provider_change)
         ctk.CTkLabel(self._ollama_pack_row, text="Ollama URL",
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._ollama_url_var = tk.StringVar(
-            master=self._win, value=db.get_setting("ollama_url", "http://localhost:11434"))
+            master=self._win, value=db.get_setting("ollama_local_url", "http://localhost:11434"))
         ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_url_var,
                      fg_color=T.BG_INPUT, border_color=T.BORDER,
                      text_color=T.FG, font=T.FONT_SMALL,
@@ -399,18 +399,17 @@ class SettingsWindow:
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
 
-        # Ollama API Key (optional, for Cloud)
-        ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
-                     corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(self._ollama_pack_row, text="API Key (optional, for Ollama Cloud)",
-                     font=T.FONT_TITLE, text_color=T.FG,
-                     anchor="w").pack(fill="x", pady=(0, T.PAD_M))
+        # Ollama API Key (cloud only — toggled visibility by _on_provider_change)
+        self._ollama_api_key_frame = ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
+                                                   corner_radius=0)
+        self._ollama_api_key_label = ctk.CTkLabel(self._ollama_pack_row, text="API Key",
+                                                   font=T.FONT_TITLE, text_color=T.FG, anchor="w")
         self._ollama_api_key_var = tk.StringVar(
             master=self._win, value=db.get_setting("ollama_api_key", ""))
-        ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_api_key_var,
-                     fg_color=T.BG_INPUT, border_color=T.BORDER,
-                     text_color=T.FG, font=T.FONT_SMALL,
-                     height=32, corner_radius=6, show="*").pack(fill="x", pady=(0, T.PAD_L))
+        self._ollama_api_key_entry = ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_api_key_var,
+                                                   fg_color=T.BG_INPUT, border_color=T.BORDER,
+                                                   text_color=T.FG, font=T.FONT_SMALL,
+                                                   height=32, corner_radius=6, show="*")
 
         # Separator
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
@@ -845,11 +844,18 @@ class SettingsWindow:
         if self._llm_ctx_size_var:
             self._llm_ctx_size_var.set(db.get_setting("llama_ctx_size", "4096"))
         if self._provider_var:
-            self._provider_var.set(db.get_setting("llm_provider", "llama_cpp"))
+            provider = db.get_setting("llm_provider", "llama_cpp")
+            self._provider_var.set(provider)
         if self._ollama_model_var:
             self._ollama_model_var.set(db.get_setting("ollama_model", "qwen2.5:7b"))
         if self._ollama_url_var:
-            self._ollama_url_var.set(db.get_setting("ollama_url", "http://localhost:11434"))
+            provider = db.get_setting("llm_provider", "llama_cpp")
+            if provider == "ollama_local":
+                self._ollama_url_var.set(db.get_setting("ollama_local_url", "http://localhost:11434"))
+            elif provider == "ollama_cloud":
+                self._ollama_url_var.set(db.get_setting("ollama_cloud_url", "https://ollama.com"))
+            else:
+                self._ollama_url_var.set("http://localhost:11434")
         if self._ollama_api_key_var:
             self._ollama_api_key_var.set(db.get_setting("ollama_api_key", ""))
         # Sync provider panel visibility
@@ -863,7 +869,26 @@ class SettingsWindow:
 
     def _on_provider_change(self, value: str):
         """Show/hide provider-specific settings panels."""
-        if value == "ollama":
+        if value.startswith("ollama"):
+            # Switch URL based on sub-provider
+            if value == "ollama_local":
+                default_url = db.get_setting("ollama_local_url", "") or "http://localhost:11434"
+            else:  # ollama_cloud
+                default_url = db.get_setting("ollama_cloud_url", "") or "https://ollama.com"
+            if self._ollama_url_var:
+                self._ollama_url_var.set(default_url)
+
+            # Show API key only for cloud
+            if value == "ollama_cloud":
+                self._ollama_api_key_frame.pack(fill="x", pady=(0, T.PAD_M))
+                self._ollama_api_key_label.pack(fill="x", pady=(0, T.PAD_M))
+                self._ollama_api_key_entry.pack(fill="x", pady=(0, T.PAD_L))
+            else:
+                self._ollama_api_key_frame.pack_forget()
+                self._ollama_api_key_label.pack_forget()
+                self._ollama_api_key_entry.pack_forget()
+
+            # Toggle pack visibility
             if self._llama_pack_row:
                 self._llama_pack_row.pack_forget()
             if self._ollama_pack_row:
@@ -1123,9 +1148,14 @@ class SettingsWindow:
                 config.OLLAMA_MODEL = model
         if self._ollama_url_var:
             url = self._ollama_url_var.get().strip()
-            if url:
-                db.save_setting("ollama_url", url)
-                config.OLLAMA_URL = url
+            if url and self._provider_var:
+                provider = self._provider_var.get()
+                if provider == "ollama_local":
+                    db.save_setting("ollama_local_url", url)
+                    config.OLLAMA_LOCAL_URL = url
+                elif provider == "ollama_cloud":
+                    db.save_setting("ollama_cloud_url", url)
+                    config.OLLAMA_CLOUD_URL = url
         if self._ollama_api_key_var:
             key = self._ollama_api_key_var.get().strip()
             db.save_setting("ollama_api_key", key)

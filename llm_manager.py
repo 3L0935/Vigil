@@ -22,6 +22,9 @@ class LlamaServerManager:
     def _provider(self) -> str:
         return db.get_setting("llm_provider", "llama_cpp")
 
+    def _is_ollama(self) -> bool:
+        return self._provider().startswith("ollama")
+
     def _is_managed(self) -> bool:
         return db.get_setting("llama_server_managed", "true") == "true"
 
@@ -53,8 +56,10 @@ class LlamaServerManager:
             return 4096
 
     def _server_url(self) -> str:
-        if self._provider() == "ollama":
-            return db.get_setting("ollama_url", "http://localhost:11434")
+        if self._provider() == "ollama_local":
+            return db.get_setting("ollama_local_url", "http://localhost:11434")
+        if self._provider() == "ollama_cloud":
+            return db.get_setting("ollama_cloud_url", "https://ollama.com")
         return db.get_setting("llama_server_url", "http://localhost:8081")
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -62,7 +67,7 @@ class LlamaServerManager:
     def ensure_running(self):
         """Start server if needed, then reset inactivity timer."""
         with self._lock:
-            if self._provider() == "ollama":
+            if self._is_ollama():
                 self._wait_health(timeout=5)
                 self._reset_timer()
                 return
@@ -80,7 +85,7 @@ class LlamaServerManager:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
-            if self._provider() == "ollama":
+            if self._is_ollama():
                 return  # never kill the Ollama daemon
             if self._process is not None:
                 self._process.terminate()
@@ -159,7 +164,7 @@ class LlamaServerManager:
         self._timer.start()
 
     def _auto_shutdown(self):
-        if self._provider() == "ollama":
+        if self._is_ollama():
             return  # Ollama daemon manages its own lifecycle
         with self._lock:
             if self._process is not None:

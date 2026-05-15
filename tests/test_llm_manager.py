@@ -88,7 +88,7 @@ def test_ensure_running_ollama_does_not_spawn():
          patch.object(mgr, "_wait_health"), \
          patch.object(mgr, "_reset_timer"):
         mock_db.get_setting.side_effect = lambda key, default="": {
-            "llm_provider": "ollama",
+            "llm_provider": "ollama_local",
         }.get(key, default)
 
         mgr.ensure_running()

@@ -89,14 +89,17 @@ def _load_settings():
     config.TTS_VOICE_EN = db.get_setting("tts_voice_en", "")
     provider = db.get_setting("llm_provider", "llama_cpp")
     config.LLM_PROVIDER = provider
-    ollama_key = db.get_setting("ollama_api_key", "")
-    config.OLLAMA_API_KEY = ollama_key
-    ollama_url = db.get_setting("ollama_url", "")
-    if ollama_url:
-        config.OLLAMA_URL = ollama_url
+    ollama_local_url = db.get_setting("ollama_local_url", "")
+    if ollama_local_url:
+        config.OLLAMA_LOCAL_URL = ollama_local_url
+    ollama_cloud_url = db.get_setting("ollama_cloud_url", "")
+    if ollama_cloud_url:
+        config.OLLAMA_CLOUD_URL = ollama_cloud_url
     ollama_model = db.get_setting("ollama_model", "")
     if ollama_model:
         config.OLLAMA_MODEL = ollama_model
+    ollama_key = db.get_setting("ollama_api_key", "")
+    config.OLLAMA_API_KEY = ollama_key
     hk_dict = db.get_setting("hotkey_dict", "")
     if hk_dict:
         config.HOTKEY = hk_dict
@@ -544,8 +547,10 @@ def main():
 
     # Check LLM backend connectivity at startup
     if not assistant.ping_llama_server():
-        if config.LLM_PROVIDER == "ollama":
-            log.warning("Ollama is not reachable at %s", config.OLLAMA_URL)
+        if config.LLM_PROVIDER == "ollama_local":
+            log.warning("Ollama local daemon is not reachable at %s", config.OLLAMA_LOCAL_URL)
+        elif config.LLM_PROVIDER == "ollama_cloud":
+            log.warning("Ollama cloud API is not reachable at %s", config.OLLAMA_CLOUD_URL)
         else:
             log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
         tray.set_tooltip(locales.get("tray_ollama_down"))
