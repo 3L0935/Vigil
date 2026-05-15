@@ -76,3 +76,46 @@ def test_timeout_zero_never_schedules_timer():
         mock_db.get_setting.return_value = "0"
         mgr._reset_timer()
         mock_timer.assert_not_called()
+
+
+def test_ensure_running_ollama_does_not_spawn():
+    """ensure_running() does NOT spawn when provider=ollama."""
+    from llm_manager import LlamaServerManager
+    mgr = LlamaServerManager()
+
+    with patch("llm_manager.db") as mock_db, \
+         patch("llm_manager.subprocess.Popen") as mock_popen, \
+         patch.object(mgr, "_wait_health"), \
+         patch.object(mgr, "_reset_timer"):
+        mock_db.get_setting.side_effect = lambda key, default="": {
+            "llm_provider": "ollama",
+        }.get(key, default)
+
+        mgr.ensure_running()
+        mock_popen.assert_not_called()
+
+
+def test_shutdown_ollama_is_noop():
+    """shutdown() does nothing when provider=ollama."""
+    from llm_manager import LlamaServerManager
+    mgr = LlamaServerManager()
+    mgr._process = MagicMock()  # would be dangerous if terminate() called
+
+    with patch("llm_manager.db") as mock_db:
+        mock_db.get_setting.return_value = "ollama"
+        mgr.shutdown()
+
+    mgr._process.terminate.assert_not_called()
+
+
+def test_auto_shutdown_ollama_skips():
+    """_auto_shutdown() does nothing when provider=ollama."""
+    from llm_manager import LlamaServerManager
+    mgr = LlamaServerManager()
+    mgr._process = MagicMock()
+
+    with patch("llm_manager.db") as mock_db:
+        mock_db.get_setting.return_value = "ollama"
+        mgr._auto_shutdown()
+
+    mgr._process.terminate.assert_not_called()
