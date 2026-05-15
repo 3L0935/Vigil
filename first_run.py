@@ -308,6 +308,98 @@ def setup_model(total_vram_mb: int) -> Path:
     return Path(downloaded)
 
 
+# ── LLM Provider selection ────────────────────────────────────────────────
+
+def setup_llm_provider() -> str:
+    """Phase 0.5 — Choose LLM backend provider. Returns provider key."""
+    import database as db
+
+    print("\n=== LLM Backend ===\n")
+    print("  [1] llama.cpp    (local, GPU — recommended)")
+    print("  [2] Ollama local (local daemon on port 11434)")
+    print("  [3] Ollama Cloud (ollama.com or custom URL + API key)")
+
+    saved = db.get_setting("llm_provider", "llama_cpp")
+    defaults = {"llama_cpp": "1", "ollama_local": "2", "ollama_cloud": "3"}
+    default_choice = defaults.get(saved, "1")
+
+    choice = input(f"\nChoice [Entrée = {default_choice}]: ").strip() or default_choice
+    provider = {"1": "llama_cpp", "2": "ollama_local", "3": "ollama_cloud"}.get(choice, "llama_cpp")
+    db.save_setting("llm_provider", provider)
+    print(f"  Backend: {provider}")
+    return provider
+
+
+def setup_ollama_model(provider: str) -> None:
+    """Fetch available Ollama models and let user pick one.
+
+    provider is 'ollama_local' or 'ollama_cloud'.
+    """
+    import database as db
+    import config
+
+    if provider == "ollama_local":
+        url = "http://localhost:11434"
+    else:
+        url = input("\n  Ollama Cloud URL [https://ollama.com]: ").strip()
+        if not url:
+            url = "https://ollama.com"
+        key = input("  API Key: ").strip()
+        db.save_setting("ollama_api_key", key)
+        db.save_setting("ollama_cloud_url", url)
+        config.OLLAMA_CLOUD_URL = url
+        config.OLLAMA_API_KEY = key
+
+    db.save_setting("ollama_local_url" if provider == "ollama_local" else "ollama_cloud_url", url)
+
+    tags_url = url.rstrip("/") + "/api/tags"
+    headers = {}
+    if provider == "ollama_cloud":
+        key = db.get_setting("ollama_api_key", "")
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+
+    print(f"\n  Fetching models from {url}...")
+    try:
+        import httpx
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(tags_url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        models = [m["name"] for m in data.get("models", [])]
+    except Exception as e:
+        print(f"  Could not fetch models: {e}")
+        name = input("  Model name (enter manually): ").strip()
+        if name:
+            db.save_setting("ollama_model", name)
+            print(f"  Model set: {name}")
+        return
+
+    if not models:
+        print("  No models found on this server.")
+        name = input("  Model name (enter manually): ").strip()
+        if name:
+            db.save_setting("ollama_model", name)
+            print(f"  Model set: {name}")
+        return
+
+    print(f"\n  {len(models)} model(s) available:\n")
+    for i, m in enumerate(models, 1):
+        print(f"    [{i}] {m}")
+
+    saved = db.get_setting("ollama_model", "")
+    default_idx = str(models.index(saved) + 1) if saved in models else "1"
+    choice = input(f"\n  Choice [Entrée = {default_idx}]: ").strip() or default_idx
+
+    if choice.isdigit() and 1 <= int(choice) <= len(models):
+        chosen = models[int(choice) - 1]
+    else:
+        chosen = models[0]
+
+    db.save_setting("ollama_model", chosen)
+    print(f"  Model set: {chosen}")
+
+
 _WHISPER_MODELS = [
     ("tiny",     "~75 MB,  fastest, lower accuracy"),
     ("base",     "~145 MB, fast, decent accuracy       <- recommended"),
@@ -560,25 +652,41 @@ def main():
     # Phase 0 — Language
     setup_language()
 
-    # Phase 1 — llama-server binary
-    backend    = detect_gpu()
-    total_vram = get_total_vram_mb(backend)
-    print(f"\nGPU backend detected: {backend.upper()}")
-    if total_vram:
-        print(f"Total VRAM: {total_vram} MB")
+    # Phase 0.5 — LLM Backend provider
+    provider = setup_llm_provider()
+
+    if provider == "llama_cpp":
+        # Phase 1 — llama-server binary
+        backend    = detect_gpu()
+        total_vram = get_total_vram_mb(backend)
+        print(f"\nGPU backend detected: {backend.upper()}")
+        if total_vram:
+            print(f"Total VRAM: {total_vram} MB")
+        else:
+            print("No GPU / CPU mode")
+
+        bin_path, managed = setup_llama_binary()
+
+        # Phase 2 — LLM model
+        model_path = setup_model(total_vram)
+
+        # Phase 2.7 — GPU layers
+        setup_gpu_layers(backend, total_vram)
+
+        db.save_setting("llama_server_bin",     str(bin_path))
+        db.save_setting("llama_server_managed", "true" if managed else "false")
+        db.save_setting("llama_model",          str(model_path))
+        db.save_setting("llama_unload_timeout", "120")
+
+        print(f"\n  llama-server : {bin_path}")
+        print(f"  Model        : {model_path}")
+        print(f"  Managed      : {'yes' if managed else 'no'}")
     else:
-        print("No GPU / CPU mode")
-
-    bin_path, managed = setup_llama_binary()
-
-    # Phase 2 — LLM model
-    model_path = setup_model(total_vram)
+        # Ollama local or cloud — no binary needed
+        setup_ollama_model(provider)
 
     # Phase 2.5 — Whisper model
     setup_whisper()
-
-    # Phase 2.7 — GPU layers
-    setup_gpu_layers(backend, total_vram)
 
     # Phase 3 — TTS
     setup_tts()
@@ -586,16 +694,9 @@ def main():
     # Phase 4 — hotkeys (compositor-native binding)
     setup_hotkeys()
 
-    db.save_setting("llama_server_bin",     str(bin_path))
-    db.save_setting("llama_server_managed", "true" if managed else "false")
-    db.save_setting("llama_model",          str(model_path))
-    db.save_setting("llama_unload_timeout", "120")
-    db.save_setting("setup_complete",       "1")
+    db.save_setting("setup_complete", "1")
 
     print("\n=== Configuration saved ===")
-    print(f"  llama-server : {bin_path}")
-    print(f"  Model        : {model_path}")
-    print(f"  Managed      : {'yes' if managed else 'no'}")
     print("\nRun the app with: uv run python main.py")
 
 
