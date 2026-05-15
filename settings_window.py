@@ -432,7 +432,7 @@ class SettingsWindow:
         # Status label
         self._ollama_fetch_label = ctk.CTkLabel(
             self._ollama_pack_row, text="",
-            font=("", 10), text_color=T.FG_DIM, anchor="w",
+            font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w",
         )
 
         # Ollama API Key (cloud only — toggled visibility by _on_provider_change)
