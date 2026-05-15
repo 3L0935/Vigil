@@ -91,6 +91,12 @@ def _load_settings():
     config.LLM_PROVIDER = provider
     ollama_key = db.get_setting("ollama_api_key", "")
     config.OLLAMA_API_KEY = ollama_key
+    ollama_url = db.get_setting("ollama_url", "")
+    if ollama_url:
+        config.OLLAMA_URL = ollama_url
+    ollama_model = db.get_setting("ollama_model", "")
+    if ollama_model:
+        config.OLLAMA_MODEL = ollama_model
     hk_dict = db.get_setting("hotkey_dict", "")
     if hk_dict:
         config.HOTKEY = hk_dict
