@@ -193,6 +193,10 @@ class SettingsWindow:
         self._ollama_model_var = None
         self._ollama_url_var = None
         self._ollama_api_key_var = None
+        self._ollama_model_dropdown = None    # _ScrollableDropdown instance
+        self._ollama_model_entry = None       # fallback CTkEntry if fetch fails
+        self._ollama_fetch_btn = None         # refresh button
+        self._ollama_fetch_label = None       # status label ("3 models loaded")
         self._llama_pack_row = None       # frame contenant les widgets llama.cpp
         self._ollama_pack_row = None      # frame contenant les widgets Ollama
 
@@ -386,18 +390,50 @@ class SettingsWindow:
                      text_color=T.FG, font=T.FONT_SMALL,
                      height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
 
-        # Ollama Model
+        # Ollama Model (fetch button + dropdown)
         ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
         ctk.CTkLabel(self._ollama_pack_row, text="Ollama Model",
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
-        self._ollama_model_var = tk.StringVar(
-            master=self._win, value=db.get_setting("ollama_model", "qwen2.5:7b"))
-        ctk.CTkEntry(self._ollama_pack_row, textvariable=self._ollama_model_var,
-                     fg_color=T.BG_INPUT, border_color=T.BORDER,
-                     text_color=T.FG, font=T.FONT_SMALL,
-                     height=32, corner_radius=6).pack(fill="x", pady=(0, T.PAD_L))
+
+        model_row = ctk.CTkFrame(self._ollama_pack_row, fg_color="transparent")
+        model_row.pack(fill="x", pady=(0, T.PAD_L))
+
+        saved_model = db.get_setting("ollama_model", "qwen2.5:7b")
+        self._ollama_model_var = tk.StringVar(master=self._win, value=saved_model)
+
+        # Dropdown (populated on fetch)
+        self._ollama_model_dropdown = _ScrollableDropdown(
+            model_row,
+            values=[saved_model] if saved_model else [],
+            variable=self._ollama_model_var,
+        )
+        self._ollama_model_dropdown.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
+
+        # Refresh button
+        self._ollama_fetch_btn = ctk.CTkButton(
+            model_row, text="Refresh", width=80, height=32,
+            fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
+            border_color=T.BORDER, border_width=1,
+            text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
+            command=self._fetch_ollama_models,
+        )
+        self._ollama_fetch_btn.pack(side="right")
+
+        # Entry fallback (hidden by default — shown if fetch returns nothing)
+        self._ollama_model_entry = ctk.CTkEntry(
+            self._ollama_pack_row, textvariable=self._ollama_model_var,
+            fg_color=T.BG_INPUT, border_color=T.BORDER,
+            text_color=T.FG, font=T.FONT_SMALL,
+            height=32, corner_radius=6,
+        )
+
+        # Status label
+        self._ollama_fetch_label = ctk.CTkLabel(
+            self._ollama_pack_row, text="",
+            font=("", 10), text_color=T.FG_DIM, anchor="w",
+        )
 
         # Ollama API Key (cloud only — toggled visibility by _on_provider_change)
         self._ollama_api_key_frame = ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
@@ -863,9 +899,74 @@ class SettingsWindow:
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
-    def _on_whisper_change(self, value: str):
-        if self._on_whisper_change_cb:
-            self._on_whisper_change_cb(value)
+    def _fetch_ollama_models(self):
+        """Fetch available models from Ollama API and populate the dropdown."""
+        import threading
+
+        url = (self._ollama_url_var.get() if self._ollama_url_var
+               else "http://localhost:11434")
+        tags_url = url.rstrip("/") + "/api/tags"
+
+        headers = {}
+        provider = self._provider_var.get() if self._provider_var else ""
+        if provider == "ollama_cloud" and self._ollama_api_key_var:
+            key = self._ollama_api_key_var.get()
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
+
+        def _do():
+            try:
+                import httpx
+                with httpx.Client(timeout=10) as client:
+                    resp = client.get(tags_url, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+                models = [m["name"] for m in data.get("models", [])]
+            except Exception as e:
+                models = []
+                err_msg = str(e)
+
+            self._win.after(0, lambda: self._update_ollama_models(models, err_msg if not models else ""))
+
+        # Show loading state
+        if self._ollama_fetch_label:
+            self._ollama_fetch_label.pack(fill="x", pady=(0, T.PAD_L))
+            self._ollama_fetch_label.configure(text="Fetching models...")
+        if self._ollama_fetch_btn:
+            self._ollama_fetch_btn.configure(state="disabled", text="...")
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _update_ollama_models(self, models, error):
+        """Update dropdown with fetched models, fall back to entry on failure."""
+        if self._ollama_fetch_btn:
+            self._ollama_fetch_btn.configure(state="normal", text="Refresh")
+
+        if models:
+            saved = db.get_setting("ollama_model", "qwen2.5:7b")
+            if saved not in models:
+                models.insert(0, saved)  # keep saved model as first option
+
+            if self._ollama_model_dropdown:
+                self._ollama_model_dropdown.configure(values=models)
+                self._ollama_model_dropdown.pack(side="left", fill="x", expand=True,
+                                                  padx=(0, T.PAD_M))
+            if self._ollama_model_entry:
+                self._ollama_model_entry.pack_forget()
+
+            if self._ollama_fetch_label:
+                self._ollama_fetch_label.configure(
+                    text=f"{len(models)} model(s) available")
+        else:
+            # Fetch failed — show text entry as fallback
+            if self._ollama_model_dropdown:
+                self._ollama_model_dropdown.pack_forget()
+            if self._ollama_model_entry:
+                self._ollama_model_entry.pack(fill="x", pady=(0, T.PAD_L))
+
+            msg = error if error else "Cannot reach Ollama API"
+            if self._ollama_fetch_label:
+                self._ollama_fetch_label.configure(text=f"⚠ {msg} — type model manually")
 
     def _on_provider_change(self, value: str):
         """Show/hide provider-specific settings panels."""
@@ -893,6 +994,10 @@ class SettingsWindow:
                 self._llama_pack_row.pack_forget()
             if self._ollama_pack_row:
                 self._ollama_pack_row.pack(fill="x")
+
+            # Auto-fetch available models (deferred to let UI settle)
+            if self._win:
+                self._win.after(100, self._fetch_ollama_models)
         else:
             if self._ollama_pack_row:
                 self._ollama_pack_row.pack_forget()
