@@ -18,7 +18,13 @@ import url_shortcuts
 import folders
 import file_search
 
-_backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
+def _get_backend():
+    """Create the appropriate backend based on provider setting."""
+    if config.LLM_PROVIDER == "ollama":
+        return LlamaServerBackend(config.OLLAMA_URL, config.OLLAMA_MODEL, config.OLLAMA_API_KEY)
+    return LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
+
+_backend = _get_backend()
 
 # ── Multi-turn conversation context ───────────────────────────────────────
 
@@ -649,14 +655,18 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
 # ── Public API ────────────────────────────────────────────────────────────
 
 def ping_llama_server() -> bool:
-    """Quick connectivity check. Returns True if llama-server is reachable."""
+    """Quick connectivity check. Returns True if LLM backend is reachable."""
     return _backend.ping()
 
 
 def reload_backend():
     global _backend
-    _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
-    log.info("LLM backend reloaded (URL: %s)", config.LLAMA_SERVER_URL)
+    if config.LLM_PROVIDER == "ollama":
+        _backend = LlamaServerBackend(config.OLLAMA_URL, config.OLLAMA_MODEL, config.OLLAMA_API_KEY)
+        log.info("LLM backend reloaded (Ollama: %s, model: %s)", config.OLLAMA_URL, config.OLLAMA_MODEL)
+    else:
+        _backend = LlamaServerBackend(config.LLAMA_SERVER_URL, config.LLAMA_MODEL)
+        log.info("LLM backend reloaded (llama.cpp URL: %s)", config.LLAMA_SERVER_URL)
 
 
 def process(text: str) -> str:

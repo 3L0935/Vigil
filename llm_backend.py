@@ -26,11 +26,12 @@ class LLMBackend(Protocol):
 
 
 class LlamaServerBackend:
-    """HTTP client for llama-server (OpenAI-compatible /v1/chat/completions)."""
+    """HTTP client for llama-server / Ollama (OpenAI-compatible /v1/chat/completions)."""
 
-    def __init__(self, base_url: str, model: str):
+    def __init__(self, base_url: str, model: str, api_key: str = ""):
         self._url = base_url.rstrip("/") + "/v1/chat/completions"
         self._model = model
+        self._api_key = api_key  # empty for local; Bearer token for cloud
 
     def chat(
         self,
@@ -40,7 +41,7 @@ class LlamaServerBackend:
         try:
             import httpx
         except ImportError:
-            log.error("httpx not installed — cannot call llama-server")
+            log.error("httpx not installed — cannot call LLM backend")
             return None
 
         body: dict = {"model": self._model, "messages": messages}
@@ -48,25 +49,46 @@ class LlamaServerBackend:
             body["tools"] = tools
             body["tool_choice"] = "auto"
 
+        headers = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
         try:
             with httpx.Client(timeout=60) as client:
-                resp = client.post(self._url, json=body)
+                resp = client.post(self._url, json=body, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as exc:
-            log.error("llama-server request failed: %s", exc)
+            log.error("LLM backend request failed: %s", exc)
             return None
 
         _normalize_hermes_tool_calls(data)
         return data
 
     def ping(self) -> bool:
-        """Quick connectivity check. Returns True if llama-server is reachable."""
+        """Quick connectivity check. Returns True if backend is reachable."""
         try:
             import httpx
             base = self._url.rsplit("/v1/", 1)[0]
+            headers = {}
+            if self._api_key:
+                headers["Authorization"] = f"Bearer {self._api_key}"
             with httpx.Client(timeout=5) as client:
-                resp = client.get(f"{base}/health")
+                # Ollama local has /health, Ollama Cloud has /v1/models
+                resp = client.get(f"{base}/health", headers=headers)
+                if resp.status_code == 200:
+                    return True
+        except Exception:
+            pass
+        # Fallback: try /v1/models (Ollama Cloud, OpenAI-compatible)
+        try:
+            import httpx
+            models_url = self._url.rsplit("/chat/", 1)[0] + "/models"
+            headers = {}
+            if self._api_key:
+                headers["Authorization"] = f"Bearer {self._api_key}"
+            with httpx.Client(timeout=5) as client:
+                resp = client.get(models_url, headers=headers)
                 return resp.status_code == 200
         except Exception:
             return False
