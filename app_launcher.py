@@ -6,7 +6,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from logger import log
+from logger import log, log_content
 
 _DESKTOP_DIRS = [
     Path("/usr/share/applications"),
@@ -185,10 +185,10 @@ def launch(app_name: str) -> tuple[bool, str]:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        log.info("Launched: %s — %s", label, cmd)
+        log_content("Launched: %s — %s", label, cmd)
         return True, label
     except Exception as exc:
-        log.error("Failed to launch %s: %s", label, exc)
+        log.error("App launch failed: %s", type(exc).__name__)
         return False, app_name
 
 
@@ -213,14 +213,14 @@ def close(app_name: str) -> tuple[bool, str]:
     for name in dict.fromkeys(candidates):  # deduplicate, preserve order
         r = subprocess.run(["pkill", "-ix", name], capture_output=True)
         if r.returncode == 0:
-            log.info("Closed app: %s (matched '%s')", label, name)
+            log_content("Closed app: %s (matched '%s')", label, name)
             return True, label
 
     # Last resort: substring match
     r = subprocess.run(["pkill", "-i", candidates[0]], capture_output=True)
     if r.returncode == 0:
-        log.info("Closed app: %s (substring '%s')", label, candidates[0])
+        log_content("Closed app: %s (substring '%s')", label, candidates[0])
         return True, label
 
-    log.warning("close: no running process found for '%s'", app_name)
+    log.warning("No matching process to close")
     return False, label

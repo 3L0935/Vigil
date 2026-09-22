@@ -6,8 +6,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-_DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "vigil"
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
+from data_paths import DATA_DIR as _DATA_DIR, private_file
 _DB_PATH = str(_DATA_DIR / "vigil.db")
 
 # One-time migration from old source-dir location
@@ -20,8 +19,11 @@ _lock = threading.Lock()
 
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(_DB_PATH, check_same_thread=False)
+    private_file(Path(_DB_PATH))
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
+    for suffix in ("-wal", "-shm"):
+        private_file(Path(_DB_PATH + suffix))
     return c
 
 

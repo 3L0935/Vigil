@@ -6,6 +6,7 @@ dependencies = [
     "faster-whisper>=1.0.0",
     "sounddevice>=0.4.6",
     "numpy>=1.24.0",
+    "scipy>=1.11.0",
     "customtkinter>=5.2.0",
     "pynput>=1.7.6",
     "Pillow>=10.0.0",
@@ -38,6 +39,8 @@ py-modules = [
     "llm_manager", "locales", "logger", "obsidian", "platform_linux",
     "recorder", "service", "settings_window", "setup_utils", "theme",
     "transcriber", "tray_qt", "tts", "vigil_trigger", "widget",
+    "privacy", "data_paths", "dictation", "recovery", "clipboard_bridge",
+    "dictation_settings", "url_shortcuts", "folders", "file_search",
 ]
 
 [tool.setuptools.packages.find]
