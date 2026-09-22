@@ -95,17 +95,25 @@ def test_ensure_running_ollama_does_not_spawn():
         mock_popen.assert_not_called()
 
 
-def test_shutdown_ollama_is_noop():
-    """shutdown() does nothing when provider=ollama."""
+def test_switch_to_ollama_still_stops_previously_managed_llama_child():
+    """The process handle owns a llama child, regardless of the new provider."""
     from llm_manager import LlamaServerManager
     mgr = LlamaServerManager()
-    mgr._process = MagicMock()  # would be dangerous if terminate() called
-
+    child = MagicMock()
+    mgr._process = child
     with patch("llm_manager.db") as mock_db:
-        mock_db.get_setting.return_value = "ollama"
+        mock_db.get_setting.return_value = "ollama_local"
         mgr.shutdown()
+    child.terminate.assert_called_once()
+    assert mgr._process is None
 
-    mgr._process.terminate.assert_not_called()
+
+def test_shutdown_without_a_managed_process_never_touches_ollama():
+    from llm_manager import LlamaServerManager
+    mgr = LlamaServerManager()
+    with patch("llm_manager.subprocess.Popen") as spawn:
+        mgr.shutdown()
+    spawn.assert_not_called()
 
 
 def test_auto_shutdown_ollama_skips():

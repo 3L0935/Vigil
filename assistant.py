@@ -8,7 +8,8 @@ import time as _time
 from datetime import datetime
 from pathlib import Path
 from json_repair import repair_json
-from logger import log
+from logger import log, log_content
+import privacy
 import config
 import locales
 from llm_backend import LlamaServerBackend
@@ -44,7 +45,8 @@ def _get_backend():
         db.get_setting("llama_model", ""),
     )
 
-_backend = _get_backend()
+_history_policy = None
+_history_has_local_data = False
 
 # ── Multi-turn conversation context ───────────────────────────────────────
 
@@ -110,8 +112,9 @@ def _is_clear_context_request(text: str) -> bool:
 
 def reset_context() -> None:
     global _conversation_history, _last_interaction, _waiting_for_reply
-    global _pending_candidates, _pending_action
+    global _pending_candidates, _pending_action, _history_has_local_data
     with _context_lock:
+        _history_has_local_data = False
         _conversation_history = []
         _last_interaction     = 0.0
         _waiting_for_reply    = False
@@ -383,16 +386,21 @@ _ASK_USER_CHOICE_TOOL = {
 }
 
 
+_LOCAL_TOOLS = {"search_obsidian_vault", "search_files", "open_folder", "app_action", "ask_user_choice"}
+_WEB_TOOLS = {"search_web", "open_url"}
+
+
 def _get_tools() -> list[dict]:
-    """Return tool definitions, cached after first build."""
-    if not hasattr(_get_tools, "_cache"):
-        tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-                 _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
-                 _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
-        if config.OBSIDIAN_VAULT_PATH:
-            tools.append(_OBSIDIAN_TOOL)
-        _get_tools._cache = tools
-    return _get_tools._cache
+    tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
+             _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
+             _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
+    if config.OBSIDIAN_VAULT_PATH:
+        tools.append(_OBSIDIAN_TOOL)
+    endpoint = _get_backend()._url
+    return [tool for tool in tools
+            if (tool['function']['name'] not in _WEB_TOOLS or privacy.web_allowed())
+            and (tool['function']['name'] not in _LOCAL_TOOLS
+                 or privacy.local_tools_allowed(endpoint))]
 
 
 # ── System prompt ─────────────────────────────────────────────────────────
@@ -474,7 +482,12 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
     with this as a tool result so it can correct a failed launch_app call.
     """
     global _waiting_for_reply, _pending_candidates, _pending_action
-    log.info("Assistant dispatch: %s(%s)", name, args)
+    log.info("Assistant dispatch: %s", name)
+    log_content("Assistant arguments: %s", args)
+    if name in _WEB_TOOLS:
+        privacy.require_web()
+    if name in _LOCAL_TOOLS:
+        privacy.check_endpoint(_get_backend()._url, local_data=True)
 
     try:
         if name == "search_web":
@@ -668,7 +681,7 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             return (locales.get("unknown_command", name=name), None)
 
     except Exception as exc:
-        log.error("Dispatch error: %s", exc)
+        log.error("Dispatch error: %s", type(exc).__name__)
         return (locales.get("error", detail=str(exc)), None)
 
 
@@ -676,13 +689,12 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
 
 def ping_llama_server() -> bool:
     """Quick connectivity check. Returns True if LLM backend is reachable."""
-    return _backend.ping()
+    return _get_backend().ping()
 
 
 def reload_backend():
-    global _backend
-    _backend = _get_backend()
-    log.info("LLM backend reloaded (%s)", type(_backend).__name__)
+    reset_context()
+    log.info("LLM configuration changed; conversation cleared.")
 
 
 def process(text: str) -> str:
@@ -690,8 +702,16 @@ def process(text: str) -> str:
     global _conversation_history, _last_interaction, _waiting_for_reply
     global _pending_candidates, _pending_action
 
+    global _history_policy, _history_has_local_data
+    turn_local_data = False
+    policy_key = privacy.state_key()
+    if policy_key != _history_policy:
+        reset_context()
+        _history_policy = policy_key
+    backend = _get_backend()
+    privacy.check_endpoint(backend._url)
     _llm_manager.ensure_running()
-    log.info("Assistant input: %r", text)
+    log_content("Assistant input: %r", text)
 
     global _last_was_synthesised
     _last_was_synthesised = False
@@ -709,6 +729,7 @@ def process(text: str) -> str:
         candidates     = list(_pending_candidates)
         action         = _pending_action
         history        = list(_conversation_history)
+        history_local  = _history_has_local_data
         last_time      = _last_interaction
 
     # Auto-reset on timeout
@@ -718,6 +739,7 @@ def process(text: str) -> str:
         reset_context()
         with _context_lock:
             history  = []
+            history_local = False
             waiting  = False
 
     # Resolve pending numbered reply
@@ -725,7 +747,7 @@ def process(text: str) -> str:
         n = _parse_number(text)
         if n is not None and 1 <= n <= len(candidates):
             chosen = candidates[n - 1]
-            log.info("Resolving candidate %d: %s (action=%s)", n, chosen, action)
+            log_content("Resolving candidate %d: %s (action=%s)", n, chosen, action)
             with _context_lock:
                 _waiting_for_reply  = False
                 _pending_candidates = []
@@ -753,6 +775,7 @@ def process(text: str) -> str:
                 ok, label = app_launcher.close(chosen)
                 result = locales.get("app_closed", name=label) if ok else locales.get("app_close_failed", name=label)
             with _context_lock:
+                _history_has_local_data = True
                 _conversation_history.append({"role": "user",      "content": text})
                 _conversation_history.append({"role": "assistant",  "content": result})
                 if len(_conversation_history) > 16:
@@ -770,7 +793,7 @@ def process(text: str) -> str:
     messages = [{"role": "system", "content": _system_prompt()}] + history + [
         {"role": "user", "content": text},
     ]
-    data = _backend.chat(messages=messages, tools=_get_tools())
+    data = backend.chat(messages=messages, tools=_get_tools(), local_data=history_local)
 
     if data is None:
         return locales.get("not_understood")
@@ -798,6 +821,7 @@ def process(text: str) -> str:
             else:
                 args = raw_args
 
+            turn_local_data = fn_name in _LOCAL_TOOLS
             raw_result, retry_ctx = _dispatch(fn_name, args, user_text=text)
 
             # Launch retry: LLM hit a not-found — give it candidate apps and
@@ -809,7 +833,7 @@ def process(text: str) -> str:
                     {"role": "assistant", "tool_calls": [tc]},
                     {"role": "tool", "tool_call_id": tool_call_id, "content": retry_ctx},
                 ]
-                retry_data = _backend.chat(messages=retry_messages, tools=_get_tools())
+                retry_data = backend.chat(messages=retry_messages, tools=_get_tools(), local_data=True)
                 if retry_data:
                     try:
                         retry_msg = retry_data.get("choices", [{}])[0].get("message", {})
@@ -826,13 +850,14 @@ def process(text: str) -> str:
                             else:
                                 retry_args = retry_raw
                             # Execute once, ignore any further retry_ctx to avoid loops
+                            turn_local_data |= retry_fn in _LOCAL_TOOLS
                             retry_text, _ = _dispatch(retry_fn, retry_args, user_text=text)
                             if retry_text:
                                 raw_result = retry_text
                         else:
                             retry_content = retry_msg.get("content", "").strip()
                             if retry_content:
-                                log.info("Retry text response: %s", retry_content[:120])
+                                log_content("Retry text response: %s", retry_content[:120])
                                 raw_result = retry_content
                     except (KeyError, IndexError, TypeError) as exc:
                         log.error("Retry parsing error: %s", exc)
@@ -846,7 +871,8 @@ def process(text: str) -> str:
                     {"role": "assistant", "tool_calls": [tc]},
                     {"role": "tool", "tool_call_id": tool_call_id, "content": raw_result},
                 ]
-                syn_data = _backend.chat(messages=synthesis_messages, tools=None)
+                syn_data = backend.chat(messages=synthesis_messages, tools=None,
+                                         local_data=history_local or fn_name != "search_web")
                 if syn_data:
                     syn_choices = syn_data.get("choices", [])
                     if syn_choices:
@@ -855,7 +881,7 @@ def process(text: str) -> str:
                                        .get("content", "")
                                        .strip())
                         if syn_content:
-                            log.info("Synthesis: %s", syn_content[:120])
+                            log_content("Synthesis: %s", syn_content[:120])
                             raw_result = syn_content
                             _last_was_synthesised = True
                         else:
@@ -869,7 +895,7 @@ def process(text: str) -> str:
             # No tool call: plain text response
             content = msg.get("content", "").strip()
             if content:
-                log.info("LLM text response: %s", content)
+                log_content("LLM text response: %s", content)
                 result = content
 
     except (KeyError, IndexError, TypeError) as exc:
@@ -879,6 +905,7 @@ def process(text: str) -> str:
     # Append this turn to history (skip if clear_context was called)
     with _context_lock:
         if not _context_cleared_flag:
+            _history_has_local_data |= turn_local_data
             _conversation_history.append({"role": "user",      "content": text})
             _conversation_history.append({"role": "assistant",  "content": result})
             if len(_conversation_history) > 16:

@@ -12,6 +12,7 @@ import re
 from typing import Protocol, runtime_checkable
 
 from logger import log
+import privacy
 
 
 @runtime_checkable
@@ -20,6 +21,7 @@ class LLMBackend(Protocol):
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
+        *, local_data: bool = False,
     ) -> dict | None:
         """Send messages to the LLM. Returns normalized response dict or None on error."""
         ...
@@ -29,7 +31,8 @@ class LlamaServerBackend:
     """HTTP client for llama-server / Ollama (OpenAI-compatible /v1/chat/completions)."""
 
     def __init__(self, base_url: str, model: str, api_key: str = ""):
-        self._url = base_url.rstrip("/") + "/v1/chat/completions"
+        base = base_url.rstrip("/")
+        self._url = base + ("" if base.endswith("/v1") else "/v1") + "/chat/completions"
         self._model = model
         self._api_key = api_key  # empty for local; Bearer token for cloud
 
@@ -37,7 +40,9 @@ class LlamaServerBackend:
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
+        *, local_data: bool = False,
     ) -> dict | None:
+        url = privacy.check_endpoint(self._url, local_data=local_data)
         try:
             import httpx
         except ImportError:
@@ -54,12 +59,12 @@ class LlamaServerBackend:
             headers["Authorization"] = f"Bearer {self._api_key}"
 
         try:
-            with httpx.Client(timeout=60) as client:
-                resp = client.post(self._url, json=body, headers=headers)
+            with httpx.Client(timeout=60, trust_env=False) as client:
+                resp = client.post(url, json=body, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as exc:
-            log.error("LLM backend request failed: %s", exc)
+            log.error("LLM backend request failed: %s", type(exc).__name__)
             return None
 
         _normalize_hermes_tool_calls(data)
@@ -68,12 +73,16 @@ class LlamaServerBackend:
     def ping(self) -> bool:
         """Quick connectivity check. Returns True if backend is reachable."""
         try:
+            url = privacy.check_endpoint(self._url)
+        except privacy.PolicyError:
+            return False
+        try:
             import httpx
-            base = self._url.rsplit("/v1/", 1)[0]
+            base = url.rsplit("/v1/", 1)[0]
             headers = {}
             if self._api_key:
                 headers["Authorization"] = f"Bearer {self._api_key}"
-            with httpx.Client(timeout=5) as client:
+            with httpx.Client(timeout=5, trust_env=False) as client:
                 # Ollama local has /health, Ollama Cloud has /v1/models
                 resp = client.get(f"{base}/health", headers=headers)
                 if resp.status_code == 200:
@@ -83,11 +92,11 @@ class LlamaServerBackend:
         # Fallback: try /v1/models (Ollama Cloud, OpenAI-compatible)
         try:
             import httpx
-            models_url = self._url.rsplit("/chat/", 1)[0] + "/models"
+            models_url = url.rsplit("/chat/", 1)[0] + "/models"
             headers = {}
             if self._api_key:
                 headers["Authorization"] = f"Bearer {self._api_key}"
-            with httpx.Client(timeout=5) as client:
+            with httpx.Client(timeout=5, trust_env=False) as client:
                 resp = client.get(models_url, headers=headers)
                 return resp.status_code == 200
         except Exception:

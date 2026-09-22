@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 
 import database as db
+import privacy
 from logger import log
 
 
@@ -66,6 +67,7 @@ class LlamaServerManager:
 
     def ensure_running(self):
         """Start server if needed, then reset inactivity timer."""
+        privacy.check_endpoint(self._server_url())
         with self._lock:
             if self._is_ollama():
                 self._wait_health(timeout=5)
@@ -85,8 +87,6 @@ class LlamaServerManager:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
-            if self._is_ollama():
-                return  # never kill the Ollama daemon
             if self._process is not None:
                 self._process.terminate()
                 try:
@@ -141,11 +141,19 @@ class LlamaServerManager:
         log.info("llama-server ready.")
 
     def _wait_health(self, timeout: int):
-        health_url = self._server_url().rstrip("/") + "/health"
+        health_url = privacy.check_endpoint(self._server_url()).rstrip("/")
+        headers = {}
+        if self._is_ollama():
+            health_url += "/api/tags"
+            key = db.get_setting("ollama_api_key", "") if self._provider() == "ollama_cloud" else ""
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
+        else:
+            health_url = health_url.removesuffix("/v1") + "/health"
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                r = httpx.get(health_url, timeout=2)
+                r = httpx.get(privacy.check_endpoint(health_url), headers=headers, timeout=2, trust_env=False)
                 if r.status_code == 200:
                     return
             except Exception:
