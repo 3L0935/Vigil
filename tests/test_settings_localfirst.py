@@ -1,69 +1,73 @@
-"""Exercise real Tk controls and their persisted settings when a display exists."""
-import tkinter as tk
+"""Settings remain local and are committed only after validation."""
+
+import os
 from unittest.mock import Mock
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
+from PySide6.QtWidgets import QApplication
 
 import config
 import database as db
-from settings_window import SettingsWindow
+from vigil_ui.i18n import TranslationBridge
+from vigil_ui.live_settings import LiveSettingsModel
 
 
 @pytest.fixture
-def window(monkeypatch, tmp_path):
-    monkeypatch.setattr(db, '_DB_PATH', str(tmp_path / 'settings.db'))
+def model(monkeypatch, tmp_path):
+    QApplication.instance() or QApplication([])
+    monkeypatch.setattr(db, "_DB_PATH", str(tmp_path / "vigil.db"))
     db.init()
-    monkeypatch.setattr('recorder.input_devices', lambda: ['Synthetic USB microphone'])
-    monkeypatch.setattr('tts.init', Mock())
-    monkeypatch.setattr('assistant.reload_backend', Mock())
-    monkeypatch.setattr('llm_manager.manager.shutdown', Mock())
-    # Restore in-memory configuration after the actual Save callback changes it.
+    monkeypatch.setattr("recorder.input_devices", lambda: ["Synthetic USB microphone"])
+    monkeypatch.setattr("tts.init", Mock())
+    monkeypatch.setattr("assistant.reload_backend", Mock())
+    monkeypatch.setattr("llm_manager.manager.shutdown", Mock())
     for name in list(vars(config)):
         if name.isupper():
             monkeypatch.setattr(config, name, getattr(config, name))
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip('Tk display unavailable')
-    root.withdraw()
-    win = SettingsWindow(root, on_whisper_change=Mock(), on_hotkey_change=Mock())
-    win._build()
-    win._win.withdraw()
-    root.update_idletasks()
-    yield win
-    root.destroy()
+    callback = Mock()
+    settings = LiveSettingsModel(TranslationBridge("en"), on_whisper_change=callback)
+    yield settings, callback
 
 
-def test_actual_settings_save_independent_language_and_vocab(window):
-    section = window._dictation_settings
-    section.variables['whisper_language'].set('en')
-    section.variables['mic_device'].set('Synthetic USB microphone')
-    section.variables['max_record_seconds'].set('60')
-    section.variables['local_only'].set(True)
-    section.vocab.insert('1.0', 'roque aime = ROCm')
-    section.priming.insert('1.0', 'Vigil, ROCm')
-    window._lang_var.set('fr')
-    window._save_linux_settings()
-    assert db.get_setting('language') == 'fr'
-    assert db.get_setting('whisper_language') == 'en'
-    assert db.get_setting('dictation_vocabulary') == 'roque aime = ROCm'
-    assert db.get_setting('mic_device') == 'Synthetic USB microphone'
-    assert db.get_setting('max_record_seconds') == '60'
-    assert db.get_setting('local_only') == 'true'
-    assert db.get_setting('whisper_priming') == 'Vigil, ROCm'
+def test_save_independent_language_and_dictation_preferences(model):
+    settings, _ = model
+    settings.setValue("whisper_language", "en")
+    settings.setValue("mic_device", "Synthetic USB microphone")
+    settings.setValue("max_record_seconds", "60")
+    settings.setValue("dictation_vocabulary", "roque aime = ROCm")
+    settings.setValue("whisper_priming", "Vigil, ROCm")
+    settings.setValue("language", "fr")
+    assert settings.save()
+    assert db.get_setting("language") == "fr"
+    assert db.get_setting("whisper_language") == "en"
+    assert db.get_setting("dictation_vocabulary") == "roque aime = ROCm"
+    assert db.get_setting("mic_device") == "Synthetic USB microphone"
+    assert db.get_setting("max_record_seconds") == "60"
+    assert db.get_setting("whisper_priming") == "Vigil, ROCm"
 
 
-def test_invalid_vocabulary_prevents_partial_settings_save(window, monkeypatch):
-    error = Mock()
-    monkeypatch.setattr('dictation_settings.messagebox.showerror', error)
-    section = window._dictation_settings
-    section.variables['local_only'].set(False)
-    section.vocab.insert('1.0', 'invalid line')
-    window._save_linux_settings()
-    error.assert_called_once()
-    assert db.get_setting('local_only', 'true') == 'true'
+def test_invalid_vocabulary_prevents_batch_save(model):
+    settings, _ = model
+    settings.setValue("local_only", "false")
+    settings.setValue("dictation_vocabulary", "invalid line")
+    assert not settings.save()
+    assert db.get_setting("local_only", "true") == "true"
 
 
-def test_explicit_download_callback_is_separate_from_selection(window):
-    window._on_whisper_change('small', download=True)
-    window._on_whisper_change_cb.assert_called_once_with('small', download=True)
+def test_download_is_an_explicit_action(model):
+    settings, callback = model
+    settings.setValue("whisper_model", "small")
+    callback.assert_called_once_with("small")
+    settings.action("download_speech")
+    callback.assert_called_with("small", download=True)
+
+
+def test_provider_fields_follow_draft_selection(model):
+    settings, _ = model
+    assert settings.fieldVisible("llama_model")
+    assert not settings.fieldVisible("ollama_api_key")
+    settings.setValue("llm_provider", "ollama_cloud")
+    assert not settings.fieldVisible("llama_model")
+    assert settings.fieldVisible("ollama_api_key")

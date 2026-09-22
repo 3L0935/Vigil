@@ -73,23 +73,26 @@ def list_voices(lang: str) -> list:
     if _engine == "off":
         return []
     if _engine == "piper":
-        prefix = "fr_" if lang == "fr" else "en_"
-        seen: set[str] = set()
-        voices: list[dict] = []
-        # Builtin voices first (preferred order)
-        for v in _BUILTIN_VOICES.get(lang, []):
-            if (_PIPER_DIR / f"{v}.onnx").exists():
-                voices.append({"name": v, "engine": "piper",
-                                "path": str(_PIPER_DIR / f"{v}.onnx")})
-                seen.add(v)
-        # Any other downloaded voices in the piper dir
-        for f in sorted(_PIPER_DIR.glob(f"{prefix}*.onnx")):
-            name = f.stem
-            if name not in seen:
-                voices.append({"name": name, "engine": "piper", "path": str(f)})
-                seen.add(name)
-        return voices
+        return list_piper_voices(lang)
     return []
+
+
+def list_piper_voices(lang: str) -> list:
+    """Installed Piper voices, regardless of the current output mode."""
+    prefix = "fr_" if lang == "fr" else "en_"
+    seen: set[str] = set()
+    voices: list[dict] = []
+    for voice in _BUILTIN_VOICES.get(lang, []):
+        if (_PIPER_DIR / f"{voice}.onnx").exists() and (_PIPER_DIR / f"{voice}.onnx.json").exists():
+            voices.append({"name": voice, "engine": "piper",
+                           "path": str(_PIPER_DIR / f"{voice}.onnx")})
+            seen.add(voice)
+    for file in sorted(_PIPER_DIR.glob(f"{prefix}*.onnx")):
+        name = file.stem
+        if name not in seen and (_PIPER_DIR / f"{name}.onnx.json").exists():
+            voices.append({"name": name, "engine": "piper", "path": str(file)})
+            seen.add(name)
+    return voices
 
 
 _URL_RE = re.compile(r"https?://\S+")
@@ -145,7 +148,7 @@ def speak(text: str) -> None:
 
 
 def preview(voice_name: str, speaker_id: int | None = None) -> None:
-    if _engine == "off" or _playing.is_set():
+    if _playing.is_set():
         return
     lang = "fr" if voice_name.startswith("fr_") else "en"
     sample = ("Bonjour, voici un exemple de cette voix."
@@ -270,6 +273,11 @@ def fetch_voices(lang: str) -> list:
     if _engine == "piper":
         return _fetch_piper_voices(lang)
     return []
+
+
+def fetch_piper_voices(lang: str) -> list:
+    """Explicit Piper catalog request even before speech output is enabled."""
+    return _fetch_piper_voices(lang)
 
 
 def _fetch_piper_voices(lang: str) -> list:

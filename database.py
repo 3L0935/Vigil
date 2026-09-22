@@ -63,3 +63,21 @@ def save_setting(key: str, value: str):
         )
         c.commit()
         c.close()
+
+
+def save_settings(values: dict[str, str]) -> None:
+    """Commit a group of settings as one SQLite transaction."""
+    with _lock:
+        connection = _conn()
+        try:
+            connection.executemany(
+                "INSERT INTO settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                [(key, str(value)) for key, value in values.items()],
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()

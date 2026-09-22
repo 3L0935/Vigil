@@ -5,8 +5,9 @@ Item {
     id: root
     property string label: ""
     property string description: ""
+    property int editorHeight: 34
     default property alias editor: editorHost.data
-    implicitHeight: Math.max(52, editorHost.childrenRect.height + 18)
+    implicitHeight: Math.max(52, editorHeight + 18)
     Layout.fillWidth: true
 
     RowLayout {
@@ -41,7 +42,7 @@ Item {
             id: editorHost
             Layout.preferredWidth: 280
             Layout.fillWidth: true
-            implicitHeight: 34
+            implicitHeight: root.editorHeight
         }
     }
 }

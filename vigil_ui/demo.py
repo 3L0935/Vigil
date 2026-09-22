@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication
 from locales import translate
 from tray_qt import TrayIcon
 
-from .app import create_engine
+from .app import create_engine, dispose_engine
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,7 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     app._vigil_engine = engine
     app._vigil_i18n = translator
     app._vigil_tray = tray
-    return app.exec()
+    try:
+        return app.exec()
+    finally:
+        dispose_engine(engine)
 
 
 if __name__ == "__main__":

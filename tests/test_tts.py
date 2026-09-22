@@ -93,6 +93,7 @@ def test_list_voices_piper_with_file(tmp_path):
     import tts
     voice_name = "fr_FR-siwis-medium"
     (tmp_path / f"{voice_name}.onnx").touch()
+    (tmp_path / f"{voice_name}.onnx.json").write_text("{}")
     with patch.object(tts, "_PIPER_DIR", tmp_path):
         voices = tts.list_voices("fr")
     assert len(voices) == 1
