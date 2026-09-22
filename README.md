@@ -266,7 +266,8 @@ locales.py             — i18n strings (EN / FR / IT)
 theme.py               — Pandora Blackboard colour palette + fonts
 widget.py              — floating overlay (RecordingWidget + AnswerCard)
 settings_window.py     — full settings UI
-tray_qt.py             — system tray (PyQt6, KDE Plasma)
+tray_qt.py             — system tray (PySide6, KDE Plasma)
+vigil_ui/              — Qt Quick Fold UI fixture and shared QML components
 brand.py               — tray icon generation (Pandora eyes)
 ```
 

@@ -1,8 +1,8 @@
 """Qt-based system tray icon — works natively on KDE Wayland/X11."""
 
 import sys
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QPixmap, QImage
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+from PySide6.QtGui import QIcon, QPixmap, QImage
 from PIL import Image
 
 import locales
@@ -31,8 +31,8 @@ class TrayIcon:
         self._on_assist = on_assist
         self._on_stop_tts = on_stop_tts
         self._on_clear_context = on_clear_context
-        self._dict_label = "Dictate"
-        self._asst_label = "Assistant"
+        self._dict_label = locales.get("tray_dictation_action")
+        self._asst_label = locales.get("tray_assistant_action")
         self._app = None
         self._icon = None
 

@@ -16,7 +16,7 @@ dependencies = [
     "dbus-python>=1.3.2",
     "PyGObject>=3.42.0",
     "huggingface-hub>=0.23.0",
-    "PyQt6>=6.4.0",
+    "PySide6>=6.8,<7",
     "jeepney>=0.8.0",
 ]
 
@@ -28,7 +28,7 @@ vigil-trigger = "vigil_trigger:main"
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
-# Flat layout with a `hotkey/` package + `img/` asset dir confuses
+# Flat layout with package directories and an `img/` asset dir confuses
 # setuptools auto-discovery ("Multiple top-level packages discovered").
 # Pin the included packages + explicitly list top-level modules so
 # `uv sync` can always rebuild the editable install.
@@ -44,8 +44,11 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["hotkey*"]
+include = ["hotkey*", "vigil_ui*"]
 exclude = ["img*", "tests*", "docs*"]
+
+[tool.setuptools.package-data]
+vigil_ui = ["qml/*.qml", "qml/components/*.qml"]
 
 [project.optional-dependencies]
 tts-piper = ["piper-tts"]

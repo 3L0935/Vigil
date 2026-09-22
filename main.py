@@ -348,7 +348,12 @@ def _tray_toggle_assistant():
 
 def _build_tray_tip() -> str:
     mode = locales.get("mode_local" if privacy.local_only() else "mode_network")
-    return f"Vigil — {mode} — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
+    shortcuts = locales.get(
+        "tray_shortcuts_status",
+        dict_shortcut=config.HOTKEY,
+        assist_shortcut=config.ASSISTANT_HOTKEY,
+    )
+    return f"Vigil — {mode} — {shortcuts}"
 
 
 def _restart_hotkeys():
@@ -372,13 +377,18 @@ def _restart_hotkeys():
         if not ok:
             log.warning("Hotkey rebind returned partial failure — check logs.")
             if widget:
-                widget.show_message("Hotkey rebind failed — see logs", 3000)
+                widget.show_message(locales.get("hotkey_rebind_failed"), 3000)
     if tray:
-        tray.set_tooltip(_build_tray_tip())
+        _refresh_tray_labels()
+
+
+def _refresh_tray_labels():
+    if tray:
         tray.update_hotkey_labels(
-            f"Dictate ({config.HOTKEY})",
-            f"Assistant ({config.ASSISTANT_HOTKEY})",
+            locales.get("tray_dictate", shortcut=config.HOTKEY),
+            locales.get("tray_assistant", shortcut=config.ASSISTANT_HOTKEY),
         )
+        tray.set_tooltip(_build_tray_tip())
 
 
 def _quit():
@@ -531,7 +541,8 @@ def main():
     widget = RecordingWidget(root)
     widget.set_close_callback(lambda: assistant.reset_context())
     settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change,
-                                   on_hotkey_change=_restart_hotkeys)
+                                   on_hotkey_change=_restart_hotkeys,
+                                   on_language_change=_refresh_tray_labels)
 
     recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
@@ -544,10 +555,7 @@ def main():
                     on_clear_context=_clear_assistant_context)
     tray.start()
     clipboard_bridge.initialize()
-    tray.update_hotkey_labels(
-        f"Dictate ({config.HOTKEY})",
-        f"Assistant ({config.ASSISTANT_HOTKEY})",
-    )
+    _refresh_tray_labels()
 
     tray.set_tooltip(_build_tray_tip())
 

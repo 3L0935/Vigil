@@ -2,9 +2,9 @@ import threading
 from unittest.mock import Mock
 
 import pytest
-from PyQt6.QtCore import QMimeData
-from PyQt6.QtGui import QImage
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QMimeData
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
 
 from clipboard_bridge import ClipboardBridge, clone_mime
 

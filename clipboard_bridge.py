@@ -2,8 +2,8 @@
 import threading
 import uuid
 
-from PyQt6.QtCore import QObject, QMimeData, Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QObject, QMimeData, Qt, QTimer, Signal, Slot
+from PySide6.QtWidgets import QApplication
 
 import database as db
 from logger import log
@@ -32,7 +32,7 @@ def _paste_keys():
 
 
 class ClipboardBridge(QObject):
-    requested = pyqtSignal(object)
+    requested = Signal(object)
 
     def __init__(self, clipboard, paste_keys=_paste_keys):
         super().__init__()
@@ -41,7 +41,7 @@ class ClipboardBridge(QObject):
         self.pending = None
         self.requested.connect(self._begin, Qt.ConnectionType.QueuedConnection)
 
-    @pyqtSlot(object)
+    @Slot(object)
     def _begin(self, request):
         if request['cancelled'] or self.pending is not None:
             request['done'].set()

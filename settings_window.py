@@ -156,11 +156,13 @@ class _ScrollableDropdown(ctk.CTkFrame):
 
 
 class SettingsWindow:
-    def __init__(self, root: tk.Tk, on_whisper_change=None, on_hotkey_change=None):
+    def __init__(self, root: tk.Tk, on_whisper_change=None, on_hotkey_change=None,
+                 on_language_change=None):
         self._root = root
         self._win = None
         self._on_whisper_change_cb = on_whisper_change
         self._on_hotkey_change_cb = on_hotkey_change
+        self._on_language_change_cb = on_language_change
         self._dictation_settings = None
         self._whisper_var = None
         self._llm_model_var = None
@@ -272,7 +274,7 @@ class SettingsWindow:
         # ── LLM Provider ──────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
             fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text="LLM Provider",
+        ctk.CTkLabel(pad, text=locales.get("setting_llm_provider"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._provider_var = tk.StringVar(
@@ -385,7 +387,7 @@ class SettingsWindow:
         self._ollama_pack_row = ctk.CTkFrame(pad, fg_color="transparent")
 
         # Ollama URL (auto-switched by _on_provider_change)
-        ctk.CTkLabel(self._ollama_pack_row, text="Ollama URL",
+        ctk.CTkLabel(self._ollama_pack_row, text=locales.get("setting_ollama_url"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
         self._ollama_url_var = tk.StringVar(
@@ -398,7 +400,7 @@ class SettingsWindow:
         # Ollama Model (fetch button + dropdown)
         ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(self._ollama_pack_row, text="Ollama Model",
+        ctk.CTkLabel(self._ollama_pack_row, text=locales.get("setting_ollama_model"),
                      font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
@@ -415,7 +417,7 @@ class SettingsWindow:
                 variable=self._ollama_model_var,
             )
         else:
-            placeholder = "No models — press Refresh"
+            placeholder = locales.get("setting_no_models")
             self._ollama_model_var = tk.StringVar(master=self._win, value=placeholder)
             self._ollama_model_dropdown = _ScrollableDropdown(
                 model_row,
@@ -426,7 +428,7 @@ class SettingsWindow:
 
         # Refresh button
         self._ollama_fetch_btn = ctk.CTkButton(
-            model_row, text="Refresh", width=80, height=32,
+            model_row, text=locales.get("setting_refresh"), width=80, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -451,7 +453,7 @@ class SettingsWindow:
         # Ollama API Key (cloud only — toggled visibility by _on_provider_change)
         self._ollama_api_key_frame = ctk.CTkFrame(self._ollama_pack_row, fg_color=T.BORDER, height=1,
                                                    corner_radius=0)
-        self._ollama_api_key_label = ctk.CTkLabel(self._ollama_pack_row, text="API Key",
+        self._ollama_api_key_label = ctk.CTkLabel(self._ollama_pack_row, text=locales.get("setting_ollama_api_key"),
                                                    font=T.FONT_TITLE, text_color=T.FG, anchor="w")
         self._ollama_api_key_var = tk.StringVar(
             master=self._win, value=db.get_setting("ollama_api_key", ""))
@@ -632,10 +634,10 @@ class SettingsWindow:
         # ── TTS ───────────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1,
                      corner_radius=0).pack(fill="x", pady=(0, T.PAD_M))
-        ctk.CTkLabel(pad, text="TTS", font=T.FONT_TITLE, text_color=T.FG,
+        ctk.CTkLabel(pad, text=locales.get("setting_tts"), font=T.FONT_TITLE, text_color=T.FG,
                      anchor="w").pack(fill="x", pady=(0, T.PAD_M))
 
-        ctk.CTkLabel(pad, text="Mode", font=T.FONT_SMALL,
+        ctk.CTkLabel(pad, text=locales.get("setting_tts_mode"), font=T.FONT_SMALL,
                      text_color=T.FG_DIM, anchor="w").pack(fill="x")
         self._tts_mode_var = tk.StringVar(
             master=self._win, value=db.get_setting("tts_mode", "overlay"))
@@ -686,7 +688,7 @@ class SettingsWindow:
 
         # FR speaker row (hidden when voice is single-speaker)
         self._tts_speaker_fr_row = ctk.CTkFrame(pad, fg_color="transparent")
-        ctk.CTkLabel(self._tts_speaker_fr_row, text="Speaker",
+        ctk.CTkLabel(self._tts_speaker_fr_row, text=locales.get("setting_tts_speaker"),
                      font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left",
                      padx=(0, T.PAD_M))
         _fr_n = tts.get_num_speakers(self._tts_voice_fr_var.get())
@@ -702,7 +704,7 @@ class SettingsWindow:
         )
         self._tts_speaker_fr_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            self._tts_speaker_fr_row, text="\u25b6 Sample", width=90, height=32,
+            self._tts_speaker_fr_row, text=f"\u25b6 {locales.get('setting_tts_sample')}", width=90, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -737,7 +739,7 @@ class SettingsWindow:
 
         # EN speaker row (hidden when voice is single-speaker)
         self._tts_speaker_en_row = ctk.CTkFrame(pad, fg_color="transparent")
-        ctk.CTkLabel(self._tts_speaker_en_row, text="Speaker",
+        ctk.CTkLabel(self._tts_speaker_en_row, text=locales.get("setting_tts_speaker"),
                      font=T.FONT_SMALL, text_color=T.FG_DIM, anchor="w").pack(side="left",
                      padx=(0, T.PAD_M))
         _en_n = tts.get_num_speakers(self._tts_voice_en_var.get())
@@ -753,7 +755,7 @@ class SettingsWindow:
         )
         self._tts_speaker_en_menu.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_M))
         ctk.CTkButton(
-            self._tts_speaker_en_row, text="\u25b6 Sample", width=90, height=32,
+            self._tts_speaker_en_row, text=f"\u25b6 {locales.get('setting_tts_sample')}", width=90, height=32,
             fg_color=T.BG_CARD, hover_color=T.BG_HOVER,
             border_color=T.BORDER, border_width=1,
             text_color=T.FG, font=T.FONT_SMALL, corner_radius=6,
@@ -951,7 +953,7 @@ class SettingsWindow:
         # Show loading state
         if self._ollama_fetch_label:
             self._ollama_fetch_label.pack(fill="x", pady=(0, T.PAD_L))
-            self._ollama_fetch_label.configure(text="Fetching models...")
+            self._ollama_fetch_label.configure(text=locales.get("setting_fetching_models"))
         if self._ollama_fetch_btn:
             self._ollama_fetch_btn.configure(state="disabled", text="...")
 
@@ -960,7 +962,7 @@ class SettingsWindow:
     def _update_ollama_models(self, models, error):
         """Update dropdown with fetched models, fall back to entry on failure."""
         if self._ollama_fetch_btn:
-            self._ollama_fetch_btn.configure(state="normal", text="Refresh")
+            self._ollama_fetch_btn.configure(state="normal", text=locales.get("setting_refresh"))
 
         if models:
             saved = db.get_setting("ollama_model", "")
@@ -976,7 +978,7 @@ class SettingsWindow:
 
             if self._ollama_fetch_label:
                 self._ollama_fetch_label.configure(
-                    text=f"{len(models)} model(s) available")
+                    text=locales.get("setting_models_available", count=len(models)))
         else:
             # Fetch failed — show text entry as fallback
             if self._ollama_model_dropdown:
@@ -984,9 +986,10 @@ class SettingsWindow:
             if self._ollama_model_entry:
                 self._ollama_model_entry.pack(fill="x", pady=(0, T.PAD_L))
 
-            msg = error if error else "Cannot reach Ollama API"
+            msg = error if error else locales.get("setting_ollama_unreachable")
             if self._ollama_fetch_label:
-                self._ollama_fetch_label.configure(text=f"⚠ {msg} — type model manually")
+                self._ollama_fetch_label.configure(
+                    text="⚠ " + locales.get("setting_model_fetch_failed", detail=msg))
 
     def _on_provider_change(self, value: str):
         """Show/hide provider-specific settings panels."""
@@ -1029,8 +1032,11 @@ class SettingsWindow:
         try:
             path = fd.askopenfilename(
                 parent=self._root,
-                title="Select GGUF model",
-                filetypes=[("GGUF files", "*.gguf"), ("All files", "*")],
+                title=locales.get("dialog_select_gguf"),
+                filetypes=[
+                    (locales.get("dialog_gguf_files"), "*.gguf"),
+                    (locales.get("dialog_all_files"), "*"),
+                ],
             )
         finally:
             self._win.deiconify()
@@ -1046,7 +1052,7 @@ class SettingsWindow:
     def _browse_vault(self):
         self._win.withdraw()
         try:
-            path = fd.askdirectory(parent=self._root, title="Select Obsidian Vault")
+            path = fd.askdirectory(parent=self._root, title=locales.get("dialog_select_vault"))
         finally:
             self._win.deiconify()
             self._win.attributes("-topmost", True)
@@ -1057,6 +1063,8 @@ class SettingsWindow:
     def _on_lang_change(self, value: str):
         config.LANGUAGE = value
         db.save_setting("language", value)
+        if self._on_language_change_cb:
+            self._on_language_change_cb()
         log.info("Language changed to %s", value)
 
     def _on_overlay_pos_change(self, value: str):
@@ -1109,7 +1117,7 @@ class SettingsWindow:
     def _show_more_voices(self, lang: str):
         import threading
         dialog = ctk.CTkToplevel(self._win)
-        dialog.title(f"Voices ({lang.upper()})")
+        dialog.title(f"{locales.get('setting_voices_title')} ({lang.upper()})")
         dialog.geometry("500x420")
         dialog.attributes("-topmost", True)
 
@@ -1121,7 +1129,8 @@ class SettingsWindow:
         status_lbl.pack(pady=T.PAD_M)
 
         def _populate(voices):
-            status_lbl.configure(text=f"{len(voices)} voices available")
+            status_lbl.configure(
+                text=locales.get("setting_voices_available", count=len(voices)))
             for w in list_frame.winfo_children():
                 w.destroy()
             for v in voices:

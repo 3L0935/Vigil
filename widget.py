@@ -282,7 +282,7 @@ def _monitor_rect(root) -> tuple[int, int, int, int]:
         if rect:
             return rect
     try:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         app = QApplication.instance()
         if app is not None:
             screen = app.primaryScreen()
@@ -521,7 +521,7 @@ class AnswerCard:
         ftr.pack(fill=tk.X)
         ftr.pack_propagate(False)
 
-        copy_btn = tk.Label(ftr, text="⌘ Copier", bg="#0a0a12", fg="#2a3a4a",
+        copy_btn = tk.Label(ftr, text=f"⌘ {locales.get('action_copy')}", bg="#0a0a12", fg="#2a3a4a",
                             font=("Segoe UI", 9), cursor="hand2")
         copy_btn.pack(side=tk.LEFT, padx=14)
         copy_btn.bind("<Button-1>", lambda e: self._copy_to_clipboard())
@@ -626,7 +626,7 @@ class AnswerCard:
             return
         secs = max(1, int(remaining) + 1)
         if self._footer_label:
-            self._footer_label.config(text=f"ferme dans {secs}s")
+            self._footer_label.config(text=locales.get("answer_closes_in", seconds=secs))
         if self._prog_canvas and self._prog_id is not None:
             ratio = max(0.0, remaining / self._countdown_dur)
             self._prog_canvas.coords(
@@ -1020,7 +1020,7 @@ class RecordingWidget:
         if self._label_id is None or self._canvas is None:
             return
         if self._context_waiting and self._mode not in (self.RECORDING, self.ASSISTANT):
-            self._canvas.itemconfig(self._label_id, text="Waiting...",
+            self._canvas.itemconfig(self._label_id, text=locales.get("status_waiting"),
                                     fill="#c8a000", state="normal")
             return
         style = _STATE_STYLE.get(self._expression, _IDLE_STYLE)
