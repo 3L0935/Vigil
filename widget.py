@@ -770,6 +770,9 @@ class RecordingWidget:
     def show_assistant(self):
         self._root.after(0, lambda: self._show(self.ASSISTANT))
 
+    def show_status(self, text: str):
+        self._root.after(0, lambda: self._show_msg(text, 0))
+
     def show_message(self, text: str, duration_ms: int = 3000):
         self._root.after(0, lambda: self._show_msg(text, duration_ms))
 
@@ -1008,7 +1011,8 @@ class RecordingWidget:
                 self._root.after_cancel(self._after_msg)
             except Exception:
                 pass
-        self._after_msg = self._root.after(duration_ms, self._start_fade_out)
+        self._after_msg = (self._root.after(duration_ms, self._start_fade_out)
+                           if duration_ms > 0 else None)
 
     # ── update status label ───────────────────────────────────────────────
 

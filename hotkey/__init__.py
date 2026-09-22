@@ -11,8 +11,8 @@ Lower-level:
     HotkeyAdapter             interface base
     ConfigBlockAdapter        file-based managed-block mixin
 
-The listener owns the press/release toggle logic (same state machine the
-tray fallback uses). All adapters — in-process (KDE, X11) and external
+The application owns the toggle state; the listener forwards each activation.
+All adapters — in-process (KDE, X11) and external
 (GNOME, Hyprland, Sway, niri) — route into the same toggle callbacks so
 the behaviour is identical whether the keypress comes from KGlobalAccel,
 pynput, or `vigil-trigger` shelling into the D-Bus service.
@@ -59,8 +59,6 @@ class HotkeyListener:
         self._on_release = on_release_cb
         self._on_assist_press = on_assist_press_cb
         self._on_assist_release = on_assist_release_cb
-        self._dict_rec = False
-        self._assist_rec = False
         self._adapter = pick_adapter()
 
     @staticmethod
@@ -71,22 +69,11 @@ class HotkeyListener:
             log.error("%s error: %s", label, exc)
 
     def _toggle_dictation(self):
-        if not self._dict_rec:
-            self._dict_rec = True
-            self._safe_call(self._on_press, "Dictation toggle-start")
-        else:
-            self._dict_rec = False
-            self._safe_call(self._on_release, "Dictation toggle-stop")
+        self._safe_call(self._on_press, "Dictation trigger")
 
     def _toggle_assistant(self):
-        if not self._assist_rec:
-            self._assist_rec = True
-            if self._on_assist_press:
-                self._safe_call(self._on_assist_press, "Assistant toggle-start")
-        else:
-            self._assist_rec = False
-            if self._on_assist_release:
-                self._safe_call(self._on_assist_release, "Assistant toggle-stop")
+        if self._on_assist_press:
+            self._safe_call(self._on_assist_press, "Assistant trigger")
 
     def start(self):
         a = self._adapter

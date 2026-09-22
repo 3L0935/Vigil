@@ -349,6 +349,12 @@ def setup_llm_provider() -> str:
 
     choice = input(f"\nChoice [Entrée = {default_choice}]: ").strip() or default_choice
     provider = {"1": "llama_cpp", "2": "ollama_local", "3": "ollama_cloud"}.get(choice, "llama_cpp")
+    if provider == "ollama_cloud":
+        answer = input("Cloud inference sends spoken commands to this provider. Enable? [y/N]: ").strip().lower()
+        if answer != "y":
+            provider = "llama_cpp"
+        else:
+            db.save_setting("local_only", "false")
     db.save_setting("llm_provider", provider)
     print(f"  Backend: {provider}")
     return provider
@@ -386,7 +392,9 @@ def setup_ollama_model(provider: str) -> None:
     print(f"\n  Fetching models from {url}...")
     try:
         import httpx
-        with httpx.Client(timeout=15) as client:
+        import privacy
+        tags_url = privacy.check_endpoint(tags_url)
+        with httpx.Client(timeout=15, trust_env=False) as client:
             resp = client.get(tags_url, headers=headers)
             resp.raise_for_status()
             data = resp.json()
@@ -453,7 +461,7 @@ def setup_whisper() -> str:
     import database as db
     import config
     print("\n=== Whisper (speech recognition) ===\n")
-    print("Choose a model size (downloaded automatically on first use):\n")
+    print("Choose a model size (download is offered explicitly after selection):\n")
     for i, (name, desc) in enumerate(_WHISPER_MODELS, 1):
         print(f"  [{i}] {name:<10} — {desc}")
     choice = input("\nChoice [2]: ").strip() or "2"
@@ -709,8 +717,14 @@ def main():
         # Ollama local or cloud — no binary needed
         setup_ollama_model(provider)
 
-    # Phase 2.5 — Whisper model
-    setup_whisper()
+    # Phase 2.5 — Whisper model: explicit download, runtime never downloads.
+    model = setup_whisper()
+    if input("Download this speech model now? [Y/n]: ").strip().lower() != "n":
+        from transcriber import model_path
+        try:
+            model_path(model, download=True)
+        except Exception:
+            print("Speech model download failed. Retry from Settings → Download.")
 
     # Phase 3 — TTS
     setup_tts()

@@ -32,9 +32,15 @@ if sys.platform == "win32":
 
 _STOP = object()  # sentinel to shut down pipeline workers
 
-from logger import log
+from logger import log, log_content
 from recorder import Recorder
 from transcriber import Transcriber
+import transcriber as speech
+import privacy
+import dictation
+import recovery
+import clipboard_bridge
+from logger import configure_content_logging
 import injector
 from injector import inject
 from hotkey import HotkeyListener
@@ -60,11 +66,17 @@ widget      = None
 root        = None
 settings_win = None
 hotkey_listener = None
+_ui_actions = queue.Queue()
+_pipeline_busy = threading.Event()
+_model_loading = threading.Event()
+_record_lock = threading.RLock()
 
 # ── Load persisted settings into config at startup ────────────────────────
 
 def _load_settings():
     """Read settings from DB and apply them to config module."""
+    if not db.get_setting("whisper_language", ""):
+        db.save_setting("whisper_language", db.get_setting("language", config.LANGUAGE))
     url = db.get_setting("llama_server_url", "")
     if url:
         config.LLAMA_SERVER_URL = url
@@ -116,182 +128,197 @@ def _load_settings():
         except ValueError:
             pass
 
+    configure_content_logging(privacy.enabled("log_content"))
 
-def _on_whisper_model_change(model_name: str):
+def _ui(callback):
+    _ui_actions.put(callback)
+
+
+def _on_whisper_model_change(model_name: str, download: bool = False):
     global transcriber
+    if _pipeline_busy.is_set() or recorder.recording or _model_loading.is_set():
+        widget.show_message(locales.get("busy"), 3000)
+        return
     config.MODEL_SIZE = model_name
     db.save_setting("whisper_model", model_name)
-    log.info("Whisper model changed to %s, reloading...", model_name)
-    transcriber = Transcriber()
-    log.info("Whisper model reloaded.")
+    _model_loading.set()
+    transcriber = None
+    status = locales.get("speech_downloading" if download else "speech_loading")
+    widget.show_status(status)
+    if tray:
+        tray.set_tooltip(status)
+
+    def load():
+        try:
+            if download:
+                speech.model_path(model_name, download=True)
+            model = Transcriber(model_name)
+            _ui(lambda: _finish_model_load(model, None))
+        except Exception as exc:
+            log.error("Speech model load failed: %s", type(exc).__name__)
+            _ui(lambda: _finish_model_load(None, locales.get("speech_missing")))
+    threading.Thread(target=load, daemon=True, name="vigil-model-load").start()
 
 
-# ── Dictation callbacks (AltGr) ──────────────────────────────────────────
-
-def _on_hotkey_press():
+def _finish_model_load(model, error):
+    global transcriber
     if _shutting_down:
         return
-    tts.stop()
-    if not recorder.start():
-        return
-    if tray:
-        tray.set_recording(True)
-    if widget:
-        widget.hide_answer()
-        widget.show_recording()
-    log.info("Recording started (dictation).")
-
-
-def _on_hotkey_release():
-    if _shutting_down:
-        return
-    audio = recorder.stop()
-    if tray:
-        tray.set_recording(False)
-    log.info("Recording stopped (dictation).")
-
-    if audio is not None and len(audio) > 0:
-        if widget:
-            widget.show_processing()
-        _pipeline_queue.put(audio)
+    transcriber = model
+    _model_loading.clear()
+    if error:
+        widget.show_message(error, 8000)
     else:
-        if widget:
-            widget.hide()
-        log.info("Empty audio, skipping.")
+        widget.show_message(locales.get("speech_ready"), 2500)
+    if tray:
+        tray.set_tooltip(error or _build_tray_tip())
 
 
-# ── Assistant callbacks (Ctrl+R) ──────────────────────────────────────────
-
-def _on_assist_press():
+def _toggle_recording(owner):
+    """All hotkey/tray/D-Bus sources use the recorder's single owner state."""
     if _shutting_down:
         return
-    tts.stop()
-    if not recorder.start():
-        return
-    if tray:
-        tray.set_recording(True)
-    if widget:
+    with _record_lock:
+        if recorder.owner == owner:
+            audio = recorder.stop(owner)
+            if tray:
+                tray.set_recording(False)
+                tray.set_tooltip(_build_tray_tip())
+            if audio is not None and len(audio):
+                _pipeline_busy.set()
+                widget.show_processing()
+                (_pipeline_queue if owner == "dictation" else _assistant_queue).put(audio)
+            else:
+                widget.hide()
+            return
+        if recorder.recording or _pipeline_busy.is_set() or _model_loading.is_set():
+            widget.show_message(locales.get("busy"), 3000)
+            return
+        if transcriber is None:
+            widget.show_message(locales.get("speech_missing"), 6000)
+            return
+        tts.stop()
+        if not recorder.start(owner):
+            return
         widget.hide_answer()
-        widget.show_assistant()
-        widget.set_expression("listening")
-    log.info("Recording started (assistant).")
+        if owner == "dictation":
+            widget.show_recording()
+        else:
+            widget.show_assistant()
+        if tray:
+            tray.set_recording(True)
+        log.info("Recording started (%s)", owner)
 
 
-def _on_assist_release():
-    if _shutting_down:
-        return
-    audio = recorder.stop()
-    if tray:
-        tray.set_recording(False)
-    log.info("Assistant recording stopped.")
-
-    if audio is not None and len(audio) > 0:
-        if widget:
-            widget.show_processing()
-            widget.set_expression("thinking")
-        _assistant_queue.put(audio)
-    else:
-        if widget:
-            widget.hide()
-        log.info("Empty audio, skipping.")
+def _recording_expired(owner):
+    def update():
+        # Another capture may have started while this notification was queued.
+        if recorder.recording:
+            return
+        if tray:
+            tray.set_recording(False)
+            tray.set_tooltip(_build_tray_tip())
+        widget.show_message(locales.get("recording_expired"), 5000)
+    _ui(update)
 
 
 # ── Pipeline workers ──────────────────────────────────────────────────────
 
+def _hide_if_idle():
+    if not recorder.recording and not _pipeline_busy.is_set() and not _model_loading.is_set():
+        widget.hide()
+
+
+def _display_dictation(outcome):
+    if outcome == "pasted":
+        widget.set_expression("happy")
+        root.after(1200, _hide_if_idle)
+    elif outcome in ("recovered", "failed"):
+        widget.show_message(locales.get("paste_" + outcome), 7000)
+    else:
+        widget.hide()
+
+
 def _dictation_worker():
-    """Transcribe audio and paste the result into the active application."""
+    """Transcribe/paste off the UI thread; publish one final UI result."""
     while True:
         item = _pipeline_queue.get()
         if item is _STOP:
             break
+        outcome = "empty"
         try:
-            log.info("Transcribing (dictation)...")
+            log.info("Transcribing (dictation)")
             text = transcriber.transcribe(item)
             if text:
-                log.info("Transcribed: %r", text)
-                inject(text)
-                if widget:
-                    widget.set_expression("happy")
-                    # Hold "Done!" long enough to register — 500ms proved too
-                    # brief in practice once the 252ms fade-out is added on top.
-                    root.after(1200, widget.hide)
-            else:
-                log.info("No speech detected.")
-                if widget:
-                    widget.hide()
+                log_content("Transcribed: %r", text)
+                outcome = inject(dictation.postprocess(text))
         except Exception as exc:
-            log.error("Dictation pipeline error: %s", exc)
-            if widget:
-                widget.hide()
+            log.error("Dictation pipeline error: %s", type(exc).__name__)
+            outcome = "failed"
+        finally:
+            _ui(lambda result=outcome: _complete_pipeline(lambda: _display_dictation(result)))
+
+
+def _complete_pipeline(display):
+    try:
+        if not _shutting_down:
+            display()
+    finally:
+        _pipeline_busy.clear()
+
+
+def _display_assistant(result, waiting, level):
+    widget.set_context_state(level, waiting)
+    if result == locales.get("not_understood") or result.startswith(locales.get("error", detail="")):
+        widget.set_expression("sad")
+        widget.show_message(result, 3000)
+    else:
+        widget.set_expression("happy")
+        if config.TTS_MODE in ("overlay", "both", "off"):
+            widget.show_answer(result)
+        root.after(1500, _hide_if_idle)
 
 
 def _assistant_worker():
-    """Transcribe audio, send to Ollama, and execute the returned action."""
+    """Keep all Tk/Qt presentation on the GUI thread."""
     while True:
         item = _assistant_queue.get()
         if item is _STOP:
             break
+        display = lambda: widget.hide()
         try:
-            log.info("Transcribing (assistant)...")
+            log.info("Transcribing (assistant)")
             text = transcriber.transcribe(item)
-            if not text:
-                log.info("No speech detected.")
-                if widget:
-                    widget.hide()
-                continue
-
-            log.info("Assistant heard: %r", text)
-            result  = assistant.process(text)
-            waiting = assistant.is_waiting()
-            level   = assistant.context_level()
-            log.info("Assistant result: %s (waiting=%s, level=%d)", result, waiting, level)
-
-            if widget:
-                widget.set_context_state(level, waiting)
-
-            if result == locales.get("not_understood") or result.startswith(locales.get("error", detail="")):
-                if widget:
-                    widget.set_expression("sad")
-                    widget.show_message(result, 3000)
-            else:
-                if widget:
-                    widget.set_expression("happy")
-                # TTS rule: skip while waiting on a numbered reply unless the
-                # answer was synthesised (search_files etc. — those go through
-                # a paraphrase pass and read fine aloud). Raw lists like
-                # app_candidates stay silent.
-                tts_ok = (not waiting) or assistant.was_last_synthesised()
-                if tts.is_enabled() and tts_ok:
+            if text:
+                log_content("Assistant heard: %r", text)
+                result = assistant.process(text)
+                waiting, level = assistant.is_waiting(), assistant.context_level()
+                log_content("Assistant result: %s", result)
+                if tts.is_enabled() and (not waiting or assistant.was_last_synthesised()):
                     try:
                         tts.speak(result)
-                    except Exception as tts_exc:
-                        log.error("TTS error: %s", tts_exc)
-                if config.TTS_MODE in ("overlay", "both", "off"):
-                    if widget:
-                        widget.show_answer(result)
-                if widget:
-                    # Keep the pill on "Done!" briefly — tts.speak is now async
-                    # (commit 7ac42cd) so it no longer blocks here, meaning the
-                    # happy state would otherwise be invisible.
-                    root.after(1500, widget.hide)
-
+                    except Exception as exc:
+                        log.error("TTS error: %s", type(exc).__name__)
+                display = lambda r=result, w=waiting, l=level: _display_assistant(r, w, l)
+        except privacy.PolicyError as exc:
+            display = lambda error=str(exc): widget.show_message(error, 7000)
         except Exception as exc:
-            log.error("Assistant pipeline error: %s", exc)
-            if widget:
-                widget.set_expression("error")
-                widget.show_message(locales.get("assistant_error"), 2000)
+            log.error("Assistant pipeline error: %s", type(exc).__name__)
+            display = lambda: widget.show_message(locales.get("assistant_error"), 3000)
+        finally:
+            _ui(lambda callback=display: _complete_pipeline(callback))
 
 
 # ── Quit & Main ───────────────────────────────────────────────────────────
 
 def _show_settings():
     if settings_win:
-        root.after(0, lambda: settings_win.show())
+        _ui(lambda: settings_win.show())
 
 
 def _hide_settings():
     if settings_win:
-        root.after(0, lambda: settings_win.hide())
+        _ui(lambda: settings_win.hide())
 
 
 def _clear_assistant_context():
@@ -308,44 +335,30 @@ assistant.register_action("open_settings", _show_settings)
 assistant.register_action("close_settings", _hide_settings)
 
 
-# Tray fallback for Wayland (no global hotkeys available)
-_tray_dict_recording = False
-_tray_assist_recording = False
 _shutting_down = False
 
 
 def _tray_toggle_dictation():
-    global _tray_dict_recording
-    if not _tray_dict_recording:
-        _tray_dict_recording = True
-        _on_hotkey_press()
-    else:
-        _tray_dict_recording = False
-        _on_hotkey_release()
+    _ui(lambda: _toggle_recording("dictation"))
 
 
 def _tray_toggle_assistant():
-    global _tray_assist_recording
-    if not _tray_assist_recording:
-        _tray_assist_recording = True
-        _on_assist_press()
-    else:
-        _tray_assist_recording = False
-        _on_assist_release()
+    _ui(lambda: _toggle_recording("assistant"))
 
 
 def _build_tray_tip() -> str:
-    return f"Vigil — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
+    mode = locales.get("mode_local" if privacy.local_only() else "mode_network")
+    return f"Vigil — {mode} — {config.HOTKEY}=dictate, {config.ASSISTANT_HOTKEY}=assistant"
 
 
 def _restart_hotkeys():
     global hotkey_listener
     if hotkey_listener is None:
         hotkey_listener = HotkeyListener(
-            on_press_cb=_on_hotkey_press,
-            on_release_cb=_on_hotkey_release,
-            on_assist_press_cb=_on_assist_press,
-            on_assist_release_cb=_on_assist_release,
+            on_press_cb=_tray_toggle_dictation,
+            on_release_cb=_tray_toggle_dictation,
+            on_assist_press_cb=_tray_toggle_assistant,
+            on_assist_release_cb=_tray_toggle_assistant,
         )
         hotkey_listener.start()
     else:
@@ -381,6 +394,7 @@ def _quit():
     except Exception:
         pass
     log.info("Quitting...")
+    clipboard_bridge.close()
     _llm_manager.shutdown()
     _pipeline_queue.put(_STOP)
     _assistant_queue.put(_STOP)
@@ -500,6 +514,7 @@ def main():
         log.info("Another Vigil instance is already running — exiting.")
         sys.exit(0)
     _load_settings()
+    recovery.prune()
 
     # KDE Plasma 6 Wayland workaround: the first vigil process of a session
     # registers KGA actions but never installs the Wayland keyboard grab.
@@ -520,6 +535,7 @@ def main():
 
     recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
     recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
+    recorder.on_timeout = _recording_expired
 
     tray = TrayIcon(on_quit=_quit, on_show_settings=_show_settings,
                     on_dictate=_tray_toggle_dictation,
@@ -527,6 +543,7 @@ def main():
                     on_stop_tts=tts.stop,
                     on_clear_context=_clear_assistant_context)
     tray.start()
+    clipboard_bridge.initialize()
     tray.update_hotkey_labels(
         f"Dictate ({config.HOTKEY})",
         f"Assistant ({config.ASSISTANT_HOTKEY})",
@@ -545,17 +562,7 @@ def main():
     # dictation isn't swallowed by the dialog. Cheap no-op for everyone else.
     injector.prewarm()
 
-    # Check LLM backend connectivity at startup
-    if not assistant.ping_llama_server():
-        if config.LLM_PROVIDER == "ollama_local":
-            log.warning("Ollama local daemon is not reachable at %s", config.OLLAMA_LOCAL_URL)
-        elif config.LLM_PROVIDER == "ollama_cloud":
-            log.warning("Ollama cloud API is not reachable at %s", config.OLLAMA_CLOUD_URL)
-        else:
-            log.warning("llama-server is not reachable at %s", config.LLAMA_SERVER_URL)
-        tray.set_tooltip(locales.get("tray_ollama_down"))
-
-    transcriber = Transcriber()
+    _on_whisper_model_change(config.MODEL_SIZE)
 
     t1 = threading.Thread(target=_dictation_worker, daemon=True)
     t1.start()
@@ -573,14 +580,25 @@ def main():
         sys.exit(0)
 
     hotkey_listener = HotkeyListener(
-        on_press_cb=_on_hotkey_press,
-        on_release_cb=_on_hotkey_release,
-        on_assist_press_cb=_on_assist_press,
-        on_assist_release_cb=_on_assist_release,
+        on_press_cb=_tray_toggle_dictation,
+        on_release_cb=_tray_toggle_dictation,
+        on_assist_press_cb=_tray_toggle_assistant,
+        on_assist_release_cb=_tray_toggle_assistant,
     )
     hotkey_listener.start()
 
     def _pump_qt():
+        if _shutting_down:
+            return
+        for _ in range(30):
+            try:
+                callback = _ui_actions.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                callback()
+            except Exception as exc:
+                log.error("UI callback failed: %s", type(exc).__name__)
         if tray:
             tray.process_events()
         root.after(50, _pump_qt)

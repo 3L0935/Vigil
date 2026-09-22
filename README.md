@@ -27,7 +27,7 @@ Vigil sits in your system tray and gives you two modes:
 | **Dictation** | `Ctrl+Alt+W` | Transcribes your voice and pastes text directly into whichever app has focus — editors, browsers, chat windows, anything. |
 | **Assistant** | `Ctrl+Alt+R` | Understands natural-language commands: search the web, query your Obsidian vault, launch or close apps — all by voice. |
 
-Everything runs **locally**: speech recognition via [faster-whisper](https://github.com/SYSTRAN/faster-whisper), LLM via [llama.cpp](https://github.com/ggml-org/llama.cpp), optional TTS via [Piper](https://github.com/rhasspy/piper). No cloud, no API keys, no telemetry.
+Vigil defaults to **strict local mode**: speech recognition via [faster-whisper](https://github.com/SYSTRAN/faster-whisper), inference through a loopback llama.cpp or Ollama server, and optional local Piper TTS. Remote inference and web tools are opt-in. Model and voice downloads are explicit actions; normal speech-model loading never contacts the network. No application telemetry.
 
 ---
 
@@ -35,7 +35,7 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 
 - **Toggle-mode dictation** — press once to start recording, press again to paste
 - **Voice assistant** — natural-language commands handled locally by the LLM
-- **Web search** — ask the assistant to look something up; answer spoken aloud
+- **Web search (opt-in)** — enable network access and web tools in Settings, then ask the assistant to look something up
 - **Obsidian vault search** — query your markdown notes by voice
 - **App launcher** — open or close any installed app by name (searches `.desktop` files + PATH)
   - **Fuzzy matching** — phonetic approximations work ("dolfine" → Dolphin); single match auto-launches, multiple matches show a numbered list
@@ -47,7 +47,13 @@ Everything runs **locally**: speech recognition via [faster-whisper](https://git
 - **Full settings UI** — all configuration from the settings window; no editing config files
 - **Multi-language** — English, French, Italian; add more via `locales.py`
 - **X11 + universal Wayland hotkeys** — native binding on KDE (KGlobalAccel), GNOME (gsettings), Hyprland, Sway, niri; graceful manual-instructions fallback elsewhere
-- **Fully offline** after initial model download
+- **Strict local mode** — blocks remote inference/discovery and web tools by default
+- **Personal vocabulary** — whole-word spoken → written replacements for dictation, plus recognition hints
+- **Independent recognition language** — Auto / FR / EN / IT, separate from the interface
+- **Microphone selection and retry** — refresh available inputs; failed captures can be retried without restarting
+- **Bounded recording** — one shared session across shortcuts/tray, 120-second default limit; timeout audio is discarded
+- **Clipboard preservation** — the fallback restores images, files and custom MIME formats; a newer copy wins
+- **Private retained data** — content logging off by default; bounded failed-paste recovery and a purge button
 
 ---
 
@@ -92,12 +98,44 @@ The setup wizard handles everything interactively:
 | **Language** | Choose EN / FR / IT |
 | **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); downloads the matching llama.cpp binary from GitHub Releases |
 | **LLM model** | Recommends a model tier based on available VRAM; downloads from Hugging Face (Qwen3.5 0.8B → 9B, or Mistral Small 24B) |
-| **Whisper model** | Choose transcription size (tiny → large-v3) |
+| **Whisper model** | Choose transcription size (tiny → large-v3), then explicitly download it |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
 
 If no configuration is detected at launch, Vigil automatically opens a terminal and runs the wizard.
 
 ---
+
+## Local mode and retained data
+
+Settings → **Local mode and privacy** controls outbound access. Save to apply:
+
+- **Strict local mode** is on by default, including upgrades. Only HTTP(S) endpoints on `localhost`, `127.0.0.0/8`, or `::1` are accepted for inference/discovery. Local requests ignore environment proxies and do not follow redirects. LAN servers require opting out of strict mode too.
+- **Remote inference:** turn strict mode off, select a provider/URL and save. Spoken assistant commands are then sent to that server. Remote access does not automatically enable local tools.
+- **Local tools with remote inference:** separately opt in to share note excerpts, file names, app results and conversation context. Without this permission, local tools are unavailable to the remote assistant and their execution is blocked. Provider/privacy changes reset conversation history.
+- **Web tools:** separately enable web searches and website opening with strict mode off. Model/voice setup downloads are explicit exceptions. Vigil does not firewall applications launched through desktop shortcuts or files.
+
+Dictation always transcribes locally. Inference remains CPU/int8 for speech; GPU backend changes are outside this release. **Selecting a speech model does not download it.** If missing or incomplete, Settings stays usable: choose **Download / repair selected speech model**. Loading/downloading runs in the background; capture is unavailable until ready. A corrupt cache produces an error instead of an implicit download.
+
+Transcripts and assistant responses are excluded from logs by default. **Include transcripts and responses in logs** is an explicit troubleshooting option. Logs rotate at 1 MiB with three backups. Failed-paste recovery is plaintext in `$XDG_DATA_HOME/vigil/recovery_notes.txt` (normally `~/.local/share/vigil/`), capped at 1 MiB and retained for seven days by default. Choose 0/1/7/30 days; 0 disables recovery. Pruning runs at startup, when saving retention settings and on recovery writes. App data uses a private directory. **Clear logs and recovered dictations** removes retained logs/recovery while preserving settings and notes.
+
+Old `recovery_notes.txt` files left beside the source by previous versions are not migrated or deleted automatically. System clipboard history is managed by your desktop, independently of Vigil's restoration.
+
+## Dictation preferences
+
+Settings → **Dictation** provides recognition language, microphone, recording limit, clipboard restoration delay, vocabulary and recognition hints. On upgrade, recognition initially retains the previous interface language; subsequent UI-language changes do not change it. Auto uses per-clip detection.
+
+Vocabulary uses one `spoken = written` mapping per line, for example:
+
+```text
+roque aime = ROCm
+vigil local = Vigil Local
+```
+
+Matching ignores case, respects whole words, prefers longer phrases and never recursively replaces its own output. Vocabulary applies only to dictation. Recognition hints such as `Vigil, ROCm, Obsidian` also help the assistant's speech recognition, but are best effort.
+
+If a selected microphone disappears, Vigil reports it instead of choosing a different input silently. Reconnect it and refresh, or select another device; retry capture. Devices that reject 16 kHz are recorded at their native rate and resampled. PortAudio's device visibility depends on the audio backend; if a reconnected device still does not appear after refresh, restart Vigil. The default input follows the system selection at each recording.
+
+A recording timeout **discards** the audio; it never pastes or executes it. Dictation and assistant cannot capture concurrently, and new capture waits for the current pipeline/model load to finish.
 
 ## Usage
 
@@ -210,7 +248,12 @@ vigil_trigger.py       — tiny CLI invoked by non-KDE compositor bindings (jeep
 platform_linux.py      — is_wayland() / is_x11()
 recorder.py            — sounddevice audio capture
 transcriber.py         — faster-whisper wrapper
-injector.py            — text injection: wtype (Wayland) → xdotool (XWayland) → clipboard fallback
+injector.py            — direct typing → MIME-preserving clipboard fallback → bounded recovery
+clipboard_bridge.py    — clipboard transactions on the Qt GUI thread
+privacy.py             — inference/discovery and tool permissions
+recovery.py             — private bounded failed-paste recovery
+dictation.py            — recognition settings and vocabulary
+dictation_settings.py   — privacy/dictation Settings controls
 assistant.py           — LLM tool-calling: web search, vault search, app launcher, settings
 llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
 llm_manager.py         — llama-server process lifecycle management
@@ -282,7 +325,7 @@ Some keyboard layouts map modifier keys differently. Check the app log for the r
 Run `vigil --reconfigure-hotkeys` — common after a compositor upgrade or WM switch. If you're on wlroots/COSMIC/labwc, Vigil prints the binding command at first-run; you need to add it to your compositor config manually and invoke `vigil-trigger dictate` / `vigil-trigger assistant` from there.
 
 **No audio / microphone not found**
-Vigil uses the system default input device. Check `pavucontrol` or `aplay -l`. The overlay displays an error message if the device can't be opened.
+Select an input in Settings → Dictation, or keep the system default. Reconnect/refresh after a device disappears; the next capture retries opening it. Check `pavucontrol` for the system input.
 
 **Dictation pastes nothing (Wayland)**
 Vigil tries `wtype` first, then `xdotool`, then clipboard. Install at least one:

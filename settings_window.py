@@ -161,6 +161,7 @@ class SettingsWindow:
         self._win = None
         self._on_whisper_change_cb = on_whisper_change
         self._on_hotkey_change_cb = on_hotkey_change
+        self._dictation_settings = None
         self._whisper_var = None
         self._llm_model_var = None
         self._llm_timeout_var = None
@@ -263,6 +264,10 @@ class SettingsWindow:
             font=T.FONT_SMALL, corner_radius=6,
             command=self._on_whisper_change,
         ).pack(fill="x", pady=(0, T.PAD_L))
+
+        from dictation_settings import DictationSettings
+        self._dictation_settings = DictationSettings(
+            pad, self._whisper_var, self._on_whisper_change)
 
         # ── LLM Provider ──────────────────────────────────────────────────
         ctk.CTkFrame(pad, fg_color=T.BORDER, height=1, corner_radius=0).pack(
@@ -907,9 +912,9 @@ class SettingsWindow:
 
     # ── Callbacks ─────────────────────────────────────────────────────────
 
-    def _on_whisper_change(self, value: str):
+    def _on_whisper_change(self, value: str, download: bool = False):
         if self._on_whisper_change_cb:
-            self._on_whisper_change_cb(value)
+            self._on_whisper_change_cb(value, download=download)
 
     def _fetch_ollama_models(self):
         """Fetch available models from Ollama API and populate the dropdown."""
@@ -931,8 +936,10 @@ class SettingsWindow:
             err_msg = ""
             try:
                 import httpx
-                with httpx.Client(timeout=10) as client:
-                    resp = client.get(tags_url, headers=headers)
+                import privacy
+                checked_url = privacy.check_endpoint(tags_url)
+                with httpx.Client(timeout=10, trust_env=False) as client:
+                    resp = client.get(checked_url, headers=headers)
                     resp.raise_for_status()
                     data = resp.json()
                 models = [m["name"] for m in data.get("models", [])]
@@ -1181,6 +1188,8 @@ class SettingsWindow:
         self._update_speaker_row(lang)
 
     def _save_linux_settings(self):
+        if self._dictation_settings and not self._dictation_settings.save():
+            return
         if self._llm_url_var:
             url = self._llm_url_var.get().strip()
             if url:
@@ -1290,6 +1299,8 @@ class SettingsWindow:
                 db.save_setting("tts_speaker_en", str(int(self._tts_speaker_en_var.get())))
             except ValueError:
                 pass
+        import assistant as _assistant
+        _assistant.reload_backend()
         tts.init()
         if self._on_hotkey_change_cb:
             self._on_hotkey_change_cb()

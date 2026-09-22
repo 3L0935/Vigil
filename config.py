@@ -8,7 +8,7 @@ HOTKEY           = "Ctrl+Alt+W"   # dictation
 ASSISTANT_HOTKEY = "Ctrl+Alt+R"   # assistant
 
 # ── Language ──────────────────────────────────────────────────────────────
-# Controls both Whisper transcription and all UI / assistant strings.
+# Controls UI / assistant strings. Recognition has its own saved language.
 # Supported values: "en" (English), "it" (Italian), "fr" (French).
 LANGUAGE = "en"   # first_run.py sets the real value; DB overrides at startup
 
