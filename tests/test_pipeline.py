@@ -98,6 +98,13 @@ def test_late_success_animation_does_not_hide_new_recording(app, monkeypatch):
     main.widget.hide.assert_not_called()
 
 
+def test_late_success_animation_does_not_hide_answer(app, monkeypatch):
+    monkeypatch.setattr(main, 'recorder', Mock(recording=False))
+    main.widget.hasAnswer = True
+    main._hide_if_idle()
+    main.widget.hide.assert_not_called()
+
+
 def test_main_event_loop_keeps_settings_available_after_model_failure(app, monkeypatch):
     from PySide6.QtCore import QObject
     import threading

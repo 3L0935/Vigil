@@ -222,7 +222,8 @@ def _recording_expired(owner):
 # ── Pipeline workers ──────────────────────────────────────────────────────
 
 def _hide_if_idle():
-    if not recorder.recording and not _pipeline_busy.is_set() and not _model_loading.is_set():
+    if (not recorder.recording and not _pipeline_busy.is_set()
+            and not _model_loading.is_set() and not widget.hasAnswer):
         widget.hide()
 
 

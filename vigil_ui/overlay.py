@@ -101,12 +101,16 @@ class OverlayModel(QObject):
         self._message_timer.start(duration_ms)
 
     def show_answer(self, text):
+        self._type_timer.stop()
+        self._answer_timer.stop()
         self._answer = text
         self._visible_answer = ""
         self._deadline_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
         self._show("answer")
-        self._type_timer.start()
-        self._answer_timer.start()
+        if text:
+            self._type_timer.start()
+        else:
+            self._answer_timer.start()
 
     def _type_next(self):
         if len(self._visible_answer) >= len(self._answer):
@@ -114,10 +118,17 @@ class OverlayModel(QObject):
             return
         self._visible_answer = self._answer[:len(self._visible_answer) + 3]
         self.changed.emit()
+        if len(self._visible_answer) >= len(self._answer):
+            self._type_timer.stop()
+            self._answer_timer.start()
 
     def _tick_answer(self):
-        if self._waiting or self._hover or tts.is_playing():
+        if self._type_timer.isActive():
+            return
+        if self._waiting or tts.is_playing():
             self._deadline_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
+            return
+        if self._hover:
             return
         self._deadline_ms -= 100
         if self._deadline_ms <= 0:
