@@ -62,6 +62,34 @@ Item {
             onActivated: root.backend.setValue(root.field.key, root.field.options[index].value)
             onAccepted: root.backend.setValue(root.field.key, editText)
             onEditTextChanged: if (editable && activeFocus) root.backend.setValue(root.field.key, editText)
+            delegate: ItemDelegate {
+                id: option
+                width: combo.width
+                text: modelData
+                highlighted: combo.highlightedIndex === index
+                contentItem: Text {
+                    text: option.text
+                    color: "#e1e5ed"
+                    font.pixelSize: 13
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 8
+                }
+                background: Rectangle { color: option.highlighted ? "#263141" : "#111823"; radius: 4 }
+            }
+            popup: Popup {
+                y: combo.height - 1
+                width: combo.width
+                implicitHeight: Math.min(contentItem.implicitHeight + 8, 290)
+                padding: 4
+                contentItem: ListView {
+                    clip: true
+                    implicitHeight: contentHeight
+                    model: combo.popup.visible ? combo.delegateModel : null
+                    currentIndex: combo.highlightedIndex
+                    ScrollIndicator.vertical: ScrollIndicator {}
+                }
+                background: Rectangle { color: "#111823"; border.color: "#354357"; radius: 6 }
+            }
             contentItem: TextField {
                 text: combo.editable ? combo.editText : combo.displayText
                 readOnly: !combo.editable

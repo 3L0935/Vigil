@@ -38,6 +38,34 @@ ApplicationWindow {
             return 0
         }
         onActivated: wizard.backend.setValue(settingKey, choices[index].value)
+        delegate: ItemDelegate {
+            id: option
+            width: control.width
+            text: modelData
+            highlighted: control.highlightedIndex === index
+            contentItem: Text {
+                text: option.text
+                color: "#e1e5ed"
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 8
+            }
+            background: Rectangle { color: option.highlighted ? "#263141" : "#111823"; radius: 4 }
+        }
+        popup: Popup {
+            y: control.height - 1
+            width: control.width
+            implicitHeight: Math.min(contentItem.implicitHeight + 8, 290)
+            padding: 4
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: control.popup.visible ? control.delegateModel : null
+                currentIndex: control.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator {}
+            }
+            background: Rectangle { color: "#111823"; border.color: "#354357"; radius: 6 }
+        }
         contentItem: Text {
             text: control.displayText
             color: "#e1e5ed"
@@ -231,6 +259,7 @@ ApplicationWindow {
                     }
                     WizardLabel { text: i18n.text("setting_llm_model", i18n.revision) }
                     WizardChoice {
+                        objectName: "llamaCatalogChoice"
                         settingKey: "llama_catalog_model"
                         choices: wizard.backend.models()
                         enabled: wizard.backend.value("use_existing_model") !== "true"
