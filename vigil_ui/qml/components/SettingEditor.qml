@@ -178,7 +178,9 @@ Item {
             spacing: 8
             Slider {
                 id: slider
+                objectName: "settingSlider_" + root.field.key
                 width: parent.width - 44
+                height: parent.height
                 from: root.field.key === "theme_glass_opacity" ? 0.25
                     : root.field.key === "theme_window_opacity" ? 0.35 : 0
                 to: 1

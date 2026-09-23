@@ -6,6 +6,7 @@ import pytest
 from PySide6.QtCore import QEventLoop, QObject, QPoint, QPointF, QTimer, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtQuick import QQuickWindow
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from vigil_ui.app import create_engine, dispose_engine
@@ -155,6 +156,45 @@ def test_window_opacity_reaches_the_rendered_settings_and_setup_windows():
         assert not image.isNull()
         alpha = image.pixelColor(window.width() - 10, 300).alphaF()
         assert alpha == pytest.approx(0.5, abs=0.03)
+    dispose_engine(engine)
+
+
+def test_opacity_sliders_have_visible_tracks_and_handles():
+    app = QApplication.instance() or QApplication([])
+    engine, _ = create_engine(app, visible=True,
+                              theme_model=ThemeModel({"theme_reduced_motion": "true"}))
+    window = engine.rootObjects()[0]
+    settings = engine._vigil_context_objects[1]
+    window.findChild(QObject, "themeGroup").setProperty("expanded", True)
+    app.processEvents()
+
+    def find_item(parent, name):
+        for child in parent.childItems():
+            if child.objectName() == name:
+                return child
+            found = find_item(child, name)
+            if found is not None:
+                return found
+        return None
+
+    for key in ("theme_glass_opacity", "theme_window_opacity"):
+        slider = find_item(window.contentItem(), "settingSlider_" + key)
+        assert slider is not None
+        assert slider.width() >= 200
+        assert slider.height() >= 30
+        assert slider.property("background").height() > 0
+        assert slider.property("handle").height() > 0
+        flick = window.findChild(QObject, "settingsScroll").property("contentItem")
+        scene_y = slider.mapToScene(QPointF(0, 0)).y()
+        flick.setProperty("contentY", flick.property("contentY") + scene_y - 300)
+        app.processEvents()
+        target = slider.mapToScene(QPointF(slider.width() * 0.3, slider.height() / 2))
+        before = settings.value(key)
+        QTest.mouseClick(window, Qt.LeftButton,
+                         pos=QPoint(round(target.x()), round(target.y())))
+        app.processEvents()
+        assert settings.value(key) != before
+
     dispose_engine(engine)
 
 
