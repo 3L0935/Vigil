@@ -76,6 +76,8 @@ FIELDS = (
     Field("dictation_vocabulary", "dictation", "setting_vocabulary", "multiline",
           hint="vocabulary_hint"),
     Field("dictation_retain_last", "dictation", "setting_retain_last", "toggle", "true"),
+    Field("dictation_spoken_formatting", "dictation", "setting_spoken_formatting", "toggle", "false"),
+    Field("dictation_literal_mode", "dictation", "setting_literal_mode", "toggle", "false"),
     Field("whisper_priming", "dictation", "setting_priming", "multiline",
           hint="priming_hint"),
 
