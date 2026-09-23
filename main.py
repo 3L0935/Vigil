@@ -71,6 +71,11 @@ _dictation_sessions = DictationSessions()
 _reinsert_armed = False
 _reinsert_deadline = 0.0
 _skip_reinsert_release = False
+_preview_session = 0
+_preview_raw = ""
+_preview_pending_text = ""
+_preview_insert_armed = False
+_preview_deadline = 0.0
 
 # ── Load persisted settings into config at startup ────────────────────────
 
@@ -180,11 +185,44 @@ def _finish_model_load(model, error):
 
 def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
     """All hotkey/tray/D-Bus sources use the recorder's single owner state."""
-    global _reinsert_armed, _skip_reinsert_release
+    global _reinsert_armed, _skip_reinsert_release, _preview_insert_armed
     if _shutting_down or _setup_applying.is_set():
         return
     if owner == "dictation" and hotkey_release and _skip_reinsert_release:
         _skip_reinsert_release = False
+        return
+    if owner == "dictation" and _preview_insert_armed:
+        if not from_hotkey or hotkey_release:
+            widget.show_message(locales.get("last_dictation_reinsert_armed"), 6000)
+            return
+        import time
+        _preview_insert_armed = False
+        _skip_reinsert_release = True
+        if time.monotonic() >= _preview_deadline:
+            widget.show_preview(_preview_pending_text)
+            return
+        if not _dictation_sessions.begin_injection(_preview_session):
+            widget.show_message(locales.get("dictation_cancelled"), 3000)
+            return
+        sid, raw, pending = _preview_session, _preview_raw, _preview_pending_text
+        _pipeline_busy.set()
+        widget.show_processing()
+        def insert_preview():
+            outcome = "failed"
+            try:
+                outcome = inject(pending)
+                enabled = (db.get_setting("dictation_retain_last", "true") == "true"
+                           and _dictation_sessions.retention_allowed(sid))
+                _last_dictation.store(raw, pending, enabled=enabled)
+            except Exception as exc:
+                log.error("Preview insertion failed: %s", type(exc).__name__)
+            def display():
+                if _dictation_sessions.may_publish(sid):
+                    _display_dictation(outcome)
+                _dictation_sessions.finish(sid)
+                _clear_preview_state()
+            _ui(lambda: _complete_pipeline(display))
+        threading.Thread(target=insert_preview, daemon=True, name="vigil-preview-insert").start()
         return
     if owner == "dictation" and _reinsert_armed:
         if not from_hotkey or hotkey_release:
@@ -241,6 +279,8 @@ def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
         if transcriber is None:
             widget.show_message(locales.get("speech_missing"), 6000)
             return
+        if owner == "dictation" and _preview_session:
+            _discard_preview()
         tts.stop()
         if not recorder.start(owner):
             return
@@ -274,7 +314,8 @@ def _recording_expired(owner):
 
 def _hide_if_idle():
     if (not recorder.recording and not _pipeline_busy.is_set()
-            and not _model_loading.is_set() and not widget.hasAnswer):
+            and not _model_loading.is_set() and not widget.hasAnswer
+            and widget.mode != "preview"):
         widget.hide()
 
 
@@ -300,13 +341,25 @@ def _dictation_worker():
             continue
         outcome = "empty"
         oversized = False
+        raw_text = ""
+        preview_text = ""
         try:
             log.info("Transcribing (dictation)")
             text = transcriber.transcribe(audio)
             if text:
                 log_content("Transcribed: %r", text)
                 final = dictation.postprocess(text)
-                if _dictation_sessions.begin_injection(session):
+                if db.get_setting("dictation_preview", "false") == "true":
+                    if max(len(text.encode("utf-8")), len(final.encode("utf-8"))) > LastDictation.MAX_BYTES:
+                        outcome = "preview_oversize" if recovery.save(final) else "failed"
+                        _last_dictation.clear()
+                    elif _dictation_sessions.preview(session):
+                        raw_text, preview_text = text, final
+                        enabled = (db.get_setting("dictation_retain_last", "true") == "true"
+                                   and _dictation_sessions.retention_allowed(session))
+                        _last_dictation.store(text, final, enabled=enabled)
+                        outcome = "preview"
+                elif _dictation_sessions.begin_injection(session):
                     outcome = inject(final)
                     enabled = (db.get_setting("dictation_retain_last", "true") == "true"
                                and _dictation_sessions.retention_allowed(session))
@@ -318,18 +371,88 @@ def _dictation_worker():
             log.error("Dictation pipeline error: %s", type(exc).__name__)
             outcome = "failed"
         finally:
-            def display(result=outcome, too_large=oversized, sid=session):
+            def display(result=outcome, too_large=oversized, sid=session,
+                        raw=raw_text, draft=preview_text):
+                global _preview_session, _preview_raw
                 if _dictation_sessions.may_publish(sid):
-                    _display_dictation(result)
+                    if result == "preview":
+                        _preview_session, _preview_raw = sid, raw
+                        widget.show_preview(draft)
+                    elif result == "preview_oversize":
+                        widget.show_message(locales.get("preview_too_large"), 7000)
+                    else:
+                        _display_dictation(result)
                     if too_large:
                         widget.show_message(locales.get("last_dictation_too_large"), 5000)
-                _dictation_sessions.finish(sid)
+                if result != "preview":
+                    _dictation_sessions.finish(sid)
             _ui(lambda callback=display: _complete_pipeline(callback))
+
+
+def _clear_preview_state():
+    global _preview_session, _preview_raw, _preview_pending_text, _preview_insert_armed
+    _preview_session = 0
+    _preview_raw = ""
+    _preview_pending_text = ""
+    _preview_insert_armed = False
+
+
+def _discard_preview():
+    if _preview_session:
+        _dictation_sessions.cancel()
+        _last_dictation.clear()
+        widget.hide_preview()
+        _clear_preview_state()
+
+
+def _arm_preview_insert(text):
+    global _preview_pending_text, _preview_insert_armed, _preview_deadline
+    if not _preview_session or not _dictation_sessions.is_preview(_preview_session):
+        return
+    if not text.strip() or len(text.encode("utf-8")) > LastDictation.MAX_BYTES:
+        widget.show_message(locales.get("preview_empty" if not text.strip()
+                                        else "preview_edit_too_large"), 4000)
+        QTimer.singleShot(4000, lambda: widget.show_preview(text)
+                          if _dictation_sessions.is_preview(_preview_session) else None)
+        return
+    import time
+    _preview_pending_text = text
+    _preview_insert_armed = True
+    _preview_deadline = time.monotonic() + 30.0
+    widget.hide_preview()
+    widget.show_message(locales.get("last_dictation_reinsert_armed"), 6000)
+
+
+def _add_preview_vocabulary(_text):
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+    spoken, ok = QInputDialog.getText(None, locales.get("preview_vocabulary"),
+                                      locales.get("vocabulary_spoken_prompt"))
+    if not ok or not spoken.strip():
+        return
+    written, ok = QInputDialog.getText(None, locales.get("preview_vocabulary"),
+                                       locales.get("vocabulary_written_prompt"))
+    if not ok or not written.strip():
+        return
+    current = db.get_setting("dictation_vocabulary", "").strip()
+    proposed = f"{current}\n{spoken.strip()} = {written.strip()}".strip()
+    try:
+        dictation.parse_vocabulary(proposed)
+    except ValueError:
+        widget.show_message(locales.get("vocabulary_invalid", line=""), 4000)
+        return
+    if QMessageBox.question(None, "Vigil", locales.get("vocabulary_confirm",
+                           spoken=spoken.strip(), written=written.strip())) == QMessageBox.Yes:
+        db.save_setting("dictation_vocabulary", proposed)
+        if settings_model:
+            settings_model.reload()
 
 
 def _cancel_dictation():
     status = _dictation_sessions.cancel()
     if status == "cancelled":
+        if _preview_session:
+            widget.hide_preview()
+            _clear_preview_state()
         if recorder.owner == "dictation":
             recorder.stop("dictation")
             if tray:
@@ -530,6 +653,7 @@ def _quit():
     _shutting_down = True
     _dictation_sessions.suppress_retention()
     _dictation_sessions.cancel()
+    _clear_preview_state()
     _last_dictation.clear()
     if hotkey_listener:
         try:
@@ -670,6 +794,8 @@ def main():
                         for key, default in THEME_DEFAULTS.items()})
     widget = OverlayModel()
     widget.set_close_callback(assistant.reset_context)
+    widget.set_preview_callbacks(_arm_preview_insert, _discard_preview,
+                                 _add_preview_vocabulary)
 
     def _redo_setup():
         if recorder.recording or _pipeline_busy.is_set() or _model_loading.is_set():

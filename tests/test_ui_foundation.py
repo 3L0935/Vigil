@@ -275,6 +275,25 @@ def test_answer_replaces_status_pill_until_followup_listening():
     dispose_engine(engine)
 
 
+def test_preview_is_editable_and_can_take_focus_only_while_open():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    engine, _ = create_engine(app, visible=False, overlay_model=overlay)
+    window = engine.rootObjects()[1]
+    assert window.flags() & Qt.WindowType.WindowDoesNotAcceptFocus
+    overlay.show_preview('Initial draft')
+    app.processEvents()
+    assert window.height() == 280
+    assert not (window.flags() & Qt.WindowType.WindowDoesNotAcceptFocus)
+    editor = window.findChild(QObject, 'dictationPreviewEditor')
+    assert editor is not None
+    assert editor.property('text') == 'Initial draft'
+    overlay.hide_preview()
+    app.processEvents()
+    assert window.flags() & Qt.WindowType.WindowDoesNotAcceptFocus
+    dispose_engine(engine)
+
+
 def test_streaming_answer_follows_tail_until_user_scrolls_up():
     app = QApplication.instance() or QApplication([])
     overlay = OverlayModel()

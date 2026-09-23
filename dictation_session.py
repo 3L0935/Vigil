@@ -100,14 +100,25 @@ class DictationSessions:
 
     def begin_injection(self, session: int) -> bool:
         with self._lock:
-            if session != self._active or self._phase != "processing":
+            if session != self._active or self._phase not in ("processing", "preview"):
                 return False
             self._phase = "injecting"
             return True
 
+    def preview(self, session: int) -> bool:
+        with self._lock:
+            if session != self._active or self._phase != "processing":
+                return False
+            self._phase = "preview"
+            return True
+
+    def is_preview(self, session: int) -> bool:
+        with self._lock:
+            return session == self._active and self._phase == "preview"
+
     def may_publish(self, session: int) -> bool:
         with self._lock:
-            return session == self._active and self._phase in ("processing", "injecting")
+            return session == self._active and self._phase in ("processing", "preview", "injecting")
 
     def retention_allowed(self, session: int) -> bool:
         with self._lock:

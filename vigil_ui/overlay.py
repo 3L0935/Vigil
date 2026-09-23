@@ -25,6 +25,10 @@ class OverlayModel(QObject):
         self._mode = "idle"
         self._message = ""
         self._answer = ""
+        self._preview_text = ""
+        self._preview_insert_callback = None
+        self._preview_discard_callback = None
+        self._preview_vocabulary_callback = None
         self._visible_answer = ""
         self._level = 0.0
         self._expression = "idle"
@@ -58,6 +62,10 @@ class OverlayModel(QObject):
     @Property(str, notify=changed)
     def answer(self):
         return self._visible_answer
+
+    @Property(str, notify=changed)
+    def previewText(self):
+        return self._preview_text
 
     @Property(bool, notify=changed)
     def hasAnswer(self):
@@ -104,6 +112,50 @@ class OverlayModel(QObject):
 
     def set_close_callback(self, callback):
         self._close_callback = callback
+
+    def set_preview_callbacks(self, on_insert, on_discard, on_vocabulary):
+        self._preview_insert_callback = on_insert
+        self._preview_discard_callback = on_discard
+        self._preview_vocabulary_callback = on_vocabulary
+
+    def show_preview(self, text):
+        self._message_timer.stop()
+        self._preview_text = text
+        self._show("preview")
+        if self._window:
+            self._window.requestActivate()
+
+    @Slot(str)
+    def setPreviewText(self, text):
+        if len(text.encode("utf-8")) > 64 * 1024:
+            self.changed.emit()
+            return
+        if text != self._preview_text:
+            self._preview_text = text
+            self.changed.emit()
+
+    @Slot()
+    def copyPreview(self):
+        QApplication.clipboard().setText(self._preview_text)
+
+    @Slot()
+    def insertPreview(self):
+        if self._preview_insert_callback:
+            self._preview_insert_callback(self._preview_text)
+
+    @Slot()
+    def discardPreview(self):
+        if self._preview_discard_callback:
+            self._preview_discard_callback()
+
+    @Slot()
+    def addPreviewVocabulary(self):
+        if self._preview_vocabulary_callback:
+            self._preview_vocabulary_callback(self._preview_text)
+
+    def hide_preview(self):
+        self._preview_text = ""
+        self.hide()
 
     def _show(self, mode, message=""):
         self._mode = mode
@@ -230,6 +282,7 @@ class OverlayModel(QObject):
 
     def close(self):
         self._waiting = False
+        self._preview_text = ""
         self._answer = ""
         self._visible_answer = ""
         self._deadline_ms = 0

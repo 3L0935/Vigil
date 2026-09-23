@@ -21,6 +21,7 @@ def app(monkeypatch):
     main._dictation_sessions = DictationSessions()
     main._reinsert_armed = False
     main._skip_reinsert_release = False
+    main._clear_preview_state()
     for q in [main._ui_actions, main._pipeline_queue, main._assistant_queue]:
         while not q.empty():
             q.get_nowait()
@@ -101,6 +102,66 @@ def test_cancel_after_injection_starts_reports_too_late(app, monkeypatch):
     main._ui_actions.get_nowait()()
     assert seen == ['too_late']
     assert main._last_dictation.get() == ('hello', 'hello')
+
+
+def test_preview_requires_explicit_insert_from_target_hotkey(app, monkeypatch):
+    monkeypatch.setattr(main, 'recorder', Mock(recording=False, owner=None))
+    monkeypatch.setattr(main.db, 'get_setting', lambda key, default='':
+                        'true' if key == 'dictation_preview' else default)
+    session = main._dictation_sessions.start()
+    assert main._dictation_sessions.queue(session)
+    main._pipeline_busy.set()
+    main.transcriber.transcribe.return_value = 'raw phrase'
+    paste = Mock(return_value='pasted')
+    monkeypatch.setattr(main, 'inject', paste)
+    main._pipeline_queue.put((session, np.ones(10)))
+    main._pipeline_queue.put(main._STOP)
+    main._dictation_worker()
+    main._ui_actions.get_nowait()()
+    paste.assert_not_called()
+    main.widget.show_preview.assert_called_once_with('raw phrase')
+    assert main._dictation_sessions.is_preview(session)
+    main._arm_preview_insert('edited phrase')
+    paste.assert_not_called()
+    monkeypatch.setattr(main.threading, 'Thread', lambda target, **kw: Mock(start=target))
+    main._toggle_recording('dictation', from_hotkey=True)
+    main._toggle_recording('dictation', from_hotkey=True, hotkey_release=True)
+    main._ui_actions.get_nowait()()
+    paste.assert_called_once_with('edited phrase')
+    assert main._last_dictation.get() == ('raw phrase', 'edited phrase')
+    assert not main._pipeline_busy.is_set()
+
+
+def test_discarded_preview_does_not_inject(app, monkeypatch):
+    monkeypatch.setattr(main, 'recorder', Mock(recording=False, owner=None))
+    session = main._dictation_sessions.start()
+    assert main._dictation_sessions.queue(session)
+    assert main._dictation_sessions.processing(session)
+    assert main._dictation_sessions.preview(session)
+    main._preview_session = session
+    main._preview_raw = 'raw'
+    paste = Mock()
+    monkeypatch.setattr(main, 'inject', paste)
+    main._discard_preview()
+    assert not main._dictation_sessions.begin_injection(session)
+    paste.assert_not_called()
+    main.widget.hide_preview.assert_called_once()
+
+
+def test_preview_vocabulary_requires_user_confirmation(app, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+    prompts = iter([('roque aime', True), ('ROCm', True)] * 2)
+    monkeypatch.setattr(QInputDialog, 'getText', lambda *args: next(prompts))
+    confirm = Mock(side_effect=[QMessageBox.No, QMessageBox.Yes])
+    monkeypatch.setattr(QMessageBox, 'question', confirm)
+    save = Mock()
+    monkeypatch.setattr(main, 'settings_model', Mock())
+    monkeypatch.setattr(main.db, 'get_setting', lambda key, default='': default)
+    monkeypatch.setattr(main.db, 'save_setting', save)
+    main._add_preview_vocabulary('preview text')
+    save.assert_not_called()
+    main._add_preview_vocabulary('preview text')
+    save.assert_called_once_with('dictation_vocabulary', 'roque aime = ROCm')
 
 
 def test_missing_model_leaves_controls_usable_and_next_load_can_succeed(app):

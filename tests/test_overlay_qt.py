@@ -19,6 +19,26 @@ def test_answer_copy_uses_full_text_before_typewriter_finishes(monkeypatch):
     overlay.close()
 
 
+def test_preview_edit_copy_and_explicit_callbacks():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    calls = []
+    overlay.set_preview_callbacks(lambda text: calls.append(('insert', text)),
+                                  lambda: calls.append(('discard', None)),
+                                  lambda text: calls.append(('vocabulary', text)))
+    overlay.show_preview('raw')
+    overlay.setPreviewText('edited')
+    overlay.setPreviewText('é' * 33000)
+    assert overlay.previewText == 'edited'
+    overlay.copyPreview()
+    assert app.clipboard().text() == 'edited'
+    overlay.insertPreview()
+    overlay.addPreviewVocabulary()
+    overlay.discardPreview()
+    assert calls == [('insert', 'edited'), ('vocabulary', 'edited'), ('discard', None)]
+    overlay.close()
+
+
 def test_answer_countdown_holds_during_waiting_hover_and_tts(monkeypatch):
     app = QApplication.instance() or QApplication([])
     clock = [100.0]

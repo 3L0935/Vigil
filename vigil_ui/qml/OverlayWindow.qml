@@ -7,13 +7,15 @@ Window {
     id: overlay
     objectName: "overlayWindow"
     width: 420
-    height: backend.hasAnswer ? (pillVisible ? 250 : 188) : 54
+    height: backend.mode === "preview" ? 280 : (backend.hasAnswer ? (pillVisible ? 250 : 188) : 54)
     visible: false
     color: "transparent"
-    flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
+    flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+           | (backend.mode === "preview" ? 0 : Qt.WindowDoesNotAcceptFocus)
     title: "Vigil"
     property var backend: overlayModel
-    property bool pillVisible: !backend.hasAnswer || backend.mode !== "answer"
+    property bool pillVisible: backend.mode !== "preview"
+                               && (!backend.hasAnswer || backend.mode !== "answer")
     property color contextEyeColor: {
         var active = backend.mode === "recording" || backend.mode === "assistant"
         if (active) return themeModel.accentReadable
@@ -31,6 +33,93 @@ Window {
     }
     onPillVisibleChanged: {
         if (visible && pillVisible && !themeModel.reducedMotion) pillAppear.restart()
+    }
+
+    GlassSurface {
+        id: previewCard
+        objectName: "dictationPreviewCard"
+        visible: backend.mode === "preview"
+        width: parent.width
+        height: parent.height
+        radius: 14
+        clip: true
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 8
+            Text {
+                text: i18n.text("preview_title", i18n.revision)
+                color: themeModel.text
+                font.pixelSize: 15
+                font.weight: Font.DemiBold
+            }
+            Text {
+                text: i18n.text("preview_focus_hint", i18n.revision)
+                color: themeModel.muted
+                font.pixelSize: 11
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                TextArea {
+                    id: previewEditor
+                    objectName: "dictationPreviewEditor"
+                    text: backend.previewText
+                    onTextChanged: backend.setPreviewText(text)
+                    Connections {
+                        target: backend
+                        function onChanged() {
+                            if (backend.mode === "preview" && previewEditor.text !== backend.previewText)
+                                previewEditor.text = backend.previewText
+                        }
+                    }
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    color: themeModel.text
+                    selectionColor: themeModel.accentA
+                    selectedTextColor: themeModel.background
+                    font.pixelSize: 14
+                    background: Rectangle { color: themeModel.control; radius: 6 }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: [
+                        { label: "preview_copy", action: "copy" },
+                        { label: "preview_vocabulary", action: "vocabulary" },
+                        { label: "preview_discard", action: "discard" },
+                        { label: "preview_insert", action: "insert" }
+                    ]
+                    Button {
+                        text: i18n.text(modelData.label, i18n.revision)
+                        onClicked: {
+                            if (modelData.action === "copy") backend.copyPreview()
+                            else if (modelData.action === "vocabulary") backend.addPreviewVocabulary()
+                            else if (modelData.action === "discard") backend.discardPreview()
+                            else backend.insertPreview()
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: themeModel.text
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: parent.down ? themeModel.accentA : themeModel.control
+                            radius: 6
+                            border.color: themeModel.line
+                        }
+                    }
+                }
+            }
+        }
     }
 
     GlassSurface {
