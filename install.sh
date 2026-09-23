@@ -47,7 +47,7 @@ fi
 
 # ── Install Python dependencies ──────────────────────────────────────────────
 step "Installing Python dependencies (this may take a minute)..."
-uv --directory "$INSTALL_DIR" sync
+uv --directory "$INSTALL_DIR" sync --extra tts-piper
 
 # ── Create launcher script ───────────────────────────────────────────────────
 step "Creating launcher: $BIN_DIR/vigil"
@@ -99,19 +99,12 @@ step "Compositor detected: $COMPOSITOR"
 echo "  Hotkeys will be bound automatically during first-run setup."
 echo "  Set VIGIL_SKIP_HOTKEYS=1 to skip (useful for CI / headless installs)."
 
-# ── First-run setup ──────────────────────────────────────────────────────────
-echo ""
-step "Running first-time setup wizard..."
-echo "(This will download llama-server, a model, and optionally Piper TTS voices)"
-echo ""
-uv --directory "$INSTALL_DIR" run python first_run.py
-
-
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${NC}"
 echo ""
 echo "  Run Vigil:  vigil"
 echo "  Or launch from your application menu."
+echo "  The Fold setup wizard opens on first launch."
 echo ""
 echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash"

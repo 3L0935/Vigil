@@ -7,7 +7,6 @@ dependencies = [
     "sounddevice>=0.4.6",
     "numpy>=1.24.0",
     "scipy>=1.11.0",
-    "customtkinter>=5.2.0",
     "pynput>=1.7.6",
     "Pillow>=10.0.0",
     "httpx>=0.27.0",
@@ -35,12 +34,12 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 py-modules = [
     "main", "app_launcher", "assistant", "brand", "compositor", "config",
-    "database", "first_run", "injector", "json_repair", "llm_backend",
+    "database", "injector", "json_repair", "llm_backend",
     "llm_manager", "locales", "logger", "obsidian", "platform_linux",
-    "recorder", "service", "settings_window", "setup_utils", "theme",
-    "transcriber", "tray_qt", "tts", "vigil_trigger", "widget",
+    "recorder", "service", "setup_utils",
+    "transcriber", "tray_qt", "tts", "vigil_trigger",
     "privacy", "data_paths", "dictation", "recovery", "clipboard_bridge",
-    "dictation_settings", "url_shortcuts", "folders", "file_search",
+    "url_shortcuts", "folders", "file_search",
 ]
 
 [tool.setuptools.packages.find]

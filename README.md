@@ -85,23 +85,27 @@ The installer will:
 2. Set up the Python virtual environment and dependencies
 3. Create a `vigil` launcher in `~/.local/bin/`
 4. Create a `.desktop` entry (app launcher)
-5. Run the interactive first-run setup wizard
+5. Install Piper so the integrated wizard can offer spoken output
+
+Launch `vigil` from the application menu or terminal. The Fold setup window opens on first launch.
 
 ---
 
 ## First-run setup
 
-The setup wizard handles everything interactively:
+The Fold setup window handles configuration without opening a terminal:
 
 | Phase | What it does |
 |---|---|
 | **Language** | Choose EN / FR / IT |
 | **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); downloads the matching llama.cpp binary from GitHub Releases |
 | **LLM model** | Recommends a model tier based on available VRAM; downloads from Hugging Face (Qwen3.5 0.8B → 9B, or Mistral Small 24B) |
-| **Whisper model** | Choose transcription size (tiny → large-v3), then explicitly download it |
+| **Whisper model** | Choose transcription size (tiny → large-v3); download it explicitly from Settings if missing |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
+| **Shortcuts** | Choose distinct dictation and assistant bindings |
+| **Review** | Reuse installed files or download selected assets before saving |
 
-If no configuration is detected at launch, Vigil automatically opens a terminal and runs the wizard.
+Existing llama.cpp and Ollama configurations are reused. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
 
 ---
 
@@ -237,8 +241,7 @@ Open from the tray → **Settings**. All changes are saved to the local database
 ```
 main.py                — entry point, pipeline workers, hotkey dispatch
 config.py              — runtime constants (overridden by DB at startup)
-setup_utils.py         — terminal detection, first-run detection
-first_run.py           — interactive setup wizard (phases 0–3)
+setup_utils.py         — first-run detection and uninstall terminal helper
 install.sh             — distro-agnostic installer
 uninstall.sh           — data + desktop entry cleanup
 compositor.py          — env-based compositor detection (KDE, GNOME, Hyprland, Sway, niri, wlr, X11)
@@ -253,7 +256,6 @@ clipboard_bridge.py    — clipboard transactions on the Qt GUI thread
 privacy.py             — inference/discovery and tool permissions
 recovery.py             — private bounded failed-paste recovery
 dictation.py            — recognition settings and vocabulary
-dictation_settings.py   — privacy/dictation Settings controls
 assistant.py           — LLM tool-calling: web search, vault search, app launcher, settings
 llm_backend.py         — LlamaServerBackend (OpenAI-compatible /v1 API)
 llm_manager.py         — llama-server process lifecycle management
@@ -263,11 +265,8 @@ folders.py             — XDG standard-folder resolver with multilingual aliase
 file_search.py         — fuzzy recursive file search (month expansion, plural-tolerant matching)
 database.py            — SQLite: settings KV store
 locales.py             — i18n strings (EN / FR / IT)
-theme.py               — Pandora Blackboard colour palette + fonts
-widget.py              — floating overlay (RecordingWidget + AnswerCard)
-settings_window.py     — full settings UI
 tray_qt.py             — system tray (PySide6, KDE Plasma)
-vigil_ui/              — Qt Quick Fold UI fixture and shared QML components
+vigil_ui/              — Fold settings, overlay, setup wizard and runtime adapters
 brand.py               — tray icon generation (Pandora eyes)
 ```
 
@@ -291,10 +290,10 @@ Format: `Ctrl+Alt+W`, `Meta+D`, `Shift+F9`, etc.
 | X11 (any WM) | pynput GlobalHotKeys | none |
 | KDE Plasma 6 | KGlobalAccel D-Bus | none |
 | GNOME Wayland | `gsettings` custom-keybindings | none (silent gsettings call) |
-| Hyprland | managed block in `hyprland.conf` + `hyprctl reload` | one Y/N prompt at install |
-| Sway | managed block in `sway/config` + `swaymsg reload` | one Y/N prompt at install |
-| niri | managed block inside `config.kdl`'s `binds { }` + live-reload | one Y/N prompt at install |
-| wlroots / COSMIC / unknown | manual instructions printed — user binds by hand | one-time config edit |
+| Hyprland | managed block in `hyprland.conf` + `hyprctl reload` | consent in setup |
+| Sway | managed block in `sway/config` + `swaymsg reload` | consent in setup |
+| niri | managed block inside `config.kdl`'s `binds { }` + live-reload | consent in setup |
+| wlroots / COSMIC / unknown | manual commands shown in setup | one-time config edit |
 
 Non-KDE compositors execute `vigil-trigger <action>` on press; the CLI dials the D-Bus service (`org.vigil.Service.Trigger`) exposed by the running Vigil. Bindings live at the compositor level, so a temporary Vigil restart never loses them.
 
@@ -303,14 +302,14 @@ Non-KDE compositors execute `vigil-trigger <action>` on press; the CLI dials the
 ### CLI helpers
 
 ```bash
-vigil --reconfigure-hotkeys   # re-run the wizard after a WM switch or failed bind
+vigil --reconfigure-hotkeys   # rebind saved shortcuts after a WM switch or failed bind
 vigil --uninstall-hotkeys     # remove every Vigil-managed binding
 vigil-trigger dictate         # manual invocation (exit 1 if Vigil isn't running)
 ```
 
 ### Skip at install
 
-For CI / headless installs, set `VIGIL_SKIP_HOTKEYS=1` before running `install.sh` or `first_run.py`.
+For CI / headless installs, set `VIGIL_SKIP_HOTKEYS=1` before launching Vigil.
 
 ---
 
@@ -339,7 +338,7 @@ sudo pacman -S xdotool
 On KDE Plasma, `wtype` may log `Compositor does not support the virtual keyboard protocol` — this is harmless; `xdotool` takes over automatically.
 
 **TTS not playing**
-Requires Piper and voice files. Go to Settings → Re-run setup and select TTS at Phase 3. Voices can also be downloaded individually via Settings → TTS → More voices.
+Requires Piper and voice files. Go to Settings → Redo setup and select spoken output. Voices can also be downloaded individually via Settings → Speech output → More voices.
 
 ---
 
