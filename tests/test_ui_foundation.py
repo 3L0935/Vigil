@@ -5,8 +5,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QApplication
 
-from vigil_ui.app import create_engine
+from vigil_ui.app import create_engine, dispose_engine
 from vigil_ui.i18n import TranslationBridge
+from vigil_ui.overlay import OverlayModel
+from vigil_ui.settings_model import SettingsModel
+from vigil_ui.setup_model import SetupModel
 
 
 def test_translation_bridge_switches_language_and_notifies():
@@ -48,4 +51,26 @@ def test_fold_settings_qml_loads_offscreen():
 
     # Keep context properties alive until the engine is torn down.
     assert translator.language == "en"
-    engine.deleteLater()
+    dispose_engine(engine)
+
+
+def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
+    app = QApplication.instance() or QApplication([])
+    translator = TranslationBridge("en")
+    settings = SettingsModel(translator)
+    overlay = OverlayModel()
+    setup = SetupModel(translator, initial=True)
+    engine, _ = create_engine(
+        app, visible=False, translator=translator, settings_model=settings,
+        overlay_model=overlay, setup_model=setup,
+    )
+    assert [root.objectName() for root in engine.rootObjects()] == [
+        "settingsWindow", "overlayWindow", "setupWindow"
+    ]
+    assert engine.rootObjects()[0].property("previewMode") is True
+    assert not engine.rootObjects()[1].isVisible()
+    overlay.show_message("Test", 1000)
+    assert engine.rootObjects()[1].isVisible()
+    assert not engine.rootObjects()[1].isActive()
+    overlay.hide()
+    dispose_engine(engine)
