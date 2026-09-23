@@ -2,6 +2,7 @@
 
 import threading
 import os
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 from PySide6.QtWidgets import QFileDialog
@@ -36,6 +37,7 @@ class SetupModel(QObject):
     changed = Signal()
     prepared = Signal(object, str)
     progress = Signal(str)
+    downloadProgress = Signal(str, int, int)
     finished = Signal(bool)
     cancelled = Signal(bool)
     ollamaReady = Signal(int, str, object)
@@ -48,6 +50,8 @@ class SetupModel(QObject):
         self._busy = False
         self._ready = False
         self._status = ""
+        self._download_done = 0
+        self._download_total = 0
         self._cancel_event = threading.Event()
         self._prepared_values = None
         self._activate = None
@@ -64,10 +68,10 @@ class SetupModel(QObject):
         self._original_language = translator.language
         self._draft = self._defaults()
         if not initial:
-            self._draft.update({key: db.get_setting(key, value)
-                                for key, value in self._draft.items()})
+            self._load_saved_choices()
         self._draft["llama_backend"] = detect_backend()
         self.progress.connect(self._set_progress)
+        self.downloadProgress.connect(self._set_download_progress)
         self.prepared.connect(self._receive_prepared)
         self.ollamaReady.connect(self._receive_ollama)
 
@@ -77,9 +81,12 @@ class SetupModel(QObject):
             "language": self._original_language,
             "whisper_model": "base",
             "whisper_language": self._original_language,
-            "llama_model": recommended_model(),
+            "llama_model": "",
+            "llama_catalog_model": recommended_model(),
             "llama_server_bin": "",
             "llama_server_managed": "false",
+            "use_existing_binary": "false",
+            "use_existing_model": "false",
             "llama_backend": detect_backend(),
             "tts_voice_fr": "",
             "tts_voice_en": "",
@@ -88,6 +95,24 @@ class SetupModel(QObject):
             "hotkey_assist": config.ASSISTANT_HOTKEY,
         })
         return values
+
+    def _load_saved_choices(self):
+        self._draft.update({key: db.get_setting(key, value)
+                            for key, value in self._draft.items()
+                            if key not in ("use_existing_binary", "use_existing_model", "llama_catalog_model")})
+        binary = Path(self._draft["llama_server_bin"]).expanduser()
+        if binary.is_file() and binary.stat().st_size and os.access(binary, os.X_OK):
+            self._draft["use_existing_binary"] = "true"
+        else:
+            self._draft["llama_server_bin"] = ""
+        model = Path(self._draft["llama_model"]).expanduser()
+        if model.is_file() and model.suffix == ".gguf" and model.stat().st_size:
+            self._draft["use_existing_model"] = "true"
+        else:
+            catalog_names = {tier[2] for tier in MODEL_TIERS}
+            if model.name in catalog_names:
+                self._draft["llama_catalog_model"] = model.name
+            self._draft["llama_model"] = ""
 
     @Property(int, notify=changed)
     def page(self):
@@ -104,6 +129,14 @@ class SetupModel(QObject):
     @Property(str, notify=changed)
     def status(self):
         return self._status
+
+    @Property(float, notify=changed)
+    def progressValue(self):
+        return min(1.0, self._download_done / self._download_total) if self._download_total else 0.0
+
+    @Property(bool, notify=changed)
+    def progressIndeterminate(self):
+        return self._download_total <= 0
 
     @Property(bool, notify=changed)
     def initial(self):
@@ -133,14 +166,15 @@ class SetupModel(QObject):
         self._busy = False
         self._ready = False
         self._status = ""
+        self._download_done = 0
+        self._download_total = 0
         self._prepared_values = None
         self._ollama_catalog = []
         self._ollama_request += 1
         self._hotkey_consent = False
         self._original_language = self._translator.language
         self._draft = self._defaults()
-        self._draft.update({key: db.get_setting(key, value)
-                            for key, value in self._draft.items()})
+        self._load_saved_choices()
         self.changed.emit()
 
     def set_activation_callbacks(self, activate, rollback):
@@ -297,6 +331,14 @@ class SetupModel(QObject):
         key = {"binary": "setup_progress_binary", "model": "setup_progress_model",
                "voice fr": "setup_progress_voice_fr", "voice en": "setup_progress_voice_en"}.get(message)
         self._status = self._translator.text(key) if key else message
+        self._download_done = 0
+        self._download_total = 0
+        self.changed.emit()
+
+    @Slot(str, int, int)
+    def _set_download_progress(self, stage, done, total):
+        self._download_done = max(0, done)
+        self._download_total = max(0, total)
         self.changed.emit()
 
     def start_prepare(self):
@@ -305,10 +347,17 @@ class SetupModel(QObject):
         self._status = self._translator.text("setup_preparing")
         self.changed.emit()
         draft = dict(self._draft)
+        last_progress = {}
+
+        def publish_progress(stage, done, total):
+            step = int(done * 100 / total) if total > 0 else done // (1024 * 1024)
+            if last_progress.get(stage) != step:
+                last_progress[stage] = step
+                self.downloadProgress.emit(stage, done, total)
 
         def run():
             try:
-                values = prepare(draft, self._cancel_event, self.progress.emit)
+                values = prepare(draft, self._cancel_event, self.progress.emit, publish_progress)
                 self.prepared.emit(values, "")
             except SetupCancelled:
                 self.prepared.emit({}, "cancelled")

@@ -54,6 +54,54 @@ def test_existing_llama_assets_are_reused_without_download(monkeypatch, tmp_path
     assert result["setup_complete"] == "1"
 
 
+def test_reconfigure_discards_missing_legacy_paths(monkeypatch, tmp_path):
+    QApplication.instance() or QApplication([])
+    monkeypatch.setattr(db, "_DB_PATH", str(tmp_path / "vigil.db"))
+    db.init()
+    db.save_settings({
+        "llama_server_bin": str(tmp_path / "writher/llama/llama-server"),
+        "llama_model": str(tmp_path / "writher/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf"),
+    })
+    wizard = SetupModel(TranslationBridge("fr"), initial=False)
+    assert wizard.value("use_existing_binary") == "false"
+    assert wizard.value("use_existing_model") == "false"
+    assert wizard.value("llama_server_bin") == ""
+    assert wizard.value("llama_model") == ""
+    assert wizard.value("llama_catalog_model") == "Qwen_Qwen3.5-9B-Q4_K_M.gguf"
+
+
+def test_catalog_mode_ignores_stale_paths_and_reports_download_progress(monkeypatch, tmp_path):
+    binary = tmp_path / "vigil/llama/llama-server"
+    model = tmp_path / "vigil/models/model.gguf"
+    seen = []
+
+    def install_binary(backend, cancelled, progress=None):
+        progress(50, 100)
+        return binary
+
+    def install_model(choice, cancelled, progress=None):
+        assert choice == "Qwen_Qwen3.5-9B-Q4_K_M.gguf"
+        progress(75, 100)
+        return model
+
+    monkeypatch.setattr(setup_service, "install_binary", install_binary)
+    monkeypatch.setattr(setup_service, "install_model", install_model)
+    result = prepare({
+        "llm_provider": "llama_cpp",
+        "llama_server_bin": "/old/writher/llama/llama-server",
+        "llama_model": "/old/writher/models/model.gguf",
+        "llama_catalog_model": "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
+        "use_existing_binary": "false", "use_existing_model": "false",
+        "hotkey_dict": "Ctrl+Alt+W", "hotkey_assist": "Ctrl+Alt+R",
+        "tts_mode": "overlay",
+    }, threading.Event(), lambda stage: seen.append(stage),
+        lambda stage, done, total: seen.append((stage, done, total)))
+    assert result["llama_server_bin"] == str(binary)
+    assert result["llama_model"] == str(model)
+    assert "use_existing_binary" not in result
+    assert seen == ["binary", ("binary", 50, 100), "model", ("model", 75, 100)]
+
+
 def test_cancelled_llama_prepare_never_returns_setup_complete(tmp_path):
     binary = tmp_path / "llama-server"
     binary.write_bytes(b"binary")

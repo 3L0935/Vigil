@@ -50,7 +50,7 @@ Rectangle {
             Text {
                 text: root.title
                 color: "#e1e5ed"
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
             }
@@ -58,7 +58,7 @@ Rectangle {
                 visible: root.hint.length > 0
                 text: root.hint
                 color: "#788397"
-                font.pixelSize: 10
+                font.pixelSize: 11
             }
             Text {
                 text: root.expanded ? "−" : "+"

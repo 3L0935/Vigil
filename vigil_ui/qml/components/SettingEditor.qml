@@ -27,7 +27,7 @@ Item {
         placeholderTextColor: "#667085"
         selectionColor: "#596579"
         selectedTextColor: "#ffffff"
-        font.pixelSize: 12
+        font.pixelSize: 13
         leftPadding: 11
         rightPadding: 11
         background: Rectangle {
@@ -66,7 +66,7 @@ Item {
                 text: combo.editable ? combo.editText : combo.displayText
                 readOnly: !combo.editable
                 color: "#e1e5ed"
-                font.pixelSize: 12
+                font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 background: null
             }
@@ -101,7 +101,7 @@ Item {
                 color: "#9ca6b7"
                 verticalAlignment: Text.AlignVCenter
                 height: parent.height
-                font.pixelSize: 11
+                font.pixelSize: 12
             }
         }
     }
@@ -111,7 +111,7 @@ Item {
             text: root.currentValue
             color: "#e1e5ed"
             wrapMode: TextEdit.Wrap
-            font.pixelSize: 12
+            font.pixelSize: 13
             onActiveFocusChanged: if (!activeFocus) root.backend.setValue(root.field.key, text)
             background: Rectangle {
                 color: "#111823"
@@ -133,7 +133,7 @@ Item {
             contentItem: Text {
                 text: parent.text
                 color: "#d3dae5"
-                font.pixelSize: 11
+                font.pixelSize: 12
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

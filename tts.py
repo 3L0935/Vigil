@@ -3,13 +3,13 @@
 import json
 import re
 import time
-from pathlib import Path
 import threading
 import numpy as np
 import sounddevice as sd
 
 import config
 import database as db
+from data_paths import DATA_DIR
 from logger import log
 
 _playing = threading.Event()
@@ -26,7 +26,7 @@ _stream: "sd.OutputStream | None" = None
 _stream_lock = threading.Lock()
 _stop_event = threading.Event()
 
-_PIPER_DIR = Path.home() / ".local" / "share" / "vigil" / "tts" / "piper"
+_PIPER_DIR = DATA_DIR / "tts" / "piper"
 
 _BUILTIN_VOICES = {
     "fr": ["fr_FR-siwis-medium", "fr_FR-upmc-medium", "fr_FR-mls-medium"],

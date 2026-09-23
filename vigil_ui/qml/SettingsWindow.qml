@@ -48,13 +48,13 @@ ApplicationWindow {
             Text {
                 text: i18n.text("settings_title", i18n.revision)
                 color: "#e1e5ed"
-                font.pixelSize: 20
+                font.pixelSize: 22
                 font.weight: Font.DemiBold
             }
             Text {
                 text: i18n.text("settings_intro", i18n.revision)
                 color: "#9ca6b7"
-                font.pixelSize: 11
+                font.pixelSize: 12
             }
             Item { Layout.fillHeight: true }
         }
@@ -64,6 +64,16 @@ ApplicationWindow {
         implicitHeight: 62
         color: "#0e131d"
         border.color: "#1f2835"
+        ProgressBar {
+            id: settingsDownloadBar
+            objectName: "settingsDownloadProgress"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            visible: window.settingsBackend.downloadActive
+            indeterminate: !window.settingsBackend.downloadDeterminate
+            value: window.settingsBackend.downloadValue
+        }
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 23
@@ -72,7 +82,7 @@ ApplicationWindow {
                 text: window.settingsBackend.status.length ? window.settingsBackend.status
                     : (window.previewMode ? i18n.text("ui_preview", i18n.revision) : "")
                 color: "#9ca6b7"
-                font.pixelSize: 11
+                font.pixelSize: 12
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }

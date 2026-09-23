@@ -14,9 +14,9 @@ import urllib.request
 import zipfile
 
 from .assets import download_voice, is_loopback_url, url_is_valid
+from data_paths import DATA_DIR
 
 
-DATA_DIR = Path.home() / ".local/share/vigil"
 MODEL_DIR = DATA_DIR / "models"
 LLAMA_DIR = DATA_DIR / "llama"
 RELEASE_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
@@ -89,12 +89,18 @@ def fetch_binary_asset(backend: str) -> tuple[str, str]:
     raise RuntimeError("No llama-server build found for " + backend)
 
 
-def _download_to_temp(url: str, directory: Path, suffix: str) -> Path:
+def _download_to_temp(url: str, directory: Path, suffix: str, progress=None) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=directory, suffix=suffix, delete=False) as tmp:
         path = Path(tmp.name)
     try:
-        urllib.request.urlretrieve(url, path)
+        hook = None
+        if progress is not None:
+            hook = lambda blocks, size, total: progress(
+                min(blocks * size, total) if total > 0 else blocks * size,
+                max(total, 0),
+            )
+        urllib.request.urlretrieve(url, path, reporthook=hook)
         if not path.stat().st_size:
             raise RuntimeError("Empty download")
         return path
@@ -103,12 +109,12 @@ def _download_to_temp(url: str, directory: Path, suffix: str) -> Path:
         raise
 
 
-def install_binary(backend: str, cancelled) -> Path:
+def install_binary(backend: str, cancelled, progress=None) -> Path:
     existing = LLAMA_DIR / "llama-server"
     if existing.is_file() and existing.stat().st_size:
         return existing
     url, name = fetch_binary_asset(backend)
-    archive = _download_to_temp(url, LLAMA_DIR, ".zip" if name.endswith(".zip") else ".tar.gz")
+    archive = _download_to_temp(url, LLAMA_DIR, ".zip" if name.endswith(".zip") else ".tar.gz", progress)
     stage = Path(tempfile.mkdtemp(dir=LLAMA_DIR, prefix="stage-"))
     try:
         if cancelled.is_set():
@@ -149,7 +155,7 @@ def _binary_entry(path: str) -> bool:
     return name in ("llama-server", "llama-server.exe") or name.endswith(".dylib") or ".so" in name
 
 
-def install_model(choice: str, cancelled) -> Path:
+def install_model(choice: str, cancelled, progress=None) -> Path:
     path = Path(choice).expanduser()
     if path.is_file() and path.suffix == ".gguf" and path.stat().st_size:
         return path
@@ -163,7 +169,23 @@ def install_model(choice: str, cancelled) -> Path:
     if cancelled.is_set():
         raise SetupCancelled()
     from huggingface_hub import hf_hub_download
-    cached = Path(hf_hub_download(repo_id=tier[1], filename=tier[2]))
+    kwargs = {}
+    if progress is not None:
+        from tqdm.auto import tqdm
+
+        class DownloadProgress(tqdm):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._received = int(kwargs.get("initial") or 0)
+
+            def update(self, amount=1):
+                result = super().update(amount)
+                self._received += amount
+                progress(int(self._received), int(self.total or 0))
+                return result
+
+        kwargs["tqdm_class"] = DownloadProgress
+    cached = Path(hf_hub_download(repo_id=tier[1], filename=tier[2], **kwargs))
     if cancelled.is_set():
         raise SetupCancelled()
     with tempfile.NamedTemporaryFile(dir=MODEL_DIR, prefix="model-", delete=False) as tmp:
@@ -178,7 +200,7 @@ def install_model(choice: str, cancelled) -> Path:
     return target
 
 
-def prepare(draft: dict[str, str], cancelled, report) -> dict[str, str]:
+def prepare(draft: dict[str, str], cancelled, report, progress=None) -> dict[str, str]:
     """Prepare assets and return DB values; caller commits after success."""
     values = dict(draft)
     if values["hotkey_dict"].strip() == values["hotkey_assist"].strip():
@@ -191,17 +213,23 @@ def prepare(draft: dict[str, str], cancelled, report) -> dict[str, str]:
         if values.get("local_only", "true") == "true" and not is_loopback_url(endpoint):
             raise ValueError("Remote inference is blocked by local mode")
         report("binary")
+        existing_binary = values.get("use_existing_binary", "true" if values.get("llama_server_bin") else "false") == "true"
         binary = Path(values.get("llama_server_bin", "")).expanduser()
-        if binary.is_file() and (not binary.stat().st_size or not os.access(binary, os.X_OK)):
-            raise ValueError("Selected llama-server binary is not executable")
-        if not binary.is_file():
-            binary = install_binary(values.get("llama_backend", detect_backend()), cancelled)
-            values["llama_server_managed"] = "true"
+        if existing_binary:
+            if not binary.is_file() or not binary.stat().st_size or not os.access(binary, os.X_OK):
+                raise ValueError("Selected llama-server binary is not executable")
         else:
+            binary = install_binary(values.get("llama_backend", detect_backend()), cancelled,
+                                    progress=(lambda done, total: progress("binary", done, total)) if progress else None)
+            values["llama_server_managed"] = "true"
+        if existing_binary:
             values["llama_server_managed"] = values.get("llama_server_managed", "false")
         values["llama_server_bin"] = str(binary)
         report("model")
-        values["llama_model"] = str(install_model(values["llama_model"], cancelled))
+        model_choice = (values["llama_model"] if values.get("use_existing_model", "true") == "true"
+                        else values.get("llama_catalog_model", recommended_model()))
+        values["llama_model"] = str(install_model(model_choice, cancelled,
+                                    progress=(lambda done, total: progress("model", done, total)) if progress else None))
     elif provider in ("ollama_local", "ollama_cloud"):
         url_key = "ollama_local_url" if provider == "ollama_local" else "ollama_cloud_url"
         if not url_is_valid(values[url_key]):
@@ -226,7 +254,8 @@ def prepare(draft: dict[str, str], cancelled, report) -> dict[str, str]:
             voice = values.get("tts_voice_" + lang, "")
             if voice:
                 report("voice " + lang)
-                download_voice(voice)
+                download_voice(voice, progress=(lambda done, total, stage="voice " + lang:
+                                              progress(stage, done, total)) if progress else None)
         values["tts_engine"] = "piper"
     else:
         values["tts_engine"] = "off"
@@ -234,4 +263,7 @@ def prepare(draft: dict[str, str], cancelled, report) -> dict[str, str]:
         raise SetupCancelled()
     values["setup_complete"] = "1"
     values.pop("llama_backend", None)
+    values.pop("llama_catalog_model", None)
+    values.pop("use_existing_binary", None)
+    values.pop("use_existing_model", None)
     return values

@@ -9,6 +9,7 @@ class SettingsModel(QObject):
     valuesChanged = Signal()
     catalogChanged = Signal()
     statusChanged = Signal()
+    downloadChanged = Signal()
 
     def __init__(self, translator, *, initial=None, preview=True, parent=None):
         super().__init__(parent)
@@ -19,6 +20,9 @@ class SettingsModel(QObject):
         self._revision = 0
         self._catalog_revision = 0
         self._status = ""
+        self._download_active = False
+        self._download_done = 0
+        self._download_total = 0
         self._catalogs = {}
 
     @Property(bool, constant=True)
@@ -36,6 +40,33 @@ class SettingsModel(QObject):
     @Property(str, notify=statusChanged)
     def status(self):
         return self._status
+
+    @Property(bool, notify=downloadChanged)
+    def downloadActive(self):
+        return self._download_active
+
+    @Property(bool, notify=downloadChanged)
+    def downloadDeterminate(self):
+        return self._download_total > 0
+
+    @Property(float, notify=downloadChanged)
+    def downloadValue(self):
+        return min(1.0, self._download_done / self._download_total) if self._download_total else 0.0
+
+    def begin_download(self):
+        self._download_active = True
+        self._download_done = 0
+        self._download_total = 0
+        self.downloadChanged.emit()
+
+    def update_download(self, done, total):
+        self._download_done = max(0, done)
+        self._download_total = max(0, total)
+        self.downloadChanged.emit()
+
+    def finish_download(self):
+        self._download_active = False
+        self.downloadChanged.emit()
 
     def set_status(self, value):
         if value != self._status:

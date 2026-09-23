@@ -3,7 +3,7 @@
 import threading
 
 from PySide6.QtCore import Signal, Slot
-from PySide6.QtWidgets import QFileDialog, QDialog, QListWidget, QPushButton, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QFileDialog, QDialog, QListWidget, QPushButton, QVBoxLayout, QLabel, QProgressBar
 
 import config
 import database as db
@@ -45,6 +45,7 @@ class LiveSettingsModel(SettingsModel):
     _ollamaReady = Signal(int, str, str, object)
     _voicesReady = Signal(str, int, object, str)
     _downloadReady = Signal(str, int, str, str)
+    _downloadBytes = Signal(str, int, int, int)
 
     def __init__(self, translator, *, on_whisper_change=None,
                  on_hotkey_change=None, on_language_change=None,
@@ -66,6 +67,7 @@ class LiveSettingsModel(SettingsModel):
         self._ollamaReady.connect(self._receive_ollama)
         self._voicesReady.connect(self._receive_voices)
         self._downloadReady.connect(self._receive_download)
+        self._downloadBytes.connect(self._receive_download_bytes)
         self.set_catalog("ollama_model", [values["ollama_model"]] if values["ollama_model"] else [])
         self.refresh_mics(show_status=False)
         self.refresh_screens()
@@ -215,7 +217,10 @@ class LiveSettingsModel(SettingsModel):
     @Slot(str)
     def action(self, key):
         if key == "download_speech" and self._on_whisper_change:
-            self._on_whisper_change(self._values["whisper_model"], download=True)
+            if self.downloadActive:
+                return
+            if self._on_whisper_change(self._values["whisper_model"], download=True):
+                self.begin_download()
         elif key == "browse_llama_model":
             path, _ = QFileDialog.getOpenFileName(None, self._text("dialog_select_gguf"),
                                                   "", "GGUF (*.gguf)")
@@ -316,11 +321,14 @@ class LiveSettingsModel(SettingsModel):
         status = QLabel(self._text("setting_loading"))
         names = QListWidget()
         button = QPushButton(self._text("setting_download"))
+        progress = QProgressBar()
+        progress.setVisible(False)
         layout.addWidget(status)
         layout.addWidget(names)
+        layout.addWidget(progress)
         layout.addWidget(button)
         button.clicked.connect(lambda: self._download_selected_voice(lang, generation, names, status))
-        self._voice_dialogs[lang] = (dialog, names, status)
+        self._voice_dialogs[lang] = (dialog, names, status, progress)
         dialog.finished.connect(
             lambda: self._voice_dialogs.pop(lang, None)
             if self._voice_dialogs.get(lang, (None,))[0] is dialog else None
@@ -345,31 +353,52 @@ class LiveSettingsModel(SettingsModel):
         view = self._voice_dialogs.get(lang)
         if not view:
             return
-        _, names, status = view
+        _, names, status, _ = view
         names.clear()
         names.addItems([voice["name"] for voice in voices])
         status.setText(self._text("setting_voices_available", count=len(voices)) if not error
                        else self._text("setting_download_failed"))
 
     def _download_selected_voice(self, lang, generation, names, status):
+        if self.downloadActive:
+            return
         selected = names.currentItem()
         if not selected:
             return
         name = selected.text()
         status.setText(self._text("setting_loading"))
+        view = self._voice_dialogs.get(lang)
+        if view:
+            view[3].setRange(0, 0)
+            view[3].setVisible(True)
+        self.begin_download()
 
         def fetch():
             error = ""
             try:
-                download_voice(name)
+                download_voice(name, progress=lambda done, total:
+                               self._downloadBytes.emit(lang, generation, done, total))
             except Exception as exc:
                 error = type(exc).__name__
             self._downloadReady.emit(lang, generation, name, error)
 
         threading.Thread(target=fetch, daemon=True, name="vigil-voice-download").start()
 
+    @Slot(str, int, int, int)
+    def _receive_download_bytes(self, lang, generation, done, total):
+        if generation != self._voice_generation[lang] or not self.downloadActive:
+            return
+        self.update_download(done, total)
+        view = self._voice_dialogs.get(lang)
+        if view:
+            bar = view[3]
+            bar.setRange(0, total if total > 0 else 0)
+            if total > 0:
+                bar.setValue(min(done, total))
+
     @Slot(str, int, str, str)
     def _receive_download(self, lang, generation, name, error):
+        self.finish_download()
         if error:
             self.set_status(self._text("setting_download_failed"))
             return

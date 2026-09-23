@@ -1,5 +1,6 @@
 """Noninteractive setup asset selection and platform guards."""
 
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -29,3 +30,40 @@ def test_unsupported_platform_rejects_linux_binary_catalog():
     with patch.object(setup_service.platform, "system", return_value="Windows"):
         with pytest.raises(RuntimeError, match="Linux x86_64"):
             setup_service.fetch_binary_asset("rocm")
+
+
+def test_binary_download_reports_received_bytes(monkeypatch, tmp_path):
+    def retrieve(url, path, reporthook=None):
+        from pathlib import Path
+        Path(path).write_bytes(b"payload")
+        reporthook(1, 4, 8)
+        reporthook(2, 4, 8)
+
+    monkeypatch.setattr(setup_service.urllib.request, "urlretrieve", retrieve)
+    received = []
+    path = setup_service._download_to_temp("https://example.invalid/asset", tmp_path,
+                                           ".zip", lambda done, total: received.append((done, total)))
+    assert path.read_bytes() == b"payload"
+    assert received == [(4, 8), (8, 8)]
+
+
+def test_model_download_reports_hub_progress(monkeypatch, tmp_path):
+    import huggingface_hub
+
+    cached = tmp_path / "cached.gguf"
+    cached.write_bytes(b"model")
+    monkeypatch.setattr(setup_service, "MODEL_DIR", tmp_path / "vigil-models")
+
+    def fake_download(*, tqdm_class, **kwargs):
+        with tqdm_class(total=100, disable=True) as bar:
+            bar.update(50)
+            bar.update(50)
+        return str(cached)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", fake_download)
+    received = []
+    result = setup_service.install_model("Qwen_Qwen3.5-9B-Q4_K_M.gguf", threading.Event(),
+                                         lambda done, total: received.append((done, total)))
+    assert result.is_file()
+    assert (50, 100) in received
+    assert (100, 100) in received

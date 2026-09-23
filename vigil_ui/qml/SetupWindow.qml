@@ -21,7 +21,7 @@ ApplicationWindow {
         implicitHeight: 36
         text: wizard.backend.value(settingKey)
         color: "#e1e5ed"
-        font.pixelSize: 12
+        font.pixelSize: 13
         onEditingFinished: wizard.backend.setValue(settingKey, text)
         background: Rectangle { color: "#111823"; border.color: parent.activeFocus ? "#687386" : "#27303e"; radius: 6 }
     }
@@ -41,7 +41,7 @@ ApplicationWindow {
         contentItem: Text {
             text: control.displayText
             color: "#e1e5ed"
-            font.pixelSize: 12
+            font.pixelSize: 13
             verticalAlignment: Text.AlignVCenter
             leftPadding: 10
         }
@@ -49,9 +49,60 @@ ApplicationWindow {
     }
     component WizardLabel: Text {
         color: "#aeb8c8"
-        font.pixelSize: 12
+        font.pixelSize: 13
         wrapMode: Text.WordWrap
         Layout.fillWidth: true
+    }
+    component WizardButton: Button {
+        property bool primary: false
+        implicitHeight: 36
+        leftPadding: 14
+        rightPadding: 14
+        background: Rectangle {
+            color: !parent.enabled ? "#27303e" : parent.primary
+                ? (parent.down ? "#aeb5c4" : "#c6cbd8")
+                : (parent.down ? "#263141" : "#192231")
+            border.color: parent.primary ? "transparent" : "#354357"
+            radius: 7
+        }
+        contentItem: Text {
+            text: parent.text
+            color: !parent.enabled ? "#8791a0" : parent.primary ? "#11151c" : "#e1e5ed"
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    component WizardCheck: CheckBox {
+        id: control
+        implicitHeight: 30
+        spacing: 9
+        indicator: Rectangle {
+            implicitWidth: 18
+            implicitHeight: 18
+            x: control.leftPadding
+            y: (control.height - height) / 2
+            radius: 4
+            color: control.checked ? "#c6cbd8" : "#111823"
+            border.color: control.checked ? "#c6cbd8" : "#596579"
+            Text {
+                anchors.centerIn: parent
+                text: "✓"
+                visible: control.checked
+                color: "#11151c"
+                font.pixelSize: 14
+                font.weight: Font.Bold
+            }
+        }
+        contentItem: Text {
+            text: control.text
+            color: control.enabled ? "#d3dae5" : "#8791a0"
+            font.pixelSize: 13
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: control.indicator.width + control.spacing
+            wrapMode: Text.WordWrap
+        }
     }
 
     header: Rectangle {
@@ -65,14 +116,14 @@ ApplicationWindow {
             Text {
                 text: i18n.text("setup_title", i18n.revision)
                 color: "#e1e5ed"
-                font.pixelSize: 20
+                font.pixelSize: 22
                 font.weight: Font.DemiBold
             }
             Text {
                 text: i18n.text(["setup_welcome", "setup_engine", "setup_model", "setup_dictation",
                     "setup_voice", "setup_shortcuts", "setup_review", "setup_ready"][wizard.backend.page], i18n.revision)
                 color: "#9ca6b7"
-                font.pixelSize: 12
+                font.pixelSize: 13
             }
         }
     }
@@ -85,20 +136,20 @@ ApplicationWindow {
             anchors.fill: parent
             anchors.margins: 18
             spacing: 10
-            Button { text: i18n.text("setup_cancel", i18n.revision); onClicked: wizard.backend.cancel() }
+            WizardButton { text: i18n.text("setup_cancel", i18n.revision); onClicked: wizard.backend.cancel() }
             Item { Layout.fillWidth: true }
-            Button {
+            WizardButton {
                 visible: wizard.backend.page > 0 && wizard.backend.page < 7
                 enabled: !wizard.backend.busy
                 text: i18n.text("setup_back", i18n.revision)
                 onClicked: wizard.backend.back()
             }
-            Button {
+            WizardButton {
+                primary: true
                 text: i18n.text(wizard.backend.page === 6 ? "setup_prepare"
                     : wizard.backend.page === 7 ? "setup_finish" : "setup_next", i18n.revision)
                 enabled: !wizard.backend.busy
                 onClicked: wizard.backend.next()
-                background: Rectangle { color: parent.enabled ? "#c6cbd8" : "#838c9d"; radius: 6 }
             }
         }
     }
@@ -143,7 +194,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                 }
                 WizardLabel { text: i18n.text("setup_remote_notice", i18n.revision) }
-                Switch {
+                WizardCheck {
                     visible: wizard.backend.value("llm_provider") === "ollama_cloud"
                     text: i18n.text("setup_allow_cloud", i18n.revision)
                     checked: wizard.backend.value("local_only") === "false"
@@ -167,17 +218,34 @@ ApplicationWindow {
                         Layout.fillWidth: true
                     }
                     WizardLabel { text: i18n.text("setup_binary", i18n.revision) }
+                    WizardCheck {
+                        text: i18n.text("setup_use_existing_binary", i18n.revision)
+                        checked: wizard.backend.value("use_existing_binary") === "true"
+                        onToggled: wizard.backend.setValue("use_existing_binary", checked ? "true" : "false")
+                    }
                     RowLayout {
                         Layout.fillWidth: true
+                        enabled: wizard.backend.value("use_existing_binary") === "true"
                         WizardInput { settingKey: "llama_server_bin"; Layout.fillWidth: true }
-                        Button { text: i18n.text("setting_browse", i18n.revision); onClicked: wizard.backend.browseBinary() }
+                        WizardButton { text: i18n.text("setting_browse", i18n.revision); onClicked: wizard.backend.browseBinary() }
                     }
                     WizardLabel { text: i18n.text("setting_llm_model", i18n.revision) }
-                    WizardChoice { settingKey: "llama_model"; choices: wizard.backend.models(); Layout.fillWidth: true }
+                    WizardChoice {
+                        settingKey: "llama_catalog_model"
+                        choices: wizard.backend.models()
+                        enabled: wizard.backend.value("use_existing_model") !== "true"
+                        Layout.fillWidth: true
+                    }
+                    WizardCheck {
+                        text: i18n.text("setup_use_existing_model", i18n.revision)
+                        checked: wizard.backend.value("use_existing_model") === "true"
+                        onToggled: wizard.backend.setValue("use_existing_model", checked ? "true" : "false")
+                    }
                     RowLayout {
                         Layout.fillWidth: true
+                        enabled: wizard.backend.value("use_existing_model") === "true"
                         WizardInput { settingKey: "llama_model"; Layout.fillWidth: true }
-                        Button { text: i18n.text("setting_browse", i18n.revision); onClicked: wizard.backend.browseModel() }
+                        WizardButton { text: i18n.text("setting_browse", i18n.revision); onClicked: wizard.backend.browseModel() }
                     }
                     WizardLabel { text: i18n.text("setting_llm_gpu_layers", i18n.revision) }
                     WizardChoice {
@@ -201,7 +269,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         WizardChoice { settingKey: "ollama_model"; choices: wizard.backend.ollamaModels(); Layout.fillWidth: true }
-                        Button { text: i18n.text("setting_refresh", i18n.revision); onClicked: wizard.backend.refreshOllama() }
+                        WizardButton { text: i18n.text("setting_refresh", i18n.revision); onClicked: wizard.backend.refreshOllama() }
                     }
                     WizardInput { settingKey: "ollama_model"; Layout.fillWidth: true }
                 }
@@ -252,7 +320,7 @@ ApplicationWindow {
                     visible: wizard.backend.manualHotkeys
                     text: i18n.text("setup_manual_hotkeys", i18n.revision)
                 }
-                Switch {
+                WizardCheck {
                     visible: wizard.backend.requiresHotkeyConsent
                     text: i18n.text("setup_hotkey_consent", i18n.revision)
                     checked: wizard.backend.hotkeyConsent
@@ -265,10 +333,21 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 WizardLabel { text: i18n.text("setup_review_body", i18n.revision) }
                 WizardLabel { text: i18n.text("setting_llm_provider", i18n.revision) + ": " + wizard.backend.value("llm_provider") }
-                WizardLabel { text: i18n.text("setting_llm_model", i18n.revision) + ": " + (wizard.backend.value("llm_provider") === "llama_cpp" ? wizard.backend.value("llama_model") : wizard.backend.value("ollama_model")) }
+                WizardLabel { text: i18n.text("setting_llm_model", i18n.revision) + ": " + (wizard.backend.value("llm_provider") === "llama_cpp" ? (wizard.backend.value("use_existing_model") === "true" ? wizard.backend.value("llama_model") : wizard.backend.value("llama_catalog_model")) : wizard.backend.value("ollama_model")) }
                 WizardLabel { text: i18n.text("setting_whisper_model", i18n.revision) + ": " + wizard.backend.value("whisper_model") }
                 WizardLabel { text: i18n.text("setting_tts_mode", i18n.revision) + ": " + wizard.backend.value("tts_mode") }
-                BusyIndicator { running: wizard.backend.busy; visible: running }
+                ProgressBar {
+                    id: downloadBar
+                    objectName: "setupDownloadProgress"
+                    visible: wizard.backend.busy
+                    indeterminate: wizard.backend.progressIndeterminate
+                    value: wizard.backend.progressValue
+                    Layout.fillWidth: true
+                }
+                WizardLabel {
+                    visible: wizard.backend.busy && !wizard.backend.progressIndeterminate
+                    text: Math.round(wizard.backend.progressValue * 100) + "%"
+                }
             }
 
             ColumnLayout {
@@ -279,11 +358,11 @@ ApplicationWindow {
             Text {
                 text: wizard.backend.status
                 color: "#d89976"
-                font.pixelSize: 12
+                font.pixelSize: 13
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
             }
-            Button {
+            WizardButton {
                 visible: !wizard.backend.initial && wizard.backend.page === 0
                 text: i18n.text("setup_reset_choices", i18n.revision)
                 onClicked: wizard.backend.resetDraft()

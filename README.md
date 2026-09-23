@@ -103,9 +103,9 @@ The Fold setup window handles configuration without opening a terminal:
 | **Whisper model** | Choose transcription size (tiny → large-v3); download it explicitly from Settings if missing |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
 | **Shortcuts** | Choose distinct dictation and assistant bindings |
-| **Review** | Reuse installed files or download selected assets before saving |
+| **Review** | Download selected assets with visible progress before saving |
 
-Existing llama.cpp and Ollama configurations are reused. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
+Choose **existing binary** or **existing GGUF model** only when you want to use files already on disk; otherwise the wizard installs assets under Vigil's XDG data directory. Missing paths saved by older WritHer installs are cleared from the setup draft. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
 
 ---
 

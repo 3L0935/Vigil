@@ -22,7 +22,7 @@ Item {
             Text {
                 text: root.label
                 color: "#e1e5ed"
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.weight: Font.Medium
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -32,7 +32,7 @@ Item {
                 visible: root.description.length > 0
                 text: root.description
                 color: "#788397"
-                font.pixelSize: 11
+                font.pixelSize: 12
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
             }

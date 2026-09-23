@@ -7,6 +7,8 @@ import tempfile
 from urllib.parse import urlsplit
 import urllib.request
 
+from data_paths import DATA_DIR
+
 
 def url_is_valid(url: str) -> bool:
     try:
@@ -30,14 +32,14 @@ def is_loopback_url(url: str) -> bool:
         return False
 
 
-def download_voice(name: str) -> None:
+def download_voice(name: str, progress=None) -> None:
     """Install a Piper voice only after both files have downloaded."""
     lang_full, rest = name.split("-", 1)
     speaker, quality = rest.rsplit("-", 1)
     lang = lang_full.split("_")[0].lower()
     base = ("https://huggingface.co/rhasspy/piper-voices/resolve/main/"
             f"{lang}/{lang_full}/{speaker}/{quality}/{name}")
-    dest_dir = Path.home() / ".local/share/vigil/tts/piper"
+    dest_dir = DATA_DIR / "tts" / "piper"
     dest_dir.mkdir(parents=True, exist_ok=True)
     pending = []
     try:
@@ -48,7 +50,13 @@ def download_voice(name: str) -> None:
             with tempfile.NamedTemporaryFile(dir=dest_dir, prefix=name + ".", delete=False) as tmp:
                 partial = Path(tmp.name)
             pending.append((partial, dest))
-            urllib.request.urlretrieve(base + ext, partial)
+            hook = None
+            if progress is not None and ext == ".onnx":
+                hook = lambda blocks, size, total: progress(
+                    min(blocks * size, total) if total > 0 else blocks * size,
+                    max(total, 0),
+                )
+            urllib.request.urlretrieve(base + ext, partial, reporthook=hook)
             if partial.stat().st_size == 0:
                 raise ValueError("Empty voice download")
         for partial, dest in pending:

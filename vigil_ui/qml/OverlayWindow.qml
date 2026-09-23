@@ -48,7 +48,7 @@ Window {
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap
                     color: "#e1e5ed"
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     background: null
                 }
             }
@@ -83,7 +83,7 @@ Window {
                     : overlay.backend.mode === "processing" ? "widget_processing"
                     : "widget_done", i18n.revision)
                 color: "#e1e5ed"
-                font.pixelSize: 12
+                font.pixelSize: 13
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }

@@ -37,6 +37,14 @@ def test_fold_settings_qml_loads_offscreen():
     scroll = roots[0].findChild(QObject, "settingsScroll")
     assert scroll.property("contentHeight") > scroll.height()
     assert roots[0].property("previewMode") is True
+    download = roots[0].findChild(QObject, "settingsDownloadProgress")
+    assert download is not None
+    fixture = engine._vigil_context_objects[1]
+    fixture.begin_download()
+    fixture.update_download(25, 100)
+    app.processEvents()
+    assert download.property("value") == 0.25
+    fixture.finish_download()
     voice = roots[0].findChild(QObject, "voiceModelsGroup")
     general = roots[0].findChild(QObject, "generalGroup")
     assert voice.property("expanded") is True
@@ -67,6 +75,15 @@ def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
     assert [root.objectName() for root in engine.rootObjects()] == [
         "settingsWindow", "overlayWindow", "setupWindow"
     ]
+    setup_window = engine.rootObjects()[2]
+    setup._busy = True
+    setup._page = 6
+    setup._set_download_progress("model", 50, 100)
+    app.processEvents()
+    progress = setup_window.findChild(QObject, "setupDownloadProgress")
+    assert progress is not None
+    assert progress.property("value") == 0.5
+    assert progress.property("indeterminate") is False
     assert engine.rootObjects()[0].property("previewMode") is True
     assert not engine.rootObjects()[1].isVisible()
     overlay.show_message("Test", 1000)

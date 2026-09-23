@@ -161,6 +161,8 @@ def _finish_model_load(model, error):
         return
     transcriber = model
     _model_loading.clear()
+    if settings_model:
+        settings_model.finish_download()
     if error:
         widget.show_message(error, 8000)
     else:

@@ -5,7 +5,7 @@ import sys
 import shiboken6
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -14,6 +14,7 @@ from .i18n import TranslationBridge
 from .settings_model import SettingsModel
 
 _QML_DIR = Path(__file__).with_name("qml")
+_STYLE_SET = False
 
 
 def create_engine(
@@ -27,11 +28,14 @@ def create_engine(
     setup_model=None,
 ) -> tuple[QQmlApplicationEngine, TranslationBridge]:
     """Load the Fold settings fixture and retain its context objects."""
-    if sys.platform.startswith("linux"):
-        app.setFont(QFont("DejaVu Sans"))
-    elif sys.platform == "win32":
-        app.setFont(QFont("Segoe UI"))
-    QQuickStyle.setStyle("Fusion")
+    families = set(QFontDatabase.families())
+    preferred = "Noto Sans" if sys.platform.startswith("linux") else "Segoe UI"
+    if preferred in families:
+        app.setFont(QFont(preferred, 10))
+    global _STYLE_SET
+    if not _STYLE_SET:
+        QQuickStyle.setStyle("Fusion")
+        _STYLE_SET = True
     engine = QQmlApplicationEngine(app)
     translator = translator or TranslationBridge(language)
     settings_model = settings_model or SettingsModel(translator)
