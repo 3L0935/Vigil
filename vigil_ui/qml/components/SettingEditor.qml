@@ -179,7 +179,8 @@ Item {
             Slider {
                 id: slider
                 width: parent.width - 44
-                from: root.field.key === "theme_glass_opacity" ? 0.25 : 0
+                from: root.field.key === "theme_glass_opacity" ? 0.25
+                    : root.field.key === "theme_window_opacity" ? 0.35 : 0
                 to: 1
                 value: Number(root.currentValue)
                 onMoved: root.backend.setValue(root.field.key, value.toFixed(2))

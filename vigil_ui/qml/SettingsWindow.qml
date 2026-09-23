@@ -12,11 +12,13 @@ ApplicationWindow {
     minimumHeight: 520
     visible: startVisible
     title: i18n.text("settings_title", i18n.revision) + " — Vigil"
-    color: themeModel.background
+    color: "transparent"
     background: Rectangle {
+        objectName: "settingsBackdrop"
+        color: themeModel.windowBackground
         gradient: Gradient {
-            GradientStop { position: 0; color: themeModel.backgroundTop }
-            GradientStop { position: 1; color: themeModel.background }
+            GradientStop { position: 0; color: themeModel.windowTop }
+            GradientStop { position: 1; color: themeModel.windowBackground }
         }
     }
     property bool reducedMotion: themeModel.reducedMotion
@@ -197,6 +199,50 @@ ApplicationWindow {
                 objectName: "themeGroup"
                 title: i18n.text("group_theme", i18n.revision)
                 reducedMotion: window.reducedMotion
+                Text {
+                    text: i18n.text("theme_presets", i18n.revision)
+                    color: themeModel.muted
+                    font.pixelSize: 11
+                }
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    rowSpacing: 6
+                    columnSpacing: 6
+                    Repeater {
+                        model: window.settingsBackend.themePresets()
+                        delegate: Button {
+                            id: presetButton
+                            objectName: "themePreset_" + modelData.id
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 200
+                            implicitHeight: 44
+                            hoverEnabled: true
+                            Accessible.name: i18n.text(modelData.labelKey, i18n.revision)
+                            onClicked: window.settingsBackend.applyThemePreset(modelData.id)
+                            background: Rectangle {
+                                radius: 7
+                                color: presetButton.hovered ? themeModel.raised : themeModel.control
+                                border.width: window.settingsBackend.themePreset(window.settingsBackend.revision)
+                                              === modelData.id ? 2 : 1
+                                border.color: border.width === 2 ? themeModel.accentReadable : themeModel.line
+                            }
+                            contentItem: RowLayout {
+                                spacing: 7
+                                Rectangle { width: 10; height: 10; radius: 5; color: modelData.background; border.color: themeModel.line }
+                                Rectangle { width: 10; height: 10; radius: 5; color: modelData.surface; border.color: themeModel.line }
+                                Rectangle { width: 10; height: 10; radius: 5; color: modelData.accent; border.color: themeModel.line }
+                                Text {
+                                    text: i18n.text(modelData.labelKey, i18n.revision)
+                                    color: themeModel.text
+                                    font.pixelSize: 11
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+                    }
+                }
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 7
@@ -213,13 +259,21 @@ ApplicationWindow {
                         radius: 9
                         border.width: 1
                         border.color: window.settingsBackend.themePreviewColor("theme_line", window.settingsBackend.revision)
-                        color: window.settingsBackend.themePreviewColor("theme_background", window.settingsBackend.revision)
+                        color: themeModel.raised
+                        Rectangle {
+                            objectName: "themePreviewBackdrop"
+                            anchors.fill: parent
+                            anchors.margins: 1
+                            radius: 8
+                            color: window.settingsBackend.themePreviewColor("theme_background", window.settingsBackend.revision)
+                            opacity: Number(window.settingsBackend.value("theme_window_opacity", window.settingsBackend.revision))
+                        }
                         Rectangle {
                             objectName: "themePreviewPanel"
                             anchors.fill: parent
                             anchors.margins: 12
                             radius: 8
-                            color: themeSample.color
+                            color: "transparent"
                             border.color: themeSample.border.color
                             Rectangle {
                                 objectName: "themePreviewGlass"

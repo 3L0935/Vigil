@@ -72,6 +72,7 @@ def test_theme_changes_apply_to_all_windows_only_after_save(model):
     settings.setValue("theme_surface", "#352b44")
     settings.setValue("theme_text", "#f8ecff")
     settings.setValue("theme_glass_opacity", "0.40")
+    settings.setValue("theme_window_opacity", "0.65")
     settings.setValue("theme_gradient", "false")
     settings.setValue("theme_reduced_motion", "true")
 
@@ -82,6 +83,7 @@ def test_theme_changes_apply_to_all_windows_only_after_save(model):
     assert theme.surface == "#352b44"
     assert theme.text == "#f8ecff"
     assert theme.glassOpacity == 0.4
+    assert theme.windowOpacity == 0.65
     assert theme.accentA == "#28cde0"
     assert theme.accentB == "#ed70de"
     assert not theme.gradientEnabled
@@ -89,6 +91,32 @@ def test_theme_changes_apply_to_all_windows_only_after_save(model):
     assert db.get_setting("theme_accent_a") == "#28cde0"
     assert db.get_setting("theme_gradient") == "false"
     assert db.get_setting("theme_background") == "#201b29"
+    assert db.get_setting("theme_window_opacity") == "0.65"
+
+
+def test_preset_changes_draft_palette_and_preserves_both_opacity_sliders(model):
+    settings, _ = model
+    assert [item["id"] for item in settings.themePresets()] == [
+        "vigil", "classic_dark", "classic_light", "high_contrast"]
+    settings.setValue("theme_glass_opacity", "0.40")
+    settings.setValue("theme_window_opacity", "0.60")
+    settings.applyThemePreset("classic_light")
+    assert settings.themePreset() == "classic_light"
+    assert settings.value("theme_background") == "#f2f4f7"
+    assert settings.value("theme_glass_opacity") == "0.40"
+    assert settings.value("theme_window_opacity") == "0.60"
+    assert settings._theme.background == "#0a1019"
+    settings.setValue("theme_accent_a", "#224488")
+    assert settings.themePreset() == "custom"
+    settings.applyThemePreset("classic_light")
+    assert settings.save()
+    assert settings._theme.background == "#f2f4f7"
+    assert settings._theme.windowOpacity == 0.6
+    assert db.get_setting("theme_glass_opacity") == "0.40"
+    settings.resetTheme()
+    assert settings.themePreset() == "vigil"
+    assert settings.value("theme_window_opacity") == "1.00"
+    assert settings._theme.background == "#f2f4f7"
 
 
 def test_invalid_theme_color_cannot_be_saved(model):

@@ -104,6 +104,7 @@ FIELDS = (
     Field("theme_accent_a", "theme", "theme_accent_a", "color", "#6aafbe"),
     Field("theme_accent_b", "theme", "theme_accent_b", "color", "#a78bfa"),
     Field("theme_glass_opacity", "theme", "theme_glass_opacity", "slider", "0.53"),
+    Field("theme_window_opacity", "theme", "theme_window_opacity", "slider", "1.00"),
     Field("theme_gradient", "theme", "theme_gradient", "toggle", "true"),
     Field("theme_reduced_motion", "theme", "theme_reduced_motion", "toggle", "false"),
 

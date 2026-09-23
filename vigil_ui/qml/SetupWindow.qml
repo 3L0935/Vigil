@@ -12,11 +12,13 @@ ApplicationWindow {
     minimumHeight: 540
     visible: setupVisible
     title: i18n.text("setup_title", i18n.revision) + " — Vigil"
-    color: themeModel.background
+    color: "transparent"
     background: Rectangle {
+        objectName: "setupBackdrop"
+        color: themeModel.windowBackground
         gradient: Gradient {
-            GradientStop { position: 0; color: themeModel.backgroundTop }
-            GradientStop { position: 1; color: themeModel.background }
+            GradientStop { position: 0; color: themeModel.windowTop }
+            GradientStop { position: 1; color: themeModel.windowBackground }
         }
     }
     property var backend: setupModel

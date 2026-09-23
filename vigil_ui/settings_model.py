@@ -3,7 +3,7 @@
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from .settings_schema import BY_KEY, FIELDS, IMMEDIATE_KEYS
-from .theme import DEFAULTS, validated_theme
+from .theme import DEFAULTS, PRESETS, matching_preset, validated_theme
 
 
 class SettingsModel(QObject):
@@ -87,6 +87,33 @@ class SettingsModel(QObject):
         except ValueError:
             return DEFAULTS[key]
 
+    @Slot(result="QVariantList")
+    def themePresets(self):
+        return [{"id": name, "labelKey": "theme_preset_" + name,
+                 "background": colors["theme_background"],
+                 "surface": colors["theme_surface"],
+                 "accent": colors["theme_accent_a"]}
+                for name, colors in PRESETS.items()]
+
+    @Slot(int, result=str)
+    def themePreset(self, _revision=0):
+        return matching_preset(self._values)
+
+    @Slot(str)
+    def applyThemePreset(self, name):
+        if name in PRESETS:
+            self._set_theme_values(PRESETS[name])
+
+    def _set_theme_values(self, values):
+        changed = False
+        for key, value in values.items():
+            if self._values.get(key) != value:
+                self._values[key] = value
+                changed = True
+        if changed:
+            self._revision += 1
+            self.valuesChanged.emit()
+
     @Slot(str, str)
     def setValue(self, key, value):
         if key not in BY_KEY or BY_KEY[key].kind == "action":
@@ -154,8 +181,7 @@ class SettingsModel(QObject):
 
     @Slot()
     def resetTheme(self):
-        for key, value in DEFAULTS.items():
-            self.setValue(key, value)
+        self._set_theme_values(DEFAULTS)
 
     @Slot()
     def invalidateRequests(self):

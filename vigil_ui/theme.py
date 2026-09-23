@@ -17,14 +17,40 @@ DEFAULTS = {
     "theme_accent_a": "#6aafbe",
     "theme_accent_b": "#a78bfa",
     "theme_glass_opacity": "0.53",
+    "theme_window_opacity": "1.00",
     "theme_gradient": "true",
     "theme_reduced_motion": "false",
 }
 
 _HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}\Z")
 _COLOR_KEYS = tuple(key for key in DEFAULTS if key not in (
-    "theme_glass_opacity", "theme_gradient", "theme_reduced_motion"
+    "theme_glass_opacity", "theme_window_opacity", "theme_gradient", "theme_reduced_motion"
 ))
+_PRESET_KEYS = (*_COLOR_KEYS, "theme_gradient")
+PRESETS = {
+    "vigil": {key: DEFAULTS[key] for key in _PRESET_KEYS},
+    "classic_dark": {
+        "theme_background": "#101114", "theme_surface": "#1c1e22",
+        "theme_raised": "#2b2e34", "theme_control": "#17191d",
+        "theme_text": "#f1f2f4", "theme_muted": "#b2b5bc",
+        "theme_line": "#444850", "theme_accent_a": "#75a7d8",
+        "theme_accent_b": "#75a7d8", "theme_gradient": "false",
+    },
+    "classic_light": {
+        "theme_background": "#f2f4f7", "theme_surface": "#ffffff",
+        "theme_raised": "#e7ebf0", "theme_control": "#fafbfc",
+        "theme_text": "#202530", "theme_muted": "#586273",
+        "theme_line": "#c3cbd5", "theme_accent_a": "#2463a6",
+        "theme_accent_b": "#2463a6", "theme_gradient": "false",
+    },
+    "high_contrast": {
+        "theme_background": "#080808", "theme_surface": "#141414",
+        "theme_raised": "#242424", "theme_control": "#080808",
+        "theme_text": "#ffffff", "theme_muted": "#d7d7d7",
+        "theme_line": "#aaaaaa", "theme_accent_a": "#ffe16a",
+        "theme_accent_b": "#ffe16a", "theme_gradient": "false",
+    },
+}
 
 
 def _alpha(color, opacity):
@@ -67,14 +93,24 @@ def validated_theme(values):
         if value not in ("true", "false"):
             raise ValueError(f"Invalid theme option: {key}")
         result[key] = value
-    try:
-        opacity = float(values.get("theme_glass_opacity", DEFAULTS["theme_glass_opacity"]))
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Invalid theme glass opacity") from exc
-    if not 0.25 <= opacity <= 1:
-        raise ValueError("Invalid theme glass opacity")
-    result["theme_glass_opacity"] = f"{opacity:.2f}"
+    for key, minimum in (("theme_glass_opacity", 0.25), ("theme_window_opacity", 0.35)):
+        try:
+            opacity = float(values.get(key, DEFAULTS[key]))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid theme opacity: {key}") from exc
+        if not minimum <= opacity <= 1:
+            raise ValueError(f"Invalid theme opacity: {key}")
+        result[key] = f"{opacity:.2f}"
     return result
+
+
+def matching_preset(values):
+    """Return the matching base palette, ignoring opacity and motion preferences."""
+    for name, preset in PRESETS.items():
+        if all(str(values.get(key, DEFAULTS[key])).strip().lower() == value
+               for key, value in preset.items()):
+            return name
+    return "custom"
 
 
 class ThemeModel(QObject):
@@ -133,6 +169,18 @@ class ThemeModel(QObject):
     def glassOpacity(self):
         return float(self._values["theme_glass_opacity"])
 
+    @Property(float, notify=changed)
+    def windowOpacity(self):
+        return float(self._values["theme_window_opacity"])
+
+    @Property(str, notify=changed)
+    def windowBackground(self):
+        return _alpha(self.background, self.windowOpacity)
+
+    @Property(str, notify=changed)
+    def windowTop(self):
+        return _alpha(self.backgroundTop, self.windowOpacity)
+
     @Property(str, notify=changed)
     def glass(self):
         return _alpha(self.surface, self.glassOpacity)
@@ -143,11 +191,11 @@ class ThemeModel(QObject):
 
     @Property(str, notify=changed)
     def panelGlass(self):
-        return _alpha(self.surface, min(1, self.glassOpacity + 0.40))
+        return _alpha(self.surface, 0.93 * self.windowOpacity)
 
     @Property(str, notify=changed)
     def foldTop(self):
-        return _alpha(self.raised, min(1, self.glassOpacity + 0.40))
+        return _alpha(self.raised, 0.93 * self.windowOpacity)
 
     @Property(str, notify=changed)
     def text(self):

@@ -3,7 +3,7 @@
 import pytest
 
 from vigil_ui.settings_schema import FIELDS
-from vigil_ui.theme import DEFAULTS, ThemeModel, validated_theme
+from vigil_ui.theme import DEFAULTS, PRESETS, ThemeModel, matching_preset, validated_theme
 
 
 def test_theme_normalizes_hex_and_rejects_invalid_values():
@@ -37,6 +37,7 @@ def test_every_editable_theme_field_is_validated_and_updates_derived_surfaces():
         "theme_line": "#998877",
         "theme_accent_a": "#224488",
         "theme_glass_opacity": "0.35",
+        "theme_window_opacity": "0.50",
     })
     assert changes == ["#f8f0e0"]
     assert theme.surface == "#e8ddca"
@@ -46,7 +47,8 @@ def test_every_editable_theme_field_is_validated_and_updates_derived_surfaces():
     assert theme.muted == "#665544"
     assert theme.line == "#998877"
     assert theme.glass.startswith("#59")
-    assert theme.panelGlass.startswith("#bf")
+    assert theme.windowBackground.startswith("#80")
+    assert theme.panelGlass.startswith("#77")
     assert theme.backgroundTop != DEFAULTS["theme_background"]
 
 
@@ -54,5 +56,18 @@ def test_invalid_glass_opacity_and_light_surface_accent():
     for value in ("0.1", "1.1", "nan", "abc"):
         with pytest.raises(ValueError):
             validated_theme({"theme_glass_opacity": value})
+    for value in ("0.2", "1.1", "nan", "abc"):
+        with pytest.raises(ValueError):
+            validated_theme({"theme_window_opacity": value})
     theme = ThemeModel({"theme_surface": "#ffffff", "theme_accent_a": "#eeeeee"})
     assert theme.accentReadable != "#eeeeee"
+
+
+def test_classic_presets_are_complete_and_custom_edits_clear_selection():
+    assert set(PRESETS) == {"vigil", "classic_dark", "classic_light", "high_contrast"}
+    assert matching_preset(DEFAULTS) == "vigil"
+    for name, colors in PRESETS.items():
+        assert matching_preset(colors) == name
+        assert validated_theme(colors)
+    assert matching_preset({**PRESETS["classic_light"], "theme_accent_a": "#ff0000"}) == "custom"
+    assert matching_preset({**PRESETS["classic_light"], "theme_window_opacity": "0.5"}) == "classic_light"

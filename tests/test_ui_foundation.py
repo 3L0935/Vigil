@@ -78,22 +78,39 @@ def test_theme_draft_preview_and_saved_palette_update_windows():
                               setup_model=SetupModel(translator, initial=True))
     window, overlay_window, setup = engine.rootObjects()
     preview = window.findChild(QObject, "themePreviewCard")
+    preview_backdrop = window.findChild(QObject, "themePreviewBackdrop")
     panel = window.findChild(QObject, "themePreviewPanel")
     preview_glass = window.findChild(QObject, "themePreviewGlass")
+    def item_names(item):
+        for child in item.childItems():
+            yield child.objectName()
+            yield from item_names(child)
+
+    visible_items = set(item_names(window.contentItem()))
+    for name in ("vigil", "classic_dark", "classic_light", "high_contrast"):
+        assert "themePreset_" + name in visible_items
     settings.setValue("theme_background", "#f8f0e0")
     settings.setValue("theme_surface", "#e8ddca")
     settings.setValue("theme_glass_opacity", "0.40")
+    settings.setValue("theme_window_opacity", "0.60")
     app.processEvents()
-    assert preview.property("color").name() == "#f8f0e0"
-    assert panel.property("color").name() == "#f8f0e0"
+    assert preview is not None
+    assert preview_backdrop.property("color").name() == "#f8f0e0"
+    assert preview_backdrop.property("opacity") == 0.6
+    assert panel.property("color").alpha() == 0
     assert preview_glass.property("color").name() == "#e8ddca"
     assert preview_glass.property("opacity") == 0.4
-    assert window.property("color").name() == "#0a1019"
+    assert window.property("color").alpha() == 0
+    settings_backdrop = window.findChild(QObject, "settingsBackdrop")
+    setup_backdrop = setup.findChild(QObject, "setupBackdrop")
+    assert settings_backdrop.property("color").alphaF() == 1
     theme.apply_values({"theme_background": "#f8f0e0", "theme_surface": "#e8ddca",
-                        "theme_glass_opacity": "0.35"})
+                        "theme_glass_opacity": "0.35", "theme_window_opacity": "0.60"})
     app.processEvents()
-    assert window.property("color").name() == "#f8f0e0"
-    assert setup.property("color").name() == "#f8f0e0"
+    assert settings_backdrop.property("color").name() == "#f8f0e0"
+    assert setup_backdrop.property("color").name() == "#f8f0e0"
+    assert settings_backdrop.property("color").alphaF() == pytest.approx(0.6, abs=0.01)
+    assert setup_backdrop.property("color").alphaF() == pytest.approx(0.6, abs=0.01)
     glass = overlay_window.findChild(QObject, "answerCard")
     assert glass.property("color").alphaF() == pytest.approx(0.35, abs=0.01)
     overlay.close()
@@ -120,6 +137,24 @@ def test_settings_wheel_moves_by_90_pixels_and_touchpad_keeps_pixel_delta():
     assert flick.property("contentY") == 90
     wheel(-18, 0)
     assert flick.property("contentY") == 108
+    dispose_engine(engine)
+
+
+def test_window_opacity_reaches_the_rendered_settings_and_setup_windows():
+    app = QApplication.instance() or QApplication([])
+    translator = TranslationBridge("en")
+    theme = ThemeModel({"theme_window_opacity": "0.50"})
+    engine, _ = create_engine(app, visible=True, translator=translator,
+                              theme_model=theme,
+                              setup_model=SetupModel(translator, initial=True))
+    loop = QEventLoop()
+    QTimer.singleShot(100, loop.quit)
+    loop.exec()
+    for window in engine.rootObjects():
+        image = window.grabWindow()
+        assert not image.isNull()
+        alpha = image.pixelColor(window.width() - 10, 300).alphaF()
+        assert alpha == pytest.approx(0.5, abs=0.03)
     dispose_engine(engine)
 
 
@@ -209,6 +244,8 @@ def test_streaming_answer_follows_tail_until_user_scrolls_up():
     flick = scroll.property("contentItem")
 
     overlay.show_answer(" ".join(["A long answer arrives a few words at a time."] * 30))
+    # This test advances the typewriter manually; the timer is covered below.
+    overlay._type_timer.stop()
     for _ in range(100):
         overlay._type_next()
     app.processEvents()
