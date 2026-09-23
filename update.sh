@@ -107,32 +107,27 @@ if [[ -d "$BIN_DIR" ]]; then
         cat > "$BIN_DIR/vigil" << LAUNCHER
 #!/usr/bin/env bash
 # -- separates uv run flags from program args; without it, uv eats --help.
-exec uv --directory "$INSTALL_DIR" run -- python main.py "\$@"
+exec uv --directory "$INSTALL_DIR" run --extra tts-piper -- python main.py "\$@"
 LAUNCHER
         chmod +x "$BIN_DIR/vigil"
     fi
     step "Installing/refreshing vigil-trigger CLI wrapper..."
     cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
 #!/usr/bin/env bash
-exec uv --directory "$INSTALL_DIR" run -- python -m vigil_trigger "\$@"
+exec uv --directory "$INSTALL_DIR" run --extra tts-piper -- python -m vigil_trigger "\$@"
 LAUNCHER
     chmod +x "$BIN_DIR/vigil-trigger"
 fi
 
 # ── 4. Sync Python dependencies ───────────────────────────────────────────────
 step "Syncing Python dependencies..."
-# Preserve TTS if it was installed (piper-tts is an optional dep — uv sync drops it without --extra)
-SYNC_EXTRAS=""
-if uv --directory "$INSTALL_DIR" run python -c "import piper" 2>/dev/null; then
-    SYNC_EXTRAS="--extra tts-piper"
-fi
-uv --directory "$INSTALL_DIR" sync $SYNC_EXTRAS
+uv --directory "$INSTALL_DIR" sync --extra tts-piper
 
 # ── 4b. Detect compositor change ──────────────────────────────────────────────
-STORED_ADAPTER=$(uv --directory "$INSTALL_DIR" run python -c \
+STORED_ADAPTER=$(uv --directory "$INSTALL_DIR" run --extra tts-piper python -c \
     "import database; database.init(); print(database.get_setting('hotkey_adapter', ''))" \
     2>/dev/null || echo "")
-CURRENT_COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+CURRENT_COMPOSITOR=$(uv --directory "$INSTALL_DIR" run --extra tts-piper python -c \
     "from compositor import detect; print(detect())" 2>/dev/null || echo "")
 if [[ -n "$STORED_ADAPTER" && -n "$CURRENT_COMPOSITOR" \
       && "$STORED_ADAPTER" != "$CURRENT_COMPOSITOR" \
@@ -148,7 +143,7 @@ if [[ "$WAS_RUNNING" == true ]]; then
     if command -v vigil >/dev/null 2>&1; then
         setsid vigil >/dev/null 2>&1 &
     else
-        setsid uv --directory "$INSTALL_DIR" run python main.py >/dev/null 2>&1 &
+        setsid uv --directory "$INSTALL_DIR" run --extra tts-piper python main.py >/dev/null 2>&1 &
     fi
     disown
     echo ""
