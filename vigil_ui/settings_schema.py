@@ -73,8 +73,10 @@ FIELDS = (
           ("250", "500", "1000", "2000")),
     Field("mic_device", "dictation", "setting_mic_device", "choice", ""),
     Field("refresh_mics", "dictation", "setting_refresh_mics", "action"),
-    Field("dictation_vocabulary", "dictation", "setting_vocabulary", "multiline"),
-    Field("whisper_priming", "dictation", "setting_priming", "multiline"),
+    Field("dictation_vocabulary", "dictation", "setting_vocabulary", "multiline",
+          hint="vocabulary_hint"),
+    Field("whisper_priming", "dictation", "setting_priming", "multiline",
+          hint="priming_hint"),
 
     Field("local_only", "privacy", "setting_local_only", "toggle", "true"),
     Field("allow_web", "privacy", "setting_allow_web", "toggle", "false"),

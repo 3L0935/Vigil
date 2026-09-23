@@ -8,7 +8,7 @@ Item {
     property var field: ({})
     property var backend: settingsModel
     Component.onCompleted: backend = settingsModel
-    property int editorHeight: field.kind === "multiline" ? 88 : 34
+    property int editorHeight: field.kind === "multiline" ? 108 : 34
     property string currentValue: root.backend.value(field.key || "", root.backend.revision)
 
     Loader {
@@ -221,9 +221,15 @@ Item {
         id: multilineEditor
         TextArea {
             text: root.currentValue
+            placeholderText: root.field.key === "dictation_vocabulary"
+                ? i18n.text("vocabulary_example", i18n.revision)
+                : i18n.text("priming_example", i18n.revision)
+            placeholderTextColor: themeModel.faint
             color: themeModel.text
             wrapMode: TextEdit.Wrap
             font.pixelSize: 13
+            leftPadding: 10
+            topPadding: 9
             onActiveFocusChanged: if (!activeFocus) root.backend.setValue(root.field.key, text)
             background: Rectangle {
                 color: themeModel.control

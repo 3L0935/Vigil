@@ -30,7 +30,8 @@ ApplicationWindow {
         model: window.settingsBackend.fieldsFor(groupKey, window.settingsBackend.catalogRevision)
         delegate: FieldRow {
             visible: window.settingsBackend.fieldVisible(modelData.key, window.settingsBackend.revision)
-            implicitHeight: visible ? Math.max(52, editor.editorHeight + 18) : 0
+            implicitHeight: visible ? naturalHeight : 0
+            editorHeight: editor.editorHeight
             label: i18n.text(modelData.labelKey, i18n.revision)
             description: modelData.hintKey ? i18n.text(modelData.hintKey, i18n.revision) : ""
             SettingEditor {

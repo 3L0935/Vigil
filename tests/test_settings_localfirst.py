@@ -48,6 +48,13 @@ def test_save_independent_language_and_dictation_preferences(model):
     assert db.get_setting("whisper_priming") == "Vigil, ROCm"
 
 
+def test_dictation_fields_explain_input_format(model):
+    settings, _ = model
+    fields = {field["key"]: field for field in settings.fieldsFor("dictation")}
+    assert fields["dictation_vocabulary"]["hintKey"] == "vocabulary_hint"
+    assert fields["whisper_priming"]["hintKey"] == "priming_hint"
+
+
 def test_invalid_vocabulary_prevents_batch_save(model):
     settings, _ = model
     settings.setValue("local_only", "false")
