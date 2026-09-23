@@ -21,6 +21,8 @@ def test_answer_copy_uses_full_text_before_typewriter_finishes(monkeypatch):
 
 def test_answer_countdown_holds_during_waiting_hover_and_tts(monkeypatch):
     app = QApplication.instance() or QApplication([])
+    clock = [100.0]
+    monkeypatch.setattr(OverlayModel, "_now", lambda self: clock[0])
     overlay = OverlayModel()
     overlay.show_answer("Answer")
     while overlay._type_timer.isActive():
@@ -42,6 +44,7 @@ def test_answer_countdown_holds_during_waiting_hover_and_tts(monkeypatch):
     assert overlay.hasAnswer
     monkeypatch.setattr("tts.is_playing", lambda: False)
     overlay._deadline_ms = 100
+    clock[0] += 0.1
     overlay._tick_answer()
     assert not overlay.hasAnswer
     overlay.close()
@@ -70,6 +73,8 @@ def test_answer_countdown_starts_after_typewriter_finishes(monkeypatch):
 
 def test_hover_pauses_remaining_countdown(monkeypatch):
     app = QApplication.instance() or QApplication([])
+    clock = [100.0]
+    monkeypatch.setattr(OverlayModel, "_now", lambda self: clock[0])
     monkeypatch.setattr("tts.is_playing", lambda: False)
     overlay = OverlayModel()
     overlay.show_answer("Answer")
@@ -79,15 +84,46 @@ def test_hover_pauses_remaining_countdown(monkeypatch):
 
     overlay.setHover(True)
     for _ in range(10):
+        clock[0] += 0.1
         overlay._tick_answer()
     assert overlay._deadline_ms == 500
     assert overlay.hasAnswer
 
     overlay.setHover(False)
     for _ in range(4):
+        clock[0] += 0.1
         overlay._tick_answer()
     assert overlay._deadline_ms == 100
     assert overlay.hasAnswer
+    clock[0] += 0.1
     overlay._tick_answer()
     assert not overlay.hasAnswer
+    overlay.close()
+
+
+def test_visible_countdown_tracks_elapsed_time_and_restarts_for_new_answer(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    clock = [100.0]
+    monkeypatch.setattr(OverlayModel, "_now", lambda self: clock[0])
+    monkeypatch.setattr("tts.is_playing", lambda: False)
+    overlay = OverlayModel()
+    overlay.show_answer("First")
+    assert overlay.answerCountdownState == "typing"
+    assert overlay.answerSecondsRemaining == 8
+    while overlay._type_timer.isActive():
+        overlay._type_next()
+    assert overlay.answerCountdownState == "counting"
+
+    clock[0] += 2.2
+    overlay._tick_answer()
+    assert overlay.answerSecondsRemaining == 6
+    assert 0.72 < overlay.answerProgress < 0.73
+
+    overlay.show_answer("Next")
+    assert overlay.answerCountdownState == "typing"
+    assert overlay.answerSecondsRemaining == 8
+    assert overlay.answerProgress == 1.0
+    overlay.closeOverlay()
+    assert overlay.answerCountdownState == "idle"
+    assert not overlay._answer_timer.isActive()
     overlay.close()

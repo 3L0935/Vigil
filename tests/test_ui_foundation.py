@@ -85,6 +85,10 @@ def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
     assert progress.property("value") == 0.5
     assert progress.property("indeterminate") is False
     assert engine.rootObjects()[0].property("previewMode") is True
+    assert engine.rootObjects()[0].findChild(QObject, "themeGroup") is not None
+    assert engine.rootObjects()[1].findChild(QObject, "answerCopyButton") is not None
+    assert engine.rootObjects()[1].findChild(QObject, "answerCloseButton") is not None
+    assert engine.rootObjects()[1].findChild(QObject, "answerCountdownFill") is not None
     assert not engine.rootObjects()[1].isVisible()
     overlay.show_message("Test", 1000)
     assert engine.rootObjects()[1].isVisible()

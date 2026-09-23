@@ -1,5 +1,8 @@
 """Qt Quick presentation adapter for recording and assistant responses."""
 
+import math
+import time
+
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
@@ -11,6 +14,9 @@ from .screen import ActiveScreenTracker
 
 class OverlayModel(QObject):
     changed = Signal()
+
+    def _now(self):
+        return time.monotonic()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,6 +32,8 @@ class OverlayModel(QObject):
         self._hover = False
         self._close_callback = None
         self._deadline_ms = 0
+        self._duration_ms = 0
+        self._last_tick = 0.0
         self._message_timer = QTimer(self)
         self._message_timer.setSingleShot(True)
         self._message_timer.timeout.connect(self.hide)
@@ -66,6 +74,26 @@ class OverlayModel(QObject):
     def waiting(self):
         return self._waiting
 
+    @Property(float, notify=changed)
+    def answerProgress(self):
+        return max(0.0, min(1.0, self._deadline_ms / self._duration_ms)) if self._duration_ms else 0.0
+
+    @Property(int, notify=changed)
+    def answerSecondsRemaining(self):
+        return math.ceil(self._deadline_ms / 1000)
+
+    @Property(str, notify=changed)
+    def answerCountdownState(self):
+        if not self._answer:
+            return "idle"
+        if self._type_timer.isActive():
+            return "typing"
+        if self._waiting:
+            return "waiting"
+        if tts.is_playing():
+            return "speaking"
+        return "paused" if self._hover else "counting"
+
     def attach_window(self, window):
         self._window = window
 
@@ -105,12 +133,14 @@ class OverlayModel(QObject):
         self._answer_timer.stop()
         self._answer = text
         self._visible_answer = ""
-        self._deadline_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
-        self._show("answer")
+        self._duration_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
+        self._deadline_ms = self._duration_ms
+        self._last_tick = self._now()
         if text:
             self._type_timer.start()
         else:
             self._answer_timer.start()
+        self._show("answer")
 
     def _type_next(self):
         if len(self._visible_answer) >= len(self._answer):
@@ -120,24 +150,38 @@ class OverlayModel(QObject):
         self.changed.emit()
         if len(self._visible_answer) >= len(self._answer):
             self._type_timer.stop()
+            self._last_tick = self._now()
             self._answer_timer.start()
+            self.changed.emit()
 
     def _tick_answer(self):
+        now = self._now()
         if self._type_timer.isActive():
+            self._last_tick = now
             return
         if self._waiting or tts.is_playing():
-            self._deadline_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
+            self._deadline_ms = self._duration_ms
+            self._last_tick = now
+            self.changed.emit()
             return
         if self._hover:
+            self._last_tick = now
             return
-        self._deadline_ms -= 100
+        self._deadline_ms -= max(0, round((now - self._last_tick) * 1000))
+        self._last_tick = now
         if self._deadline_ms <= 0:
             self.hide_answer()
             self.hide()
+        else:
+            self.changed.emit()
 
     @Slot(bool)
     def setHover(self, value):
+        if self._hover == value:
+            return
         self._hover = value
+        self._last_tick = self._now()
+        self.changed.emit()
 
     @Slot()
     def copyAnswer(self):
@@ -148,8 +192,7 @@ class OverlayModel(QObject):
         if self._close_callback:
             self._close_callback()
         self._waiting = False
-        self._answer = ""
-        self._visible_answer = ""
+        self.hide_answer()
         self.hide()
 
     def hide_answer(self):
@@ -157,6 +200,8 @@ class OverlayModel(QObject):
             return
         self._answer = ""
         self._visible_answer = ""
+        self._deadline_ms = 0
+        self._duration_ms = 0
         self._type_timer.stop()
         self._answer_timer.stop()
         self.changed.emit()
@@ -173,6 +218,9 @@ class OverlayModel(QObject):
     def close(self):
         self._waiting = False
         self._answer = ""
+        self._visible_answer = ""
+        self._deadline_ms = 0
+        self._duration_ms = 0
         self._type_timer.stop()
         self._answer_timer.stop()
         if self._window:
