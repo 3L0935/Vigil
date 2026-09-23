@@ -44,6 +44,8 @@ Vigil defaults to **strict local mode**: speech recognition via [faster-whisper]
 - **Clear context** — say *"clear context"* / *"nettoie la conv"* to reset, or use the tray menu button
 - **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
 - **Overlay pills** — compact listening, assistant and processing states with a live input level indicator
+- **Answer card** — streamed text with automatic scrolling, copy control, and a visible countdown that pauses on hover
+- **Customizable theme** — Vigil and classic presets, editable palette and two-color accent gradient, plus separate opacity sliders for overlays and app windows
 - **Full settings UI** — all configuration from the settings window; no editing config files
 - **Multi-language** — English, French, Italian; add more via `locales.py`
 - **X11 + universal Wayland hotkeys** — native binding on KDE (KGlobalAccel), GNOME (gsettings), Hyprland, Sway, niri; graceful manual-instructions fallback elsewhere
@@ -59,19 +61,29 @@ Vigil defaults to **strict local mode**: speech recognition via [faster-whisper]
 
 ## Interface preview
 
-The captures below show the current Qt interface in English.
+These captures show the current Qt interface in English with sample settings.
 
-| Setup wizard | Settings |
+| Setup wizard · assistant engine | Settings · voice and models |
 |---|---|
-| <img src="img/screenshots/setup-en.png" alt="Vigil setup wizard, assistant model page" width="400"> | <img src="img/screenshots/settings-en.png" alt="Vigil settings, voice and models section" width="400"> |
+| <img src="img/screenshots/setup-en.png" alt="Vigil setup wizard, assistant engine step" width="400"> | <img src="img/screenshots/settings-en.png" alt="Vigil settings, voice and models section" width="400"> |
 
-**Overlay pills**
+| Theme · presets and palette | Theme · opacity and motion |
+|---|---|
+| <img src="img/screenshots/settings-theme-en.png" alt="Theme settings with starting palettes and color controls" width="400"> | <img src="img/screenshots/settings-theme-opacity-en.png" alt="Theme settings with overlay and window opacity sliders" width="400"> |
+
+**Overlay pills and answer card**
 
 <p align="center">
   <img src="img/screenshots/pill-recording-en.png" alt="Listening pill" width="280">
   <img src="img/screenshots/pill-assistant-en.png" alt="Assistant pill" width="280">
   <img src="img/screenshots/pill-processing-en.png" alt="Processing pill" width="280">
 </p>
+
+<p align="center">
+  <img src="img/screenshots/answer-en.png" alt="Answer card with copy control and visible countdown" width="420">
+</p>
+
+The answer card starts its countdown after the text finishes appearing and any speech finishes. Hovering pauses it; the default duration is 8 seconds.
 
 ---
 
@@ -246,7 +258,8 @@ Open from the tray → **Settings**. All changes are saved to the local database
 | Language | EN / FR / IT |
 | Overlay position | 9-position grid (bottom-center default) |
 | Lock to screen | Pin overlay to a specific monitor |
-| Answer card timeout | Seconds before the answer pill auto-closes (5–30 s) |
+| Answer card timeout | Countdown after the answer finishes appearing and speaking (5–30 s, default 8); pauses on hover |
+| Theme | Four starting palettes; window, panel, input, text, border and accent colors; optional two-color gradient; separate overlay and window opacity sliders; reduced motion |
 | Hotkeys | Dictation and assistant key combos |
 | TTS | Engine, voices (FR/EN), display mode, volume |
 | Re-run setup | Launch the first-run wizard again (model swap, TTS setup, etc.) |
