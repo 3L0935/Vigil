@@ -40,10 +40,10 @@ Vigil defaults to **strict local mode**: speech recognition via [faster-whisper]
 - **App launcher** — open or close any installed app by name (searches `.desktop` files + PATH)
   - **Fuzzy matching** — phonetic approximations work ("dolfine" → Dolphin); single match auto-launches, multiple matches show a numbered list
   - **Multi-turn confirmation** — press the assistant hotkey again to reply with a number; answer card stays visible until resolved
-- **Multi-turn context** — the assistant remembers the last 10 turns for up to 30 seconds; context level shown via Pandora eye color (white = fresh, progressively red = active context, yellow = waiting for reply)
+- **Multi-turn context** — the assistant remembers the last 10 turns for up to 30 seconds and keeps the answer card visible while waiting for a reply
 - **Clear context** — say *"clear context"* / *"nettoie la conv"* to reset, or use the tray menu button
 - **TTS (optional)** — [Piper](https://github.com/rhasspy/piper) voices (FR/EN), configurable mode: TTS only, overlay text only, or both
-- **Animated overlay widget** — minimal pill-shaped overlay with expressive "Pandora" eyes reacting to state (listening, thinking, happy, error)
+- **Overlay pills** — compact listening, assistant and processing states with a live input level indicator
 - **Full settings UI** — all configuration from the settings window; no editing config files
 - **Multi-language** — English, French, Italian; add more via `locales.py`
 - **X11 + universal Wayland hotkeys** — native binding on KDE (KGlobalAccel), GNOME (gsettings), Hyprland, Sway, niri; graceful manual-instructions fallback elsewhere
@@ -57,37 +57,55 @@ Vigil defaults to **strict local mode**: speech recognition via [faster-whisper]
 
 ---
 
+## Interface preview
+
+The captures below show the current Qt interface in English.
+
+| Setup wizard | Settings |
+|---|---|
+| <img src="img/screenshots/setup-en.png" alt="Vigil setup wizard, assistant model page" width="400"> | <img src="img/screenshots/settings-en.png" alt="Vigil settings, voice and models section" width="400"> |
+
+**Overlay pills**
+
+<p align="center">
+  <img src="img/screenshots/pill-recording-en.png" alt="Listening pill" width="280">
+  <img src="img/screenshots/pill-assistant-en.png" alt="Assistant pill" width="280">
+  <img src="img/screenshots/pill-processing-en.png" alt="Processing pill" width="280">
+</p>
+
+---
+
 ## Requirements
 
 - Linux (tested on KDE Plasma 6)
 - Microphone
 - `git` and `curl`
-- Internet connection for first-run model download (~500 MB minimum)
-- GPU required (CPU-only works; GPU strongly recommended for larger models)
+- Internet connection for first-run model downloads (size depends on the selected assistant and dictation models)
+- GPU optional; CPU-only inference is supported, while larger models benefit from a GPU
 
 ---
 
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh
+curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/install.sh -o /tmp/install-vigil.sh && bash /tmp/install-vigil.sh --launch-setup
 ```
 
 Or, if you already have the repo cloned:
 
 ```bash
-bash install.sh
+bash install.sh --launch-setup
 ```
 
 The installer will:
 
 1. Install [uv](https://docs.astral.sh/uv/) if not present
 2. Set up the Python virtual environment and dependencies
-3. Create a `vigil` launcher in `~/.local/bin/`
-4. Create a `.desktop` entry (app launcher)
+3. Create `vigil` and `vigil-trigger` launchers in `${XDG_BIN_HOME:-~/.local/bin}`
+4. Install a desktop entry and icon in the XDG user application and icon directories
 5. Install Piper so the integrated wizard can offer spoken output
 
-Launch `vigil` from the application menu or terminal. The Fold setup window opens on first launch.
+`--launch-setup` opens the Fold wizard after installation. Later, run `vigil --setup` to reopen it; this also works while Vigil is running. Without the flag, launch Vigil from the application menu or terminal.
 
 ---
 
@@ -100,12 +118,12 @@ The Fold setup window handles configuration without opening a terminal:
 | **Language** | Choose EN / FR / IT |
 | **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); selects a compatible binary from recent llama.cpp releases. Older ROCm runtimes use Vulkan when available |
 | **LLM model** | Recommends a model tier based on available VRAM; downloads from Hugging Face (Qwen3.5 0.8B → 9B, or Mistral Small 24B) |
-| **Whisper model** | Choose transcription size (tiny → large-v3); download it explicitly from Settings if missing |
+| **Whisper model** | Choose transcription size (tiny → large-v3); setup downloads the selected model if missing |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
 | **Shortcuts** | Choose distinct dictation and assistant bindings |
 | **Review** | Download selected assets with visible progress before saving |
 
-Choose **existing binary** or **existing GGUF model** only when you want to use files already on disk; otherwise the wizard installs assets under Vigil's XDG data directory. If saved llama assets are missing, Vigil opens the setup window over the running app and clears those paths from the draft. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
+Choose **existing binary** or **existing GGUF model** only when you want to use files already on disk; otherwise the wizard installs assets under Vigil's XDG data directory. If saved llama or dictation assets are missing, Vigil opens the setup window over the running app. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
 
 ---
 
