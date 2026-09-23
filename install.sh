@@ -55,13 +55,13 @@ mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/vigil" << LAUNCHER
 #!/usr/bin/env bash
 # -- separates uv run flags from program args; without it, uv eats --help.
-exec uv --directory "$INSTALL_DIR" run -- python main.py "\$@"
+exec uv --directory "$INSTALL_DIR" run --extra tts-piper -- python main.py "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/vigil"
 
 cat > "$BIN_DIR/vigil-trigger" << LAUNCHER
 #!/usr/bin/env bash
-exec uv --directory "$INSTALL_DIR" run -- python -m vigil_trigger "\$@"
+exec uv --directory "$INSTALL_DIR" run --extra tts-piper -- python -m vigil_trigger "\$@"
 LAUNCHER
 chmod +x "$BIN_DIR/vigil-trigger"
 
@@ -92,7 +92,7 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
 fi
 
 # ── Compositor detection (informational) ────────────────────────────────────
-COMPOSITOR=$(uv --directory "$INSTALL_DIR" run python -c \
+COMPOSITOR=$(uv --directory "$INSTALL_DIR" run --extra tts-piper python -c \
     "from compositor import detect; print(detect())" 2>/dev/null || echo "unknown")
 echo ""
 step "Compositor detected: $COMPOSITOR"
