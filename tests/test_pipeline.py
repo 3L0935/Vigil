@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import main
+from dictation_session import DictationSessions
 
 
 @pytest.fixture
@@ -17,6 +18,7 @@ def app(monkeypatch):
     main._pipeline_busy.clear()
     main._model_loading.clear()
     main._last_dictation.clear()
+    main._dictation_sessions = DictationSessions()
     main._reinsert_armed = False
     main._skip_reinsert_release = False
     for q in [main._ui_actions, main._pipeline_queue, main._assistant_queue]:
@@ -63,6 +65,42 @@ def test_reinsert_waits_for_target_hotkey_and_swallows_release(app, monkeypatch)
     main.recorder.start.assert_not_called()
     main._ui_actions.get_nowait()()
     assert not main._pipeline_busy.is_set()
+
+
+def test_cancelled_transcription_cannot_inject_or_overwrite_last(app, monkeypatch):
+    main._last_dictation.store('previous', 'Previous')
+    session = main._dictation_sessions.start()
+    assert main._dictation_sessions.queue(session)
+    main._pipeline_busy.set()
+    main.transcriber.transcribe.side_effect = lambda audio: (
+        main._dictation_sessions.cancel(), 'late text')[1]
+    paste = Mock()
+    monkeypatch.setattr(main, 'inject', paste)
+    main._pipeline_queue.put((session, np.ones(10)))
+    main._pipeline_queue.put(main._STOP)
+    main._dictation_worker()
+    main._ui_actions.get_nowait()()
+    paste.assert_not_called()
+    assert main._last_dictation.get() == ('previous', 'Previous')
+    assert not main._pipeline_busy.is_set()
+
+
+def test_cancel_after_injection_starts_reports_too_late(app, monkeypatch):
+    session = main._dictation_sessions.start()
+    assert main._dictation_sessions.queue(session)
+    main._pipeline_busy.set()
+    main.transcriber.transcribe.return_value = 'hello'
+    seen = []
+    def paste(text):
+        seen.append(main._dictation_sessions.cancel())
+        return 'pasted'
+    monkeypatch.setattr(main, 'inject', paste)
+    main._pipeline_queue.put((session, np.ones(10)))
+    main._pipeline_queue.put(main._STOP)
+    main._dictation_worker()
+    main._ui_actions.get_nowait()()
+    assert seen == ['too_late']
+    assert main._last_dictation.get() == ('hello', 'hello')
 
 
 def test_missing_model_leaves_controls_usable_and_next_load_can_succeed(app):

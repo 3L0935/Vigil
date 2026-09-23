@@ -25,7 +25,7 @@ from transcriber import Transcriber
 import transcriber as speech
 import privacy
 import dictation
-from dictation_session import LastDictation
+from dictation_session import LastDictation, DictationSessions
 import recovery
 import clipboard_bridge
 from logger import configure_content_logging
@@ -67,6 +67,7 @@ _model_loading = threading.Event()
 _setup_applying = threading.Event()
 _record_lock = threading.RLock()
 _last_dictation = LastDictation()
+_dictation_sessions = DictationSessions()
 _reinsert_armed = False
 _reinsert_deadline = 0.0
 _skip_reinsert_release = False
@@ -206,6 +207,11 @@ def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
         else:
             widget.show_message(locales.get("last_dictation_missing"), 3000)
         return
+    if owner == "dictation" and _pipeline_busy.is_set() and not recorder.recording:
+        if from_hotkey and not hotkey_release:
+            _skip_reinsert_release = True
+        _cancel_dictation()
+        return
     with _record_lock:
         if recorder.owner == owner:
             audio = recorder.stop(owner)
@@ -215,8 +221,18 @@ def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
             if audio is not None and len(audio):
                 _pipeline_busy.set()
                 widget.show_processing()
-                (_pipeline_queue if owner == "dictation" else _assistant_queue).put(audio)
+                if owner == "dictation":
+                    session = _dictation_sessions.active_id()
+                    if _dictation_sessions.queue(session):
+                        _pipeline_queue.put((session, audio))
+                    else:
+                        _pipeline_busy.clear()
+                        widget.hide()
+                else:
+                    _assistant_queue.put(audio)
             else:
+                if owner == "dictation":
+                    _dictation_sessions.cancel()
                 widget.hide()
             return
         if recorder.recording or _pipeline_busy.is_set() or _model_loading.is_set():
@@ -228,6 +244,8 @@ def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
         tts.stop()
         if not recorder.start(owner):
             return
+        if owner == "dictation":
+            _dictation_sessions.start()
         widget.hide_answer()
         if owner == "dictation":
             widget.show_recording()
@@ -239,6 +257,8 @@ def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
 
 
 def _recording_expired(owner):
+    if owner == "dictation":
+        _dictation_sessions.cancel()
     def update():
         # Another capture may have started while this notification was queued.
         if recorder.recording:
@@ -274,29 +294,61 @@ def _dictation_worker():
         item = _pipeline_queue.get()
         if item is _STOP:
             break
+        session, audio = item
+        if not _dictation_sessions.processing(session):
+            _ui(lambda: _complete_pipeline(lambda: None))
+            continue
         outcome = "empty"
         oversized = False
         try:
             log.info("Transcribing (dictation)")
-            text = transcriber.transcribe(item)
+            text = transcriber.transcribe(audio)
             if text:
                 log_content("Transcribed: %r", text)
                 final = dictation.postprocess(text)
-                enabled = db.get_setting("dictation_retain_last", "true") == "true"
-                retained = _last_dictation.store(text, final, enabled=enabled)
-                oversized = enabled and not retained
-                outcome = inject(final)
-            else:
+                if _dictation_sessions.begin_injection(session):
+                    outcome = inject(final)
+                    enabled = (db.get_setting("dictation_retain_last", "true") == "true"
+                               and _dictation_sessions.retention_allowed(session))
+                    retained = _last_dictation.store(text, final, enabled=enabled)
+                    oversized = enabled and not retained
+            elif _dictation_sessions.may_publish(session):
                 _last_dictation.clear()
         except Exception as exc:
             log.error("Dictation pipeline error: %s", type(exc).__name__)
             outcome = "failed"
         finally:
-            def display(result=outcome, too_large=oversized):
-                _display_dictation(result)
-                if too_large:
-                    widget.show_message(locales.get("last_dictation_too_large"), 5000)
+            def display(result=outcome, too_large=oversized, sid=session):
+                if _dictation_sessions.may_publish(sid):
+                    _display_dictation(result)
+                    if too_large:
+                        widget.show_message(locales.get("last_dictation_too_large"), 5000)
+                _dictation_sessions.finish(sid)
             _ui(lambda callback=display: _complete_pipeline(callback))
+
+
+def _cancel_dictation():
+    status = _dictation_sessions.cancel()
+    if status == "cancelled":
+        if recorder.owner == "dictation":
+            recorder.stop("dictation")
+            if tray:
+                tray.set_recording(False)
+        widget.show_message(locales.get("dictation_cancelled"), 3000)
+    elif status == "too_late":
+        widget.show_message(locales.get("dictation_cancel_too_late"), 4000)
+    return status
+
+
+def _purge_dictation_state():
+    _dictation_sessions.suppress_retention()
+    _cancel_dictation()
+    _clear_last_dictation()
+
+
+def _disable_last_dictation():
+    _dictation_sessions.suppress_retention()
+    _clear_last_dictation()
 
 
 def _copy_last_dictation(raw=False):
@@ -476,6 +528,8 @@ def _refresh_tray_labels():
 def _quit():
     global _shutting_down
     _shutting_down = True
+    _dictation_sessions.suppress_retention()
+    _dictation_sessions.cancel()
     _last_dictation.clear()
     if hotkey_listener:
         try:
@@ -632,7 +686,8 @@ def main():
         on_hotkey_change=_restart_hotkeys,
         on_language_change=_refresh_tray_labels,
         on_redo_setup=_redo_setup,
-        on_purge=_clear_last_dictation,
+        on_purge=_purge_dictation_state,
+        on_clear_last=_disable_last_dictation,
         theme_model=theme,
     )
     setup_model = SetupModel(translator, initial=first_run)
@@ -709,7 +764,8 @@ def main():
                         on_copy_last=_copy_last_dictation,
                         on_copy_raw=lambda: _copy_last_dictation(raw=True),
                         on_reinsert_last=_arm_reinsert_last,
-                        on_clear_last=_clear_last_dictation)
+                        on_clear_last=_clear_last_dictation,
+                        on_cancel_dictation=_cancel_dictation)
         tray.start()
         translator.languageChanged.connect(tray.retranslate)
         clipboard_bridge.initialize()

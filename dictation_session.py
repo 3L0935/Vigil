@@ -60,3 +60,77 @@ class LastDictation:
                 self._timer = None
             self._raw = self._final = ""
             self._expires = 0.0
+
+
+class DictationSessions:
+    """Serialize cancellation and the point where injection becomes irreversible."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._generation = 0
+        self._active = 0
+        self._phase = "idle"
+        self._retain = True
+
+    def start(self) -> int:
+        with self._lock:
+            self._generation += 1
+            self._active = self._generation
+            self._phase = "recording"
+            self._retain = True
+            return self._active
+
+    def active_id(self) -> int:
+        with self._lock:
+            return self._active
+
+    def queue(self, session: int) -> bool:
+        with self._lock:
+            if session != self._active or self._phase != "recording":
+                return False
+            self._phase = "queued"
+            return True
+
+    def processing(self, session: int) -> bool:
+        with self._lock:
+            if session != self._active or self._phase != "queued":
+                return False
+            self._phase = "processing"
+            return True
+
+    def begin_injection(self, session: int) -> bool:
+        with self._lock:
+            if session != self._active or self._phase != "processing":
+                return False
+            self._phase = "injecting"
+            return True
+
+    def may_publish(self, session: int) -> bool:
+        with self._lock:
+            return session == self._active and self._phase in ("processing", "injecting")
+
+    def retention_allowed(self, session: int) -> bool:
+        with self._lock:
+            return session == self._active and self._retain
+
+    def suppress_retention(self) -> None:
+        with self._lock:
+            self._retain = False
+
+    def cancel(self) -> str:
+        with self._lock:
+            if self._phase == "idle":
+                return "none"
+            if self._phase == "injecting":
+                return "too_late"
+            self._active = 0
+            self._phase = "idle"
+            self._retain = False
+            return "cancelled"
+
+    def finish(self, session: int) -> None:
+        with self._lock:
+            if session == self._active:
+                self._active = 0
+                self._phase = "idle"
+                self._retain = False
