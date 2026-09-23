@@ -34,7 +34,7 @@ def is_running() -> bool:
         return False
 
 
-def start(on_dictate, on_assistant) -> bool:
+def start(on_dictate, on_assistant, on_setup=None) -> bool:
     """Claim the bus name and start dispatching Trigger calls.
 
     Returns False if another instance already owns the name or D-Bus is
@@ -74,6 +74,8 @@ def start(on_dictate, on_assistant) -> bool:
         "dictate": on_dictate,
         "assistant": on_assistant,
     }
+    if on_setup is not None:
+        callbacks["setup"] = on_setup
 
     class _Service(dbus.service.Object):
         def __init__(self, conn, path):

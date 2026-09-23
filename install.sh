@@ -4,8 +4,17 @@ set -euo pipefail
 
 REPO_URL="https://github.com/3L0935/Vigil.git"
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/vigil-src"
-BIN_DIR="$HOME/.local/bin"
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps"
+LAUNCH_SETUP=false
+
+if [[ "${1:-}" == "--launch-setup" ]]; then
+    LAUNCH_SETUP=true
+elif [[ $# -gt 0 ]]; then
+    echo "Usage: bash install.sh [--launch-setup]" >&2
+    exit 2
+fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
@@ -67,7 +76,8 @@ chmod +x "$BIN_DIR/vigil-trigger"
 
 # ── Create .desktop entry ────────────────────────────────────────────────────
 step "Creating desktop entry..."
-mkdir -p "$DESKTOP_DIR"
+mkdir -p "$DESKTOP_DIR" "$ICON_DIR"
+install -m 644 "$INSTALL_DIR/img/icon_vigil.png" "$ICON_DIR/vigil.png"
 cat > "$DESKTOP_DIR/vigil.desktop" << DESKTOP
 [Desktop Entry]
 Type=Application
@@ -75,12 +85,14 @@ Name=Vigil
 GenericName=Voice Assistant
 Comment=Offline voice dictation and assistant
 Exec=$BIN_DIR/vigil
-Icon=$INSTALL_DIR/img/icon_vigil.png
+Icon=vigil
 Terminal=false
-Categories=Utility;Audio;
+Categories=Utility;Accessibility;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
 DESKTOP
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
 
 # ── PATH warning ─────────────────────────────────────────────────────────────
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
@@ -104,7 +116,12 @@ echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${NC}"
 echo ""
 echo "  Run Vigil:  vigil"
+echo "  Open setup: vigil --setup"
 echo "  Or launch from your application menu."
 echo "  The Fold setup wizard opens on first launch."
 echo ""
 echo "  To uninstall: curl -fsSL https://raw.githubusercontent.com/3L0935/Vigil/main/uninstall.sh | bash"
+if [[ "$LAUNCH_SETUP" == true ]]; then
+    step "Opening the Fold setup wizard..."
+    nohup "$BIN_DIR/vigil" --setup >/dev/null 2>&1 </dev/null &
+fi

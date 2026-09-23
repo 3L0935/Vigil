@@ -5,7 +5,7 @@ Hyprland/Sway/niri exec bindings). Short-lived, fast-startup by design —
 jeepney is a pure-Python D-Bus client ~5x faster to import than dbus-python.
 
 Usage:
-    vigil-trigger <action>          action ∈ {"dictate", "assistant"}
+    vigil-trigger <action>          action ∈ {"dictate", "assistant", "setup"}
 
 Exit codes:
     0  sent successfully
@@ -16,7 +16,7 @@ Exit codes:
 
 import sys
 
-_ALLOWED_ACTIONS = ("dictate", "assistant")
+_ALLOWED_ACTIONS = ("dictate", "assistant", "setup")
 _BUS_NAME = "org.vigil.Service"
 _OBJECT_PATH = "/org/vigil/Service"
 _INTERFACE = "org.vigil.Service"
@@ -29,7 +29,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-    action = sys.argv[1]
+    return trigger(sys.argv[1])
+
+
+def trigger(action: str) -> int:
+    """Send an allowed action to the running desktop process."""
+    if action not in _ALLOWED_ACTIONS:
+        return 2
 
     try:
         from jeepney import DBusAddress, new_method_call

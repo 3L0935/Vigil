@@ -488,11 +488,16 @@ def main():
             sys.exit(_cli_reconfigure_hotkeys())
         if arg == "--uninstall-hotkeys":
             sys.exit(_cli_uninstall_hotkeys())
+        if arg == "--setup":
+            if dbus_service.is_running():
+                from vigil_trigger import trigger
+                sys.exit(trigger("setup"))
         if arg in ("-h", "--help"):
             print(
                 "Vigil — voice dictation and AI assistant\n\n"
                 "Usage:\n"
                 "  vigil                       run the app\n"
+                "  vigil --setup               open the setup wizard\n"
                 "  vigil --reconfigure-hotkeys rebind saved compositor shortcuts\n"
                 "  vigil --uninstall-hotkeys   remove every vigil-managed binding\n"
                 "  vigil -h | --help           show this help\n"
@@ -501,7 +506,7 @@ def main():
 
     db.init()
     first_run = setup_utils.needs_first_run()
-    repair_setup = not first_run and setup_utils.needs_asset_repair()
+    repair_setup = not first_run and ("--setup" in sys.argv or setup_utils.needs_asset_repair())
     # Fail fast if another Vigil is already running — avoid wasting ~1s on
     # Whisper load + widget/tray init before the bus name collision would kick
     # us out anyway.
@@ -590,7 +595,8 @@ def main():
         _load_settings()
         tts.init()
         if not dbus_service.start(on_dictate=_tray_toggle_dictation,
-                                  on_assistant=_tray_toggle_assistant):
+                                  on_assistant=_tray_toggle_assistant,
+                                  on_setup=lambda: _ui(_redo_setup)):
             log.error("D-Bus service could not start")
             return False
         if os.environ.get("VIGIL_SKIP_HOTKEYS") != "1":

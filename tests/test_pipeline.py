@@ -137,3 +137,15 @@ def test_main_event_loop_keeps_settings_available_after_model_failure(app, monke
         main._pipeline_queue.put(main._STOP)
         main._assistant_queue.put(main._STOP)
         temp.cleanup()
+
+
+def test_setup_cli_reopens_running_instance(monkeypatch):
+    import vigil_trigger
+    calls = []
+    monkeypatch.setattr(main.sys, 'argv', ['vigil', '--setup'])
+    monkeypatch.setattr(main.dbus_service, 'is_running', lambda: True)
+    monkeypatch.setattr(vigil_trigger, 'trigger', lambda action: calls.append(action) or 0)
+    with pytest.raises(SystemExit) as exit_info:
+        main.main()
+    assert exit_info.value.code == 0
+    assert calls == ['setup']

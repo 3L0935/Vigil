@@ -2,10 +2,11 @@
 set -euo pipefail
 
 VIGIL_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/vigil"
-AUTOSTART="$HOME/.config/autostart/vigil.desktop"
+AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/vigil.desktop"
 DESKTOP="${XDG_DATA_HOME:-$HOME/.local/share}/applications/vigil.desktop"
-LAUNCHER="$HOME/.local/bin/vigil"
-TRIGGER="$HOME/.local/bin/vigil-trigger"
+LAUNCHER="${XDG_BIN_HOME:-$HOME/.local/bin}/vigil"
+TRIGGER="${XDG_BIN_HOME:-$HOME/.local/bin}/vigil-trigger"
+ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps/vigil.png"
 
 echo "Vigil uninstall — the following will be removed:"
 echo ""
@@ -16,6 +17,7 @@ items=()
 [[ -f "$DESKTOP" ]]     && items+=("  $DESKTOP")
 [[ -f "$LAUNCHER" ]]    && items+=("  $LAUNCHER")
 [[ -f "$TRIGGER" ]]     && items+=("  $TRIGGER")
+[[ -f "$ICON" ]]        && items+=("  $ICON")
 
 if [[ ${#items[@]} -eq 0 ]]; then
     echo "  Nothing to remove — Vigil data not found."
@@ -39,6 +41,9 @@ fi
 [[ -f "$DESKTOP" ]]     && { rm -f  "$DESKTOP";      echo "Removed: $DESKTOP"; }
 [[ -f "$LAUNCHER" ]]    && { rm -f  "$LAUNCHER";     echo "Removed: $LAUNCHER"; }
 [[ -f "$TRIGGER" ]]     && { rm -f  "$TRIGGER";      echo "Removed: $TRIGGER"; }
+[[ -f "$ICON" ]]        && { rm -f  "$ICON";         echo "Removed: $ICON"; }
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(dirname "$DESKTOP")" 2>/dev/null || true
+command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
 
 echo ""
 echo "Done. The Vigil source directory is NOT removed."

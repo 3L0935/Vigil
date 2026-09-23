@@ -81,10 +81,10 @@ Type=Application
 Name=Vigil
 GenericName=Voice Assistant
 Comment=Offline voice dictation and assistant
-Exec=$HOME/.local/bin/vigil
-Icon=$INSTALL_DIR/img/icon_vigil.png
+Exec=${XDG_BIN_HOME:-$HOME/.local/bin}/vigil
+Icon=vigil
 Terminal=false
-Categories=Utility;Audio;
+Categories=Utility;Accessibility;
 Keywords=voice;dictation;assistant;speech;
 StartupNotify=false
 DESKTOP
@@ -92,12 +92,16 @@ DESKTOP
 
 step "Refreshing .desktop entry..."
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps"
+mkdir -p "$ICON_DIR"
+install -m 644 "$INSTALL_DIR/img/icon_vigil.png" "$ICON_DIR/vigil.png"
 refresh_desktop "$DESKTOP_DIR/vigil.desktop"
 # Clean up any legacy autostart file from older installs
 AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/vigil.desktop"
 [[ -f "$AUTOSTART" ]] && rm -f "$AUTOSTART"
 # Prompt the icon cache to re-read (best-effort, no-op if missing)
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
 
 # ── 3b. Refresh bin wrappers (covers new vigil-trigger + fixes --help swallow) ─
 BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
