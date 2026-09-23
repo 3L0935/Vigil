@@ -1,13 +1,10 @@
 """llama-server assistant with function calling for web search and vault search."""
 
-import json
 import re
 import subprocess
 import threading
 import time as _time
-from datetime import datetime
 from pathlib import Path
-from json_repair import repair_json
 from logger import log, log_content
 import privacy
 import config
@@ -18,6 +15,8 @@ import app_launcher
 import url_shortcuts
 import folders
 import file_search
+from assistant_tools import InvalidToolCall, validate_call
+from assistant_prompts import system_prompt
 
 def _get_backend():
     """Create the appropriate backend based on DB provider settings.
@@ -33,12 +32,14 @@ def _get_backend():
         return LlamaServerBackend(
             db.get_setting("ollama_local_url", "http://localhost:11434"),
             db.get_setting("ollama_model", ""),
+            provider="ollama_local",
         )
     if provider == "ollama_cloud":
         return LlamaServerBackend(
             db.get_setting("ollama_cloud_url", "https://ollama.com"),
             db.get_setting("ollama_model", ""),
             db.get_setting("ollama_api_key", ""),
+            provider="ollama_cloud",
         )
     return LlamaServerBackend(
         db.get_setting("llama_server_url", "http://localhost:8081"),
@@ -64,10 +65,16 @@ _pending_action: str = ""      # "launch" | "close" | "open_file"
 # results are paraphrased and worth speaking, app_candidates lists are raw
 # and would sound bad.
 _last_was_synthesised: bool = False
+_last_spoken_result: str = ""
+_last_source_refs: list[str] = []
 
 
 def was_last_synthesised() -> bool:
     return _last_was_synthesised
+
+
+def spoken_reply(result: str) -> str:
+    return _last_spoken_result or result
 
 _WORD_TO_NUM: dict[str, int] = {
     # cardinals
@@ -106,8 +113,8 @@ _CLEAR_CONTEXT_PATTERNS = (
 
 
 def _is_clear_context_request(text: str) -> bool:
-    t = text.strip().lower()
-    return any(p in t for p in _CLEAR_CONTEXT_PATTERNS)
+    t = text.strip().lower().rstrip(".!? ")
+    return t in _CLEAR_CONTEXT_PATTERNS
 
 
 def reset_context() -> None:
@@ -142,6 +149,9 @@ def _parse_number(text: str) -> int | None:
          transcript is short — Whisper sometimes hears "1" as the interjection.
     Returns None if nothing parseable is found."""
     t = text.strip().lower().rstrip(".,!?;: ")
+    t = re.sub(r"^(?:ouvre|ouvrir|open|apri)\s+(?:(?:la|le|the|il)\s+)?", "", t)
+    if not re.fullmatch(r"(?:\d+|[\wÀ-ÿ]+|(?:la|le|the|il)\s+[\wÀ-ÿ]+)", t):
+        return None
     try:
         return int(t)
     except ValueError:
@@ -167,7 +177,7 @@ def register_action(name: str, fn) -> None:
 
 # ── Tool definitions ──────────────────────────────────────────────────────
 
-_SEARCH_TOOLS = {"search_web", "search_obsidian_vault", "search_files"}
+_SEARCH_TOOLS = {"search_web", "search_obsidian_vault"}
 
 _WEB_SEARCH_TOOL = {
     "type": "function",
@@ -355,45 +365,14 @@ _SEARCH_FILES_TOOL = {
     },
 }
 
-_ASK_USER_CHOICE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "ask_user_choice",
-        "description": (
-            "Ask the user to pick between 2-4 similar installed apps when the request is "
-            "genuinely ambiguous. The user replies with a number (1, 2, 3, ...) and the "
-            "chosen app is then launched or closed. Use this ONLY after an app_action retry "
-            "when several candidates fit the user's intent equally well. "
-            "Do NOT use for single-best-match cases — call app_action directly instead."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "options": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "2-4 app names to present to the user, copied exactly from the installed-apps list.",
-                },
-                "action": {
-                    "type": "string",
-                    "enum": ["launch", "close"],
-                    "description": "What to do with the chosen app.",
-                },
-            },
-            "required": ["options", "action"],
-        },
-    },
-}
-
-
-_LOCAL_TOOLS = {"search_obsidian_vault", "search_files", "open_folder", "app_action", "ask_user_choice"}
+_LOCAL_TOOLS = {"search_obsidian_vault", "search_files", "open_folder", "app_action"}
 _WEB_TOOLS = {"search_web", "open_url"}
 
 
 def _get_tools() -> list[dict]:
     tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
              _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
-             _SEARCH_FILES_TOOL, _ASK_USER_CHOICE_TOOL]
+             _SEARCH_FILES_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     endpoint = _get_backend()._url
@@ -406,7 +385,8 @@ def _get_tools() -> list[dict]:
 # ── System prompt ─────────────────────────────────────────────────────────
 
 def _system_prompt() -> str:
-    return locales.get("system_prompt", name=getattr(config, "ASSISTANT_NAME", "Vigil"))
+    return system_prompt(getattr(config, "ASSISTANT_NAME", "Vigil"),
+                         locales.get("lang_name"))
 
 
 # ── Function dispatcher ───────────────────────────────────────────────────
@@ -482,6 +462,7 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
     with this as a tool result so it can correct a failed launch_app call.
     """
     global _waiting_for_reply, _pending_candidates, _pending_action
+    global _last_source_refs, _last_spoken_result
     log.info("Assistant dispatch: %s", name)
     log_content("Assistant arguments: %s", args)
     if name in _WEB_TOOLS:
@@ -499,10 +480,12 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 return (locales.get("web_no_results", query=query), None)
             lines = []
             for r in results:
-                title = r.get("title", "")
-                body  = r.get("body", "")
-                href  = r.get("href", "")
+                title = str(r.get("title", ""))[:160]
+                body  = str(r.get("body", ""))[:240]
+                href  = str(r.get("href", ""))[:512]
                 lines.append(f"**{title}**\n{body}\n{href}")
+                if href:
+                    _last_source_refs.append(href)
             return ("\n\n".join(lines), None)
 
         elif name == "open_settings":
@@ -530,14 +513,16 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 return (locales.get("vault_no_results", query=args.get("query", "")), None)
             lines = []
             for r in results:
-                lines.append(f"**{r['title']}**\n{r['excerpt']}")
+                title = str(r["title"])[:160]
+                lines.append(f"**{title}**\n{str(r['excerpt'])[:200]}")
+                _last_source_refs.append(f"{title} — {Path(r['path']).name}")
             return ("\n\n".join(lines), None)
 
         elif name == "app_action":
             app_name = (args.get("name") or "").strip()
-            action   = args.get("action", "launch")
+            action   = args.get("action")
             if action not in ("launch", "close"):
-                action = "launch"
+                return (locales.get("not_understood"), None)
             do = app_launcher.launch if action == "launch" else app_launcher.close
             ok, label = do(app_name)
             if ok:
@@ -617,22 +602,8 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 msg = locales.get("file_results_similar",
                                   folder=r["folder_resolved"],
                                   query=query, list=list_str)
+            _last_spoken_result = locales.get("file_results_spoken", count=len(results))
             return (msg, None)
-
-        elif name == "ask_user_choice":
-            options = args.get("options") or []
-            action  = args.get("action", "launch")
-            if action not in ("launch", "close"):
-                action = "launch"
-            opts = [str(o) for o in options if o][:4]
-            if not opts:
-                return (locales.get("app_not_found", name=""), None)
-            with _context_lock:
-                _waiting_for_reply  = True
-                _pending_candidates = opts
-                _pending_action     = action
-            lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(opts))
-            return (locales.get("app_candidates", list=lines), None)
 
         elif name == "open_url":
             target = (args.get("target") or "").strip()
@@ -710,11 +681,12 @@ def process(text: str) -> str:
         _history_policy = policy_key
     backend = _get_backend()
     privacy.check_endpoint(backend._url)
-    _llm_manager.ensure_running()
     log_content("Assistant input: %r", text)
 
-    global _last_was_synthesised
+    global _last_was_synthesised, _last_spoken_result, _last_source_refs
     _last_was_synthesised = False
+    _last_spoken_result = ""
+    _last_source_refs = []
 
     # Hardcoded shortcut: clear context request bypasses the LLM entirely.
     # Saves a tool slot for the small model and is unambiguous on the listed
@@ -746,6 +718,8 @@ def process(text: str) -> str:
     if waiting:
         n = _parse_number(text)
         if n is not None and 1 <= n <= len(candidates):
+            if action in ("open_file", "launch", "close"):
+                privacy.check_endpoint(backend._url, local_data=True)
             chosen = candidates[n - 1]
             log_content("Resolving candidate %d: %s (action=%s)", n, chosen, action)
             with _context_lock:
@@ -793,96 +767,135 @@ def process(text: str) -> str:
     messages = [{"role": "system", "content": _system_prompt()}] + history + [
         {"role": "user", "content": text},
     ]
-    data = backend.chat(messages=messages, tools=_get_tools(), local_data=history_local)
+    available_tools = _get_tools()
+    _llm_manager.ensure_running()
+    data = backend.chat(messages=messages, tools=available_tools, local_data=history_local,
+                        max_tokens=256)
 
     if data is None:
         return locales.get("not_understood")
 
     result = locales.get("not_understood")
-    _context_cleared_flag = False
+    repair_used = False
     try:
         choices = data.get("choices", [])
         if not choices:
             return locales.get("not_understood")
 
-        msg = choices[0].get("message", {})
+        if choices[0].get("finish_reason") == "length":
+            return locales.get("not_understood")
+        msg = choices[0].get("message") or {}
         tool_calls = msg.get("tool_calls")
 
         if tool_calls:
+            if not isinstance(tool_calls, list) or len(tool_calls) != 1:
+                return locales.get("one_action")
             tc = tool_calls[0]
-            fn_name = tc["function"]["name"]
-            _context_cleared_flag = (fn_name == "clear_context")
-            raw_args = tc["function"].get("arguments", "{}")
-            if isinstance(raw_args, str):
+            fn_name = (tc.get("function") or {}).get("name")
+            if fn_name in _WEB_TOOLS:
+                privacy.require_web()
+            if fn_name in _LOCAL_TOOLS:
+                privacy.check_endpoint(backend._url, local_data=True)
+            try:
+                fn_name, args = validate_call(tc, available_tools)
+            except InvalidToolCall as exc:
+                repair_used = True
+                repair_messages = messages + [{"role": "assistant", "content": str(msg.get("content") or "")},
+                                              {"role": "user", "content": (
+                                                  "Your tool call was invalid (" + str(exc) + "). "
+                                                  "Return exactly one valid tool call or ask a short clarification."
+                                              )}]
+                repair_data = backend.chat(messages=repair_messages, tools=available_tools,
+                                           local_data=history_local, max_tokens=256)
+                if not repair_data:
+                    return locales.get("not_understood")
+                repair_choices = repair_data.get("choices") or []
+                if not repair_choices or repair_choices[0].get("finish_reason") == "length":
+                    return locales.get("not_understood")
+                repair_msg = repair_choices[0].get("message") or {}
+                repair_calls = repair_msg.get("tool_calls") or []
+                if len(repair_calls) != 1:
+                    return locales.get("one_action") if repair_calls else locales.get("not_understood")
+                tc = repair_calls[0]
+                fn_name = (tc.get("function") or {}).get("name")
+                if fn_name in _WEB_TOOLS:
+                    privacy.require_web()
+                if fn_name in _LOCAL_TOOLS:
+                    privacy.check_endpoint(backend._url, local_data=True)
                 try:
-                    args = json.loads(raw_args)
-                except json.JSONDecodeError:
-                    args = repair_json(raw_args) or {}
-            else:
-                args = raw_args
-
+                    fn_name, args = validate_call(tc, available_tools)
+                except InvalidToolCall:
+                    return locales.get("not_understood")
             turn_local_data = fn_name in _LOCAL_TOOLS
             raw_result, retry_ctx = _dispatch(fn_name, args, user_text=text)
 
             # Launch retry: LLM hit a not-found — give it candidate apps and
             # let it try again once. No further retry from that second call.
-            if retry_ctx is not None:
+            if retry_ctx is not None and not repair_used:
                 log.info("launch_app retry: feeding %d chars of context back to LLM", len(retry_ctx))
                 tool_call_id = tc.get("id", "tc_0")
                 retry_messages = messages + [
                     {"role": "assistant", "tool_calls": [tc]},
                     {"role": "tool", "tool_call_id": tool_call_id, "content": retry_ctx},
                 ]
-                retry_data = backend.chat(messages=retry_messages, tools=_get_tools(), local_data=True)
+                retry_data = backend.chat(messages=retry_messages, tools=available_tools,
+                                          local_data=True, max_tokens=256)
                 if retry_data:
                     try:
-                        retry_msg = retry_data.get("choices", [{}])[0].get("message", {})
+                        retry_choice = retry_data.get("choices", [{}])[0]
+                        if retry_choice.get("finish_reason") == "length":
+                            return raw_result
+                        retry_msg = retry_choice.get("message") or {}
                         retry_tcs = retry_msg.get("tool_calls")
                         if retry_tcs:
-                            rtc = retry_tcs[0]
-                            retry_fn = rtc["function"]["name"]
-                            retry_raw = rtc["function"].get("arguments", "{}")
-                            if isinstance(retry_raw, str):
-                                try:
-                                    retry_args = json.loads(retry_raw)
-                                except json.JSONDecodeError:
-                                    retry_args = repair_json(retry_raw) or {}
-                            else:
-                                retry_args = retry_raw
+                            if len(retry_tcs) != 1:
+                                return locales.get("one_action")
+                            retry_fn = (retry_tcs[0].get("function") or {}).get("name")
+                            if retry_fn in _WEB_TOOLS:
+                                privacy.require_web()
+                            if retry_fn in _LOCAL_TOOLS:
+                                privacy.check_endpoint(backend._url, local_data=True)
+                            retry_fn, retry_args = validate_call(retry_tcs[0], available_tools)
                             # Execute once, ignore any further retry_ctx to avoid loops
                             turn_local_data |= retry_fn in _LOCAL_TOOLS
                             retry_text, _ = _dispatch(retry_fn, retry_args, user_text=text)
                             if retry_text:
                                 raw_result = retry_text
                         else:
-                            retry_content = retry_msg.get("content", "").strip()
+                            retry_content = (retry_msg.get("content") or "").strip()
                             if retry_content:
                                 log_content("Retry text response: %s", retry_content[:120])
                                 raw_result = retry_content
-                    except (KeyError, IndexError, TypeError) as exc:
+                    except (InvalidToolCall, KeyError, IndexError, TypeError) as exc:
                         log.error("Retry parsing error: %s", exc)
                 else:
                     log.warning("Retry returned None — using original not-found message")
 
             # Search tools: feed results back to LLM for a concise synthesis
-            elif fn_name in _SEARCH_TOOLS:
+            elif fn_name in _SEARCH_TOOLS and _last_source_refs:
                 tool_call_id = tc.get("id", "tc_0")
                 synthesis_messages = messages + [
                     {"role": "assistant", "tool_calls": [tc]},
                     {"role": "tool", "tool_call_id": tool_call_id, "content": raw_result},
                 ]
                 syn_data = backend.chat(messages=synthesis_messages, tools=None,
-                                         local_data=history_local or fn_name != "search_web")
+                                         local_data=history_local or fn_name != "search_web",
+                                         max_tokens=384)
                 if syn_data:
                     syn_choices = syn_data.get("choices", [])
-                    if syn_choices:
+                    if syn_choices and syn_choices[0].get("finish_reason") != "length":
                         syn_content = (syn_choices[0]
-                                       .get("message", {})
-                                       .get("content", "")
+                                       .get("message") or {}).get("content") or ""
+                        syn_content = (syn_content
                                        .strip())
                         if syn_content:
                             log_content("Synthesis: %s", syn_content[:120])
+                            _last_spoken_result = syn_content
                             raw_result = syn_content
+                            if _last_source_refs:
+                                raw_result += "\n\n" + locales.get("sources") + ":\n"
+                                raw_result += "\n".join(f"{i}. {ref}" for i, ref in
+                                                        enumerate(_last_source_refs, 1))
                             _last_was_synthesised = True
                         else:
                             log.warning("Synthesis empty — using raw result")
@@ -893,7 +906,7 @@ def process(text: str) -> str:
 
         else:
             # No tool call: plain text response
-            content = msg.get("content", "").strip()
+            content = (msg.get("content") or "").strip()
             if content:
                 log_content("LLM text response: %s", content)
                 result = content
@@ -902,14 +915,13 @@ def process(text: str) -> str:
         log.error("Response parsing error: %s", exc)
         return locales.get("not_understood")
 
-    # Append this turn to history (skip if clear_context was called)
+    # Append this turn to history.
     with _context_lock:
-        if not _context_cleared_flag:
-            _history_has_local_data |= turn_local_data
-            _conversation_history.append({"role": "user",      "content": text})
-            _conversation_history.append({"role": "assistant",  "content": result})
-            if len(_conversation_history) > 16:
-                _conversation_history = _conversation_history[-16:]
+        _history_has_local_data |= turn_local_data
+        _conversation_history.append({"role": "user",      "content": text})
+        _conversation_history.append({"role": "assistant",  "content": result})
+        if len(_conversation_history) > 16:
+            _conversation_history = _conversation_history[-16:]
         _last_interaction = _time.monotonic()
 
     return result

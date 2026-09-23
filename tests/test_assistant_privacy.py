@@ -57,7 +57,9 @@ def test_remote_tool_call_cannot_override_local_data_permission(setup, monkeypat
 def test_explicit_local_data_permission_allows_synthesis(setup, monkeypatch):
     setup['share_local_data'] = 'true'
     requests, factory = fake_http(monkeypatch, [tool('search_obsidian_vault'), answer('summary')])
-    assert assistant.process('find needle') == 'summary'
+    result = assistant.process('find needle')
+    assert result.startswith('summary')
+    assert 'note.md' in result
     assert 'PRIVATE_LOCAL_NOTE' in json.dumps(requests[1])
     assert all(call.kwargs['trust_env'] is False for call in factory.call_args_list)
 

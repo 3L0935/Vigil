@@ -39,7 +39,8 @@ py-modules = [
     "recorder", "service", "setup_utils",
     "transcriber", "tray_qt", "tts", "vigil_trigger",
     "privacy", "data_paths", "dictation", "recovery", "clipboard_bridge",
-    "url_shortcuts", "folders", "file_search",
+    "url_shortcuts", "folders", "file_search", "assistant_tools", "assistant_prompts",
+    "llm_profiles",
 ]
 
 [tool.setuptools.packages.find]

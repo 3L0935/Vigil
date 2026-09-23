@@ -293,9 +293,11 @@ def _assistant_worker():
                 result = assistant.process(text)
                 waiting, level = assistant.is_waiting(), assistant.context_level()
                 log_content("Assistant result: %s", result)
-                if tts.is_enabled() and (not waiting or assistant.was_last_synthesised()):
+                spoken = assistant.spoken_reply(result)
+                if tts.is_enabled() and (not waiting or assistant.was_last_synthesised()
+                                         or spoken != result):
                     try:
-                        tts.speak(result)
+                        tts.speak(spoken)
                     except Exception as exc:
                         log.error("TTS error: %s", type(exc).__name__)
                 display = lambda r=result, w=waiting, l=level: _display_assistant(r, w, l)

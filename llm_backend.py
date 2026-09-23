@@ -13,6 +13,7 @@ from typing import Protocol, runtime_checkable
 
 from logger import log
 import privacy
+from llm_profiles import profile
 
 
 @runtime_checkable
@@ -21,7 +22,7 @@ class LLMBackend(Protocol):
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
-        *, local_data: bool = False,
+        *, local_data: bool = False, max_tokens: int = 256,
     ) -> dict | None:
         """Send messages to the LLM. Returns normalized response dict or None on error."""
         ...
@@ -30,17 +31,19 @@ class LLMBackend(Protocol):
 class LlamaServerBackend:
     """HTTP client for llama-server / Ollama (OpenAI-compatible /v1/chat/completions)."""
 
-    def __init__(self, base_url: str, model: str, api_key: str = ""):
+    def __init__(self, base_url: str, model: str, api_key: str = "",
+                 provider: str = "llama_cpp"):
         base = base_url.rstrip("/")
         self._url = base + ("" if base.endswith("/v1") else "/v1") + "/chat/completions"
         self._model = model
         self._api_key = api_key  # empty for local; Bearer token for cloud
+        self._provider = provider
 
     def chat(
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
-        *, local_data: bool = False,
+        *, local_data: bool = False, max_tokens: int = 256,
     ) -> dict | None:
         url = privacy.check_endpoint(self._url, local_data=local_data)
         try:
@@ -49,7 +52,9 @@ class LlamaServerBackend:
             log.error("httpx not installed — cannot call LLM backend")
             return None
 
-        body: dict = {"model": self._model, "messages": messages}
+        body: dict = {"model": self._model, "messages": messages,
+                      "max_tokens": max_tokens}
+        body.update(profile(self._model, self._provider))
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
@@ -68,6 +73,7 @@ class LlamaServerBackend:
             return None
 
         _normalize_hermes_tool_calls(data)
+        _strip_reasoning(data)
         return data
 
     def ping(self) -> bool:
@@ -130,6 +136,8 @@ def _normalize_hermes_tool_calls(data: dict) -> None:
             return  # already structured
 
         content = msg.get("content") or ""
+        if not isinstance(content, str):
+            return
         hermes_calls = _parse_hermes_tool_calls(content)
         if not hermes_calls:
             return
@@ -160,6 +168,8 @@ def _parse_hermes_tool_calls(text: str) -> list[dict] | None:
             if data is None:
                 continue
 
+        if not isinstance(data, dict):
+            continue
         name = data.get("name", "")
         arguments = data.get("arguments", {})
         if isinstance(arguments, dict):
@@ -173,3 +183,18 @@ def _parse_hermes_tool_calls(text: str) -> list[dict] | None:
             })
 
     return tool_calls if tool_calls else None
+
+
+def _strip_reasoning(data: dict) -> None:
+    """Never expose in-band thinking text to the overlay or TTS."""
+    try:
+        message = data["choices"][0]["message"]
+        content = message.get("content")
+        if not isinstance(content, str):
+            return
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+        if "<think>" in content:
+            content = content.split("<think>", 1)[0]
+        message["content"] = content.strip() or None
+    except (KeyError, IndexError, TypeError):
+        return
