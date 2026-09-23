@@ -16,6 +16,9 @@ def app(monkeypatch):
     monkeypatch.setattr(main, '_shutting_down', False)
     main._pipeline_busy.clear()
     main._model_loading.clear()
+    main._last_dictation.clear()
+    main._reinsert_armed = False
+    main._skip_reinsert_release = False
     for q in [main._ui_actions, main._pipeline_queue, main._assistant_queue]:
         while not q.empty():
             q.get_nowait()
@@ -44,6 +47,22 @@ def test_other_mode_cannot_stop_active_recording(app, monkeypatch):
     main._toggle_recording('assistant')
     r.stop.assert_not_called()
     r.start.assert_not_called()
+
+
+def test_reinsert_waits_for_target_hotkey_and_swallows_release(app, monkeypatch):
+    monkeypatch.setattr(main, 'recorder', Mock(recording=False, owner=None))
+    paste = Mock(return_value='pasted')
+    monkeypatch.setattr(main, 'inject', paste)
+    main._last_dictation.store('raw text', 'Final text')
+    monkeypatch.setattr(main.threading, 'Thread', lambda target, **kw: Mock(start=target))
+    main._arm_reinsert_last()
+    paste.assert_not_called()
+    main._toggle_recording('dictation', from_hotkey=True)
+    paste.assert_called_once_with('Final text')
+    main._toggle_recording('dictation', from_hotkey=True, hotkey_release=True)
+    main.recorder.start.assert_not_called()
+    main._ui_actions.get_nowait()()
+    assert not main._pipeline_busy.is_set()
 
 
 def test_missing_model_leaves_controls_usable_and_next_load_can_succeed(app):

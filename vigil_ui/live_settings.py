@@ -50,7 +50,7 @@ class LiveSettingsModel(SettingsModel):
 
     def __init__(self, translator, *, on_whisper_change=None,
                  on_hotkey_change=None, on_language_change=None,
-                 on_redo_setup=None, theme_model=None, parent=None):
+                 on_redo_setup=None, on_purge=None, theme_model=None, parent=None):
         defaults = {field.key: field.default for field in FIELDS if field.key in EDITABLE_KEYS}
         values = {key: db.get_setting(_DB_ALIASES.get(key, key), default)
                   for key, default in defaults.items()}
@@ -62,6 +62,7 @@ class LiveSettingsModel(SettingsModel):
         self._on_hotkey_change = on_hotkey_change
         self._on_language_change = on_language_change
         self._on_redo_setup = on_redo_setup
+        self._on_purge = on_purge
         self._theme = theme_model or ThemeModel()
         self._theme.changed.connect(self._restyle_voice_dialogs)
         self._request_id = 0
@@ -200,6 +201,8 @@ class LiveSettingsModel(SettingsModel):
             config.OVERLAY_ANSWER_TIMEOUT = int(values["overlay_answer_timeout"])
             configure_content_logging(privacy.enabled("log_content"))
             recovery.prune()
+            if values["dictation_retain_last"] == "false" and self._on_purge:
+                self._on_purge()
             if any(values[key] != previous[key] for key in
                    ("llm_provider", "llama_model", "llm_gpu_layers", "llama_ctx_size")):
                 from llm_manager import manager
@@ -255,6 +258,8 @@ class LiveSettingsModel(SettingsModel):
             if QMessageBox.question(None, "Vigil", self._text("purge_confirm")) == QMessageBox.Yes:
                 recovery.purge()
                 purge_logs()
+                if self._on_purge:
+                    self._on_purge()
                 self.set_status(self._text("purge_done"))
         elif key == "redo_setup" and self._on_redo_setup:
             self._on_redo_setup()

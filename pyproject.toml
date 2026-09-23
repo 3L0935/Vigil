@@ -41,6 +41,7 @@ py-modules = [
     "privacy", "data_paths", "dictation", "recovery", "clipboard_bridge",
     "url_shortcuts", "folders", "file_search", "assistant_tools", "assistant_prompts",
     "llm_profiles",
+    "dictation_session",
 ]
 
 [tool.setuptools.packages.find]

@@ -53,6 +53,8 @@ def test_dictation_fields_explain_input_format(model):
     fields = {field["key"]: field for field in settings.fieldsFor("dictation")}
     assert fields["dictation_vocabulary"]["hintKey"] == "vocabulary_hint"
     assert fields["whisper_priming"]["hintKey"] == "priming_hint"
+    assert fields["dictation_retain_last"]["kind"] == "toggle"
+    assert settings.value("dictation_retain_last") == "true"
 
 
 def test_invalid_vocabulary_prevents_batch_save(model):

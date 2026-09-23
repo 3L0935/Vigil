@@ -25,6 +25,7 @@ from transcriber import Transcriber
 import transcriber as speech
 import privacy
 import dictation
+from dictation_session import LastDictation
 import recovery
 import clipboard_bridge
 from logger import configure_content_logging
@@ -65,6 +66,10 @@ _pipeline_busy = threading.Event()
 _model_loading = threading.Event()
 _setup_applying = threading.Event()
 _record_lock = threading.RLock()
+_last_dictation = LastDictation()
+_reinsert_armed = False
+_reinsert_deadline = 0.0
+_skip_reinsert_release = False
 
 # ── Load persisted settings into config at startup ────────────────────────
 
@@ -172,9 +177,34 @@ def _finish_model_load(model, error):
         tray.set_tooltip(error or _build_tray_tip())
 
 
-def _toggle_recording(owner):
+def _toggle_recording(owner, *, from_hotkey=False, hotkey_release=False):
     """All hotkey/tray/D-Bus sources use the recorder's single owner state."""
+    global _reinsert_armed, _skip_reinsert_release
     if _shutting_down or _setup_applying.is_set():
+        return
+    if owner == "dictation" and hotkey_release and _skip_reinsert_release:
+        _skip_reinsert_release = False
+        return
+    if owner == "dictation" and _reinsert_armed:
+        if not from_hotkey or hotkey_release:
+            widget.show_message(locales.get("last_dictation_reinsert_armed"), 6000)
+            return
+        import time
+        _reinsert_armed = False
+        _skip_reinsert_release = True
+        if time.monotonic() >= _reinsert_deadline:
+            widget.show_message(locales.get("last_dictation_missing"), 3000)
+            return
+        last = _last_dictation.get()
+        if last and not _pipeline_busy.is_set() and not recorder.recording:
+            _pipeline_busy.set()
+            widget.show_processing()
+            def reinsert():
+                outcome = inject(last[1])
+                _ui(lambda: _complete_pipeline(lambda: _display_dictation(outcome)))
+            threading.Thread(target=reinsert, daemon=True, name="vigil-reinsert").start()
+        else:
+            widget.show_message(locales.get("last_dictation_missing"), 3000)
         return
     with _record_lock:
         if recorder.owner == owner:
@@ -245,17 +275,57 @@ def _dictation_worker():
         if item is _STOP:
             break
         outcome = "empty"
+        oversized = False
         try:
             log.info("Transcribing (dictation)")
             text = transcriber.transcribe(item)
             if text:
                 log_content("Transcribed: %r", text)
-                outcome = inject(dictation.postprocess(text))
+                final = dictation.postprocess(text)
+                enabled = db.get_setting("dictation_retain_last", "true") == "true"
+                retained = _last_dictation.store(text, final, enabled=enabled)
+                oversized = enabled and not retained
+                outcome = inject(final)
+            else:
+                _last_dictation.clear()
         except Exception as exc:
             log.error("Dictation pipeline error: %s", type(exc).__name__)
             outcome = "failed"
         finally:
-            _ui(lambda result=outcome: _complete_pipeline(lambda: _display_dictation(result)))
+            def display(result=outcome, too_large=oversized):
+                _display_dictation(result)
+                if too_large:
+                    widget.show_message(locales.get("last_dictation_too_large"), 5000)
+            _ui(lambda callback=display: _complete_pipeline(callback))
+
+
+def _copy_last_dictation(raw=False):
+    last = _last_dictation.get()
+    if last:
+        QApplication.clipboard().setText(last[0] if raw else last[1])
+        widget.show_message(locales.get("last_dictation_copied"), 2000)
+    else:
+        widget.show_message(locales.get("last_dictation_missing"), 3000)
+
+
+def _arm_reinsert_last():
+    global _reinsert_armed, _reinsert_deadline
+    if _last_dictation.get():
+        import time
+        _reinsert_armed = True
+        _reinsert_deadline = time.monotonic() + 30.0
+        widget.show_message(locales.get("last_dictation_reinsert_armed"), 6000)
+    else:
+        widget.show_message(locales.get("last_dictation_missing"), 3000)
+
+
+def _clear_last_dictation():
+    global _reinsert_armed, _skip_reinsert_release
+    _reinsert_armed = False
+    _skip_reinsert_release = False
+    _last_dictation.clear()
+    if widget:
+        widget.show_message(locales.get("last_dictation_cleared"), 2000)
 
 
 def _complete_pipeline(display):
@@ -343,6 +413,14 @@ def _tray_toggle_dictation():
     _ui(lambda: _toggle_recording("dictation"))
 
 
+def _hotkey_dictation_press():
+    _ui(lambda: _toggle_recording("dictation", from_hotkey=True))
+
+
+def _hotkey_dictation_release():
+    _ui(lambda: _toggle_recording("dictation", from_hotkey=True, hotkey_release=True))
+
+
 def _tray_toggle_assistant():
     _ui(lambda: _toggle_recording("assistant"))
 
@@ -363,8 +441,8 @@ def _restart_hotkeys():
         return True
     if hotkey_listener is None:
         hotkey_listener = HotkeyListener(
-            on_press_cb=_tray_toggle_dictation,
-            on_release_cb=_tray_toggle_dictation,
+            on_press_cb=_hotkey_dictation_press,
+            on_release_cb=_hotkey_dictation_release,
             on_assist_press_cb=_tray_toggle_assistant,
             on_assist_release_cb=_tray_toggle_assistant,
         )
@@ -398,6 +476,7 @@ def _refresh_tray_labels():
 def _quit():
     global _shutting_down
     _shutting_down = True
+    _last_dictation.clear()
     if hotkey_listener:
         try:
             hotkey_listener.stop()
@@ -553,6 +632,7 @@ def main():
         on_hotkey_change=_restart_hotkeys,
         on_language_change=_refresh_tray_labels,
         on_redo_setup=_redo_setup,
+        on_purge=_clear_last_dictation,
         theme_model=theme,
     )
     setup_model = SetupModel(translator, initial=first_run)
@@ -609,8 +689,8 @@ def main():
             return False
         if os.environ.get("VIGIL_SKIP_HOTKEYS") != "1":
             hotkey_listener = HotkeyListener(
-                on_press_cb=_tray_toggle_dictation,
-                on_release_cb=_tray_toggle_dictation,
+                on_press_cb=_hotkey_dictation_press,
+                on_release_cb=_hotkey_dictation_release,
                 on_assist_press_cb=_tray_toggle_assistant,
                 on_assist_release_cb=_tray_toggle_assistant,
             )
@@ -625,7 +705,11 @@ def main():
                         on_dictate=_tray_toggle_dictation,
                         on_assist=_tray_toggle_assistant,
                         on_stop_tts=tts.stop,
-                        on_clear_context=_clear_assistant_context)
+                        on_clear_context=_clear_assistant_context,
+                        on_copy_last=_copy_last_dictation,
+                        on_copy_raw=lambda: _copy_last_dictation(raw=True),
+                        on_reinsert_last=_arm_reinsert_last,
+                        on_clear_last=_clear_last_dictation)
         tray.start()
         translator.languageChanged.connect(tray.retranslate)
         clipboard_bridge.initialize()

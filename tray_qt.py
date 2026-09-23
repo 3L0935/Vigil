@@ -24,7 +24,8 @@ def _pil_to_qicon(img: Image.Image) -> QIcon:
 class TrayIcon:
     def __init__(self, on_quit, on_show_settings=None,
                  on_dictate=None, on_assist=None, on_stop_tts=None,
-                 on_clear_context=None, translate=None):
+                 on_clear_context=None, on_copy_last=None, on_copy_raw=None,
+                 on_reinsert_last=None, on_clear_last=None, translate=None):
         self._translate = translate or locales.get
         self._on_quit = on_quit
         self._on_show_settings = on_show_settings
@@ -32,6 +33,10 @@ class TrayIcon:
         self._on_assist = on_assist
         self._on_stop_tts = on_stop_tts
         self._on_clear_context = on_clear_context
+        self._on_copy_last = on_copy_last
+        self._on_copy_raw = on_copy_raw
+        self._on_reinsert_last = on_reinsert_last
+        self._on_clear_last = on_clear_last
         self._dict_label = self._translate("tray_dictation_action")
         self._asst_label = self._translate("tray_assistant_action")
         self._app = None
@@ -68,6 +73,14 @@ class TrayIcon:
             menu.addAction(self._translate("tray_stop_tts"), self._on_stop_tts)
         if self._on_clear_context:
             menu.addAction(self._translate("tray_clear_context"), self._on_clear_context)
+        if self._on_copy_last:
+            menu.addAction(self._translate("tray_copy_last"), self._on_copy_last)
+        if self._on_copy_raw:
+            menu.addAction(self._translate("tray_copy_raw"), self._on_copy_raw)
+        if self._on_reinsert_last:
+            menu.addAction(self._translate("tray_reinsert_last"), self._on_reinsert_last)
+        if self._on_clear_last:
+            menu.addAction(self._translate("tray_clear_last"), self._on_clear_last)
         if self._on_dictate or self._on_assist or self._on_stop_tts or self._on_clear_context:
             menu.addSeparator()
         if self._on_show_settings:
