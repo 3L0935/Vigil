@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject
+from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
 from vigil_ui.app import create_engine, dispose_engine
@@ -87,13 +88,15 @@ def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
     assert engine.rootObjects()[0].property("previewMode") is True
     assert engine.rootObjects()[0].findChild(QObject, "themeGroup") is not None
     overlay_window = engine.rootObjects()[1]
+    assert QQuickWindow.hasDefaultAlphaBuffer()
+    assert overlay_window.format().alphaBufferSize() > 0
     assert overlay_window.findChild(QObject, "answerCopyButton") is not None
     assert overlay_window.findChild(QObject, "answerCloseButton") is not None
     assert overlay_window.findChild(QObject, "answerEye") is not None
     assert overlay_window.findChild(QObject, "pillEye") is not None
     assert overlay_window.findChild(QObject, "answerCountdownFill") is not None
     assert overlay_window.findChild(QObject, "answerCountdownTrack").width() < 120
-    assert overlay_window.property("contextEyeColor").name() == "#f5f8ff"
+    assert overlay_window.property("contextEyeColor").name() == engine._vigil_context_objects[2].accentReadable
     overlay.set_context_state(2, False)
     app.processEvents()
     context_color = overlay_window.property("contextEyeColor")

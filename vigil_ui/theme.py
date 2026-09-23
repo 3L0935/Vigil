@@ -82,7 +82,7 @@ class ThemeModel(QObject):
 
     @Property(str, constant=True)
     def glass(self):
-        return "#b8142030"
+        return "#86111f2e"
 
     @Property(str, constant=True)
     def panelGlass(self):

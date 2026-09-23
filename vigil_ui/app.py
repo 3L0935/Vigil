@@ -9,6 +9,7 @@ from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtQuick import QQuickWindow
 
 from .i18n import TranslationBridge
 from .settings_model import SettingsModel
@@ -38,6 +39,7 @@ def create_engine(
     if not _STYLE_SET:
         QQuickStyle.setStyle("Fusion")
         _STYLE_SET = True
+    QQuickWindow.setDefaultAlphaBuffer(True)
     engine = QQmlApplicationEngine(app)
     translator = translator or TranslationBridge(language)
     settings_model = settings_model or SettingsModel(translator)

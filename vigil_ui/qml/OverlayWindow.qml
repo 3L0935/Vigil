@@ -15,14 +15,14 @@ Window {
     property var backend: overlayModel
     property color contextEyeColor: {
         var active = backend.mode === "recording" || backend.mode === "assistant"
-        if (active) return "#f5f8ff"
+        if (active) return themeModel.accentReadable
         if (backend.waiting) return "#ffd35a"
         if (backend.contextLevel > 0) {
             var turn = Math.min(1, backend.contextLevel / 3)
             return Qt.rgba(1, 1 - 0.68 * turn, 1 - 0.68 * turn, 1)
         }
         if (backend.expression === "sad") return "#ff858d"
-        return "#f5f8ff"
+        return themeModel.accentReadable
     }
     Component.onCompleted: backend = overlayModel
     onVisibleChanged: {
@@ -36,19 +36,8 @@ Window {
         width: parent.width
         height: 188
         radius: 14
-        accentEdge: true
+        accentEdge: false
         clip: true
-
-        Rectangle {
-            anchors.top: parent.top
-            width: parent.width
-            height: 2
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: themeModel.accentA }
-                GradientStop { position: 1; color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentA }
-            }
-        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -60,10 +49,11 @@ Window {
                 spacing: 7
                 VigilEye {
                     objectName: "answerEye"
-                    width: 22; height: 22
-                    showRing: false
-                    eyeColor: themeModel.accentReadable
+                    width: 26; height: 26
+                    reactiveRing: false
                     irisColor: overlay.contextEyeColor
+                    contextActive: backend.waiting || backend.contextLevel > 0
+                                   || backend.expression === "sad"
                 }
                 Text {
                     text: "VIGIL"
@@ -195,9 +185,10 @@ Window {
 
             VigilEye {
                 objectName: "pillEye"
-                width: 30; height: 30
-                eyeColor: themeModel.accentReadable
+                width: 34; height: 34
                 irisColor: overlay.contextEyeColor
+                contextActive: backend.waiting || backend.contextLevel > 0
+                               || backend.expression === "sad"
                 engaged: overlay.visible && (backend.mode === "recording" || backend.mode === "assistant")
                 processing: overlay.visible && backend.mode === "processing"
             }

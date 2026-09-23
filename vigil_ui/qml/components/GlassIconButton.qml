@@ -4,19 +4,19 @@ import QtQuick.Controls
 Button {
     id: control
     property string kind: "copy"
-    implicitWidth: 34
-    implicitHeight: 34
+    implicitWidth: 30
+    implicitHeight: 30
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     property color iconColor: hovered || activeFocus ? themeModel.accentReadable : themeModel.text
 
     background: Rectangle {
         radius: 9
-        color: control.down ? themeModel.raised
-             : control.hovered || control.activeFocus ? "#273d50" : "#172534"
+        color: control.down ? "#80405b70"
+             : control.hovered || control.activeFocus ? "#50384f64" : "transparent"
         border.width: 1
         border.color: control.activeFocus ? themeModel.accentReadable
-                    : control.hovered ? themeModel.accentA : themeModel.line
+                    : control.hovered ? themeModel.line : "transparent"
         Behavior on color { ColorAnimation { duration: themeModel.reducedMotion ? 0 : 140 } }
         Behavior on border.color { ColorAnimation { duration: themeModel.reducedMotion ? 0 : 140 } }
     }

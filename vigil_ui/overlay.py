@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 import config
 import tts
 from .screen import ActiveScreenTracker
+from .kwin_blur import request_kwin_blur
 
 
 class OverlayModel(QObject):
@@ -111,6 +112,14 @@ class OverlayModel(QObject):
         if self._window:
             self._position()
             self._window.show()
+            QTimer.singleShot(0, lambda: self._request_blur(8))
+
+    def _request_blur(self, attempts_left):
+        if not self._window or not self._window.isVisible():
+            return
+        result = request_kwin_blur(self._window)
+        if result is False and attempts_left:
+            QTimer.singleShot(25, lambda: self._request_blur(attempts_left - 1))
 
     def show_recording(self):
         self._message_timer.stop()
