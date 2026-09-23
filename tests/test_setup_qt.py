@@ -128,6 +128,15 @@ def test_spoken_setup_requires_a_voice_for_active_language():
         }, threading.Event(), lambda _: None)
 
 
+def test_setup_error_keeps_the_failed_download_stage():
+    QApplication.instance() or QApplication([])
+    wizard = SetupModel(TranslationBridge("fr"), initial=True)
+    wizard._set_progress("binary")
+    wizard._receive_prepared({}, "HTTP Error 403")
+    assert "llama-server" in wizard.status
+    assert "échoué" in wizard.status
+
+
 def test_finish_restores_previous_settings_when_activation_fails(monkeypatch, tmp_path):
     QApplication.instance() or QApplication([])
     monkeypatch.setattr(db, "_DB_PATH", str(tmp_path / "vigil.db"))

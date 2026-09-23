@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -19,7 +20,7 @@ from data_paths import DATA_DIR
 
 MODEL_DIR = DATA_DIR / "models"
 LLAMA_DIR = DATA_DIR / "llama"
-RELEASE_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+RELEASE_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=20"
 MODEL_TIERS = (
     ("Qwen3.5 0.8B Q4", "bartowski/Qwen_Qwen3.5-0.8B-GGUF", "Qwen_Qwen3.5-0.8B-Q4_K_M.gguf", 650),
     ("Qwen3.5 2B Q4", "bartowski/Qwen_Qwen3.5-2B-GGUF", "Qwen_Qwen3.5-2B-Q4_K_M.gguf", 1500),
@@ -44,6 +45,11 @@ class SetupCancelled(RuntimeError):
 
 def detect_backend() -> str:
     if shutil.which("rocm-smi") or shutil.which("rocminfo"):
+        # Current upstream Linux binaries target ROCm 10. Older local runtimes
+        # can use the Vulkan GPU build without a mismatched HIP runtime.
+        major = _local_rocm_major()
+        if major is not None and major < 10 and shutil.which("vulkaninfo"):
+            return "vulkan"
         return "rocm"
     if shutil.which("nvidia-smi"):
         return "cuda"
@@ -70,22 +76,41 @@ def recommended_model() -> str:
     return (eligible[-1] if eligible else MODEL_TIERS[0])[2]
 
 
+def _local_rocm_major() -> int | None:
+    executable = shutil.which("rocminfo") or shutil.which("rocm-smi")
+    if not executable:
+        return None
+    version_file = Path(executable).resolve().parent.parent / ".info" / "version"
+    try:
+        match = re.match(r"(\d+)", version_file.read_text().strip())
+        return int(match.group(1)) if match else None
+    except OSError:
+        return None
+
+
 def fetch_binary_asset(backend: str) -> tuple[str, str]:
     if platform.system() != "Linux" or platform.machine().lower() not in ("x86_64", "amd64"):
         raise RuntimeError("Automatic llama-server download is available only for Linux x86_64. Choose an existing binary.")
     if backend not in BINARY_PATTERNS:
         raise ValueError("Unsupported backend")
+    local_rocm_major = _local_rocm_major() if backend == "rocm" else None
     with urllib.request.urlopen(RELEASE_API, timeout=20) as response:
-        assets = json.load(response)["assets"]
-    for asset in assets:
-        name = asset["name"]
-        if not fnmatch.fnmatch(name, BINARY_PATTERNS[backend]):
-            continue
-        if not name.endswith((".zip", ".tar.gz")):
-            continue
-        if backend == "cpu" and ("rocm" in name.lower() or "vulkan" in name.lower()):
-            continue
-        return asset["browser_download_url"], name
+        releases = json.load(response)
+    for release in releases:
+        for asset in release.get("assets", []):
+            name = asset["name"]
+            if not fnmatch.fnmatch(name, BINARY_PATTERNS[backend]):
+                continue
+            if not name.endswith((".zip", ".tar.gz")):
+                continue
+            if backend == "cpu" and ("rocm" in name.lower() or "vulkan" in name.lower()):
+                continue
+            if backend == "rocm":
+                asset_version = re.search(r"-rocm-(\d+)\.", name)
+                if (local_rocm_major is not None and asset_version
+                        and int(asset_version.group(1)) != local_rocm_major):
+                    continue
+            return asset["browser_download_url"], name
     raise RuntimeError("No llama-server build found for " + backend)
 
 
@@ -111,7 +136,9 @@ def _download_to_temp(url: str, directory: Path, suffix: str, progress=None) -> 
 
 def install_binary(backend: str, cancelled, progress=None) -> Path:
     existing = LLAMA_DIR / "llama-server"
-    if existing.is_file() and existing.stat().st_size:
+    marker = LLAMA_DIR / "backend.txt"
+    if (existing.is_file() and existing.stat().st_size and marker.is_file()
+            and marker.read_text().strip() == backend and _binary_runs(existing)):
         return existing
     url, name = fetch_binary_asset(backend)
     archive = _download_to_temp(url, LLAMA_DIR, ".zip" if name.endswith(".zip") else ".tar.gz", progress)
@@ -126,13 +153,20 @@ def install_binary(backend: str, cancelled, progress=None) -> Path:
                 _write_binary_entries(entries, stage)
         else:
             with tarfile.open(archive) as bundle:
-                entries = ((item.name, bundle.extractfile(item).read()) for item in bundle.getmembers()
+                members = bundle.getmembers()
+                entries = ((item.name, bundle.extractfile(item).read()) for item in members
                            if item.isfile() and _binary_entry(item.name))
                 _write_binary_entries(entries, stage)
+                _write_binary_links(((item.name, item.linkname) for item in members
+                                     if item.issym() and _binary_entry(item.name)), stage)
         binary = stage / "llama-server"
         if not binary.is_file() or not binary.stat().st_size:
             raise RuntimeError("llama-server is missing from the archive")
-        for item in sorted(stage.iterdir(), key=lambda path: path.name == "llama-server"):
+        if not _binary_runs(binary):
+            raise RuntimeError("Downloaded llama-server could not start")
+        (stage / "backend.txt").write_text(backend)
+        for item in sorted(stage.iterdir(), key=lambda path: (path.name == "backend.txt",
+                                                       path.name == "llama-server")):
             if cancelled.is_set():
                 raise SetupCancelled()
             os.replace(item, LLAMA_DIR / item.name)
@@ -148,6 +182,25 @@ def _write_binary_entries(entries, stage: Path) -> None:
         target = stage / name
         target.write_bytes(data)
         target.chmod(0o755)
+
+
+def _write_binary_links(links, stage: Path) -> None:
+    links = list(links)
+    available = {path.name for path in stage.iterdir()} | {Path(name).name for name, _ in links}
+    for original, linked in links:
+        name = Path(original).name
+        target = Path(linked).name
+        if linked != target or target not in available or name == target:
+            continue
+        (stage / name).symlink_to(target)
+
+
+def _binary_runs(binary: Path) -> bool:
+    try:
+        result = subprocess.run([str(binary), "--version"], capture_output=True, timeout=15)
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _binary_entry(path: str) -> bool:

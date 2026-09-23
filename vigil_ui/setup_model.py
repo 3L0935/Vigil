@@ -23,6 +23,8 @@ _SETUP_ERRORS = {
     "Invalid Ollama endpoint": "privacy_bad_url",
     "Invalid llama-server endpoint": "privacy_bad_url",
     "Selected llama-server binary is not executable": "setup_binary_invalid",
+    "No llama-server build found": "setup_binary_not_found",
+    "Downloaded llama-server could not start": "setup_binary_cannot_start",
     "Choose or enter an Ollama model": "setup_choose_ollama_model",
     "Cloud inference requires local mode to be disabled": "privacy_remote_blocked",
     "Remote inference is blocked by local mode": "privacy_remote_blocked",
@@ -348,6 +350,11 @@ class SetupModel(QObject):
         self.changed.emit()
         draft = dict(self._draft)
         last_progress = {}
+        active_stage = ["prepare"]
+
+        def report(stage):
+            active_stage[0] = stage
+            self.progress.emit(stage)
 
         def publish_progress(stage, done, total):
             step = int(done * 100 / total) if total > 0 else done // (1024 * 1024)
@@ -357,12 +364,13 @@ class SetupModel(QObject):
 
         def run():
             try:
-                values = prepare(draft, self._cancel_event, self.progress.emit, publish_progress)
+                values = prepare(draft, self._cancel_event, report, publish_progress)
                 self.prepared.emit(values, "")
             except SetupCancelled:
                 self.prepared.emit({}, "cancelled")
             except Exception as exc:
-                log.error("Setup preparation failed: %s", type(exc).__name__)
+                log.error("Setup preparation failed during %s: %s",
+                          active_stage[0], type(exc).__name__)
                 self.prepared.emit({}, str(exc))
 
         threading.Thread(target=run, daemon=True, name="vigil-setup").start()
@@ -374,7 +382,12 @@ class SetupModel(QObject):
             return
         if error:
             self._busy = False
-            self._status = self._translator.text(_SETUP_ERRORS.get(error, "setup_prepare_failed"))
+            stage_label = self._status
+            key = ("setup_binary_not_found" if error.startswith("No llama-server build found")
+                   else _SETUP_ERRORS.get(error, "setup_prepare_failed"))
+            self._status = self._translator.text(key)
+            if key == "setup_prepare_failed" and stage_label != self._translator.text("setup_preparing"):
+                self._status += " — " + stage_label
             self.changed.emit()
             return
         self._prepared_values = values

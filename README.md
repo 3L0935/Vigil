@@ -98,7 +98,7 @@ The Fold setup window handles configuration without opening a terminal:
 | Phase | What it does |
 |---|---|
 | **Language** | Choose EN / FR / IT |
-| **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); downloads the matching llama.cpp binary from GitHub Releases |
+| **llama-server** | Auto-detects GPU (CUDA / ROCm / Vulkan / CPU); selects a compatible binary from recent llama.cpp releases. Older ROCm runtimes use Vulkan when available |
 | **LLM model** | Recommends a model tier based on available VRAM; downloads from Hugging Face (Qwen3.5 0.8B → 9B, or Mistral Small 24B) |
 | **Whisper model** | Choose transcription size (tiny → large-v3); download it explicitly from Settings if missing |
 | **TTS (optional)** | Piper TTS: choose FR/EN voices and display mode |
