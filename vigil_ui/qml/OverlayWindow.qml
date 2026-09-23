@@ -13,6 +13,17 @@ Window {
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
     title: "Vigil"
     property var backend: overlayModel
+    property color contextEyeColor: {
+        var active = backend.mode === "recording" || backend.mode === "assistant"
+        if (active) return "#f5f8ff"
+        if (backend.waiting) return "#ffd35a"
+        if (backend.contextLevel > 0) {
+            var turn = Math.min(1, backend.contextLevel / 3)
+            return Qt.rgba(1, 1 - 0.68 * turn, 1 - 0.68 * turn, 1)
+        }
+        if (backend.expression === "sad") return "#ff858d"
+        return "#f5f8ff"
+    }
     Component.onCompleted: backend = overlayModel
     onVisibleChanged: {
         if (visible && !themeModel.reducedMotion) pillAppear.restart()
@@ -47,9 +58,12 @@ Window {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 7
-                Rectangle {
-                    width: 7; height: 7; radius: 4
-                    color: themeModel.accentA
+                VigilEye {
+                    objectName: "answerEye"
+                    width: 22; height: 22
+                    showRing: false
+                    eyeColor: themeModel.accentReadable
+                    irisColor: overlay.contextEyeColor
                 }
                 Text {
                     text: "VIGIL"
@@ -63,8 +77,6 @@ Window {
                     objectName: "answerCopyButton"
                     kind: "copy"
                     Accessible.name: i18n.text("answer_copy", i18n.revision)
-                    ToolTip.visible: hovered
-                    ToolTip.text: i18n.text("answer_copy", i18n.revision)
                     onClicked: {
                         backend.copyAnswer()
                         copyFeedback.running = false
@@ -76,8 +88,6 @@ Window {
                     objectName: "answerCloseButton"
                     kind: "close"
                     Accessible.name: i18n.text("answer_close", i18n.revision)
-                    ToolTip.visible: hovered
-                    ToolTip.text: i18n.text("answer_close", i18n.revision)
                     onClicked: backend.closeOverlay()
                 }
             }
@@ -110,6 +120,27 @@ Window {
                     font.pixelSize: 11
                 }
                 Item { Layout.fillWidth: true }
+                Rectangle {
+                    id: countdownTrack
+                    objectName: "answerCountdownTrack"
+                    Layout.preferredWidth: 94
+                    Layout.preferredHeight: 4
+                    radius: 2
+                    color: themeModel.line
+                    visible: backend.answerCountdownState === "counting"
+                          || backend.answerCountdownState === "paused"
+                    Rectangle {
+                        objectName: "answerCountdownFill"
+                        height: parent.height
+                        width: parent.width * backend.answerProgress
+                        radius: 2
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0; color: themeModel.accentA }
+                            GradientStop { position: 1; color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentA }
+                        }
+                    }
+                }
                 Text {
                     objectName: "answerCountdownLabel"
                     text: {
@@ -128,26 +159,6 @@ Window {
             }
         }
 
-        Rectangle {
-            id: countdownTrack
-            objectName: "answerCountdownTrack"
-            anchors.bottom: parent.bottom
-            width: parent.width
-            height: 3
-            color: themeModel.control
-            visible: backend.answerCountdownState === "counting"
-                  || backend.answerCountdownState === "paused"
-            Rectangle {
-                objectName: "answerCountdownFill"
-                height: parent.height
-                width: parent.width * backend.answerProgress
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: themeModel.accentA }
-                    GradientStop { position: 1; color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentA }
-                }
-            }
-        }
         HoverHandler { onHoveredChanged: backend.setHover(hovered) }
         Timer { id: copyFeedback; interval: 1400; onTriggered: copied.visible = false }
     }
@@ -182,45 +193,13 @@ Window {
             anchors.rightMargin: 16
             spacing: 10
 
-            Item {
-                width: 23; height: 23
-                Rectangle {
-                    visible: backend.mode !== "processing"
-                    anchors.centerIn: parent
-                    width: 10; height: 10; radius: 5
-                    color: backend.mode === "message" ? "#dd8b9b" : themeModel.accentA
-                    opacity: 0.9
-                    SequentialAnimation on scale {
-                        running: overlay.visible && !themeModel.reducedMotion
-                                 && (backend.mode === "recording" || backend.mode === "assistant")
-                        loops: Animation.Infinite
-                        NumberAnimation { from: 0.85; to: 1.22; duration: 620; easing.type: Easing.InOutSine }
-                        NumberAnimation { from: 1.22; to: 0.85; duration: 620; easing.type: Easing.InOutSine }
-                    }
-                }
-                Item {
-                    visible: backend.mode === "processing"
-                    anchors.fill: parent
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 18; height: 18; radius: 9
-                        color: "transparent"
-                        border.width: 2
-                        border.color: themeModel.accentA
-                    }
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: 1
-                        width: 5; height: 5; radius: 3
-                        color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentReadable
-                    }
-                    RotationAnimator on rotation {
-                        from: 0; to: 360; duration: 1200
-                        loops: Animation.Infinite
-                        running: overlay.visible && !themeModel.reducedMotion
-                                 && backend.mode === "processing"
-                    }
-                }
+            VigilEye {
+                objectName: "pillEye"
+                width: 30; height: 30
+                eyeColor: themeModel.accentReadable
+                irisColor: overlay.contextEyeColor
+                engaged: overlay.visible && (backend.mode === "recording" || backend.mode === "assistant")
+                processing: overlay.visible && backend.mode === "processing"
             }
 
             Rectangle { width: 1; height: 20; color: themeModel.line }

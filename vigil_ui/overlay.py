@@ -74,6 +74,10 @@ class OverlayModel(QObject):
     def waiting(self):
         return self._waiting
 
+    @Property(int, notify=changed)
+    def contextLevel(self):
+        return self._context_level
+
     @Property(float, notify=changed)
     def answerProgress(self):
         return max(0.0, min(1.0, self._deadline_ms / self._duration_ms)) if self._duration_ms else 0.0

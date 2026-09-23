@@ -86,12 +86,25 @@ def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
     assert progress.property("indeterminate") is False
     assert engine.rootObjects()[0].property("previewMode") is True
     assert engine.rootObjects()[0].findChild(QObject, "themeGroup") is not None
-    assert engine.rootObjects()[1].findChild(QObject, "answerCopyButton") is not None
-    assert engine.rootObjects()[1].findChild(QObject, "answerCloseButton") is not None
-    assert engine.rootObjects()[1].findChild(QObject, "answerCountdownFill") is not None
-    assert not engine.rootObjects()[1].isVisible()
+    overlay_window = engine.rootObjects()[1]
+    assert overlay_window.findChild(QObject, "answerCopyButton") is not None
+    assert overlay_window.findChild(QObject, "answerCloseButton") is not None
+    assert overlay_window.findChild(QObject, "answerEye") is not None
+    assert overlay_window.findChild(QObject, "pillEye") is not None
+    assert overlay_window.findChild(QObject, "answerCountdownFill") is not None
+    assert overlay_window.findChild(QObject, "answerCountdownTrack").width() < 120
+    assert overlay_window.property("contextEyeColor").name() == "#f5f8ff"
+    overlay.set_context_state(2, False)
+    app.processEvents()
+    context_color = overlay_window.property("contextEyeColor")
+    assert context_color.red() > context_color.green()
+    overlay.set_context_state(2, True)
+    app.processEvents()
+    assert overlay_window.property("contextEyeColor").name() == "#ffd35a"
+    overlay.set_context_state(0, False)
+    assert not overlay_window.isVisible()
     overlay.show_message("Test", 1000)
-    assert engine.rootObjects()[1].isVisible()
-    assert not engine.rootObjects()[1].isActive()
+    assert overlay_window.isVisible()
+    assert not overlay_window.isActive()
     overlay.hide()
     dispose_engine(engine)
