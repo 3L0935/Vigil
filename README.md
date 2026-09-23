@@ -207,14 +207,14 @@ Multiple apps found:
 Reply with the number.
 ```
 
-Press the assistant hotkey again and say *"one"* / *"un"* / *"1"* / *"la première"* / *"second"* to confirm. The reply parser also handles common Whisper-FR misreads of "1" (`hein`, `han`) when the transcript is short. The overlay stays visible (yellow eyes) until you reply or click the close button.
+Press the assistant hotkey again and say *"one"* / *"un"* / *"1"* / *"la première"* / *"second"* to confirm. The reply parser also handles common Whisper-FR misreads of "1" (`hein`, `han`) when the transcript is short. The overlay stays visible (yellow iris) until you reply or click the close button.
 
 The same multi-turn flow is used by the file-search results — *"ouvre la première"* opens the first match, *"ouvre la deuxième"* the second, etc.
 
 **Multi-turn context:**
 
-The Pandora eyes indicate context state:
-- **White** — fresh context, no history
+The Pandora-inspired Vigil iris indicates context state:
+- **Theme accent** — fresh context, no history
 - **Progressively red** — active multi-turn context (1 → 3+ turns)
 - **Yellow** — waiting for your numbered reply
 
@@ -285,7 +285,7 @@ database.py            — SQLite: settings KV store
 locales.py             — i18n strings (EN / FR / IT)
 tray_qt.py             — system tray (PySide6, KDE Plasma)
 vigil_ui/              — Fold settings, overlay, setup wizard and runtime adapters
-brand.py               — tray icon generation (Pandora eyes)
+brand.py               — tray icon generation (Vigil iris)
 ```
 
 ---
