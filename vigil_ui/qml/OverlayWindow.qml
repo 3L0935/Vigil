@@ -87,11 +87,85 @@ Window {
             }
 
             ScrollView {
+                id: answerScroll
+                objectName: "answerScroll"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                property bool followTail: true
+                property bool settingScroll: false
+                property bool layoutPending: false
+                property int textRevision: 0
+                property real manualScrollY: 0
+
+                function setScrollY(value) {
+                    var flick = contentItem
+                    if (!flick) return
+                    settingScroll = true
+                    flick.contentY = value
+                    settingScroll = false
+                }
+                function scrollToEnd() {
+                    var flick = contentItem
+                    if (followTail && flick)
+                        setScrollY(Math.max(0, flick.contentHeight - flick.height))
+                }
+                Component.onCompleted: if (contentItem) contentItem.pixelAligned = true
+
+                Connections {
+                    target: answerScroll.contentItem
+                    function onContentYChanged() {
+                        if (answerScroll.settingScroll || !backend.hasAnswer) return
+                        var flick = answerScroll.contentItem
+                        var end = Math.max(0, flick.contentHeight - flick.height)
+                        if (answerScroll.layoutPending) {
+                            if (!answerScroll.followTail)
+                                answerScroll.setScrollY(Math.min(answerScroll.manualScrollY, end))
+                            return
+                        }
+                        answerScroll.followTail = end - flick.contentY <= 14
+                        if (!answerScroll.followTail)
+                            answerScroll.manualScrollY = flick.contentY
+                    }
+                }
                 TextArea {
-                    text: backend.answer
+                    id: answerText
+                    objectName: "answerText"
+                    function syncAnswer() {
+                        var next = backend.answer
+                        if (next === text) return
+                        answerScroll.layoutPending = true
+                        if (next.startsWith(text))
+                            insert(text.length, next.slice(text.length))
+                        else
+                            text = next
+                    }
+                    Component.onCompleted: syncAnswer()
+                    Connections {
+                        target: backend
+                        function onChanged() { answerText.syncAnswer() }
+                    }
+                    onTextChanged: {
+                        var revision = ++answerScroll.textRevision
+                        answerScroll.layoutPending = true
+                        if (text.length === 0) {
+                            answerScroll.followTail = true
+                            answerScroll.manualScrollY = 0
+                        }
+                        Qt.callLater(function() {
+                            if (revision !== answerScroll.textRevision) return
+                            if (answerText.text.length === 0) answerScroll.setScrollY(0)
+                            else if (answerScroll.followTail) answerScroll.scrollToEnd()
+                            else {
+                                var flick = answerScroll.contentItem
+                                var end = Math.max(0, flick.contentHeight - flick.height)
+                                answerScroll.setScrollY(Math.min(answerScroll.manualScrollY, end))
+                            }
+                            answerScroll.layoutPending = false
+                        })
+                    }
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap

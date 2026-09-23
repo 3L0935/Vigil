@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QEventLoop, QObject, QTimer
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
@@ -135,6 +135,85 @@ def test_answer_replaces_status_pill_until_followup_listening():
     app.processEvents()
     assert pill.isVisible()
     assert window.height() == 250
+
+    overlay.close()
+    dispose_engine(engine)
+
+
+def test_streaming_answer_follows_tail_until_user_scrolls_up():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    engine, _ = create_engine(app, visible=False, overlay_model=overlay)
+    window = engine.rootObjects()[1]
+    scroll = window.findChild(QObject, "answerScroll")
+    flick = scroll.property("contentItem")
+
+    overlay.show_answer(" ".join(["A long answer arrives a few words at a time."] * 30))
+    for _ in range(100):
+        overlay._type_next()
+    app.processEvents()
+    app.processEvents()
+    assert flick.property("contentHeight") > flick.height()
+    assert flick.property("contentY") == flick.property("contentHeight") - flick.height()
+
+    flick.setProperty("contentY", 20)
+    app.processEvents()
+    assert not scroll.property("followTail")
+    for _ in range(20):
+        overlay._type_next()
+    app.processEvents()
+    app.processEvents()
+    assert flick.property("contentY") == 20
+
+    flick.setProperty("contentY", flick.property("contentHeight") - flick.height())
+    app.processEvents()
+    assert scroll.property("followTail")
+    for _ in range(30):
+        overlay._type_next()
+    app.processEvents()
+    app.processEvents()
+    assert flick.property("contentY") == flick.property("contentHeight") - flick.height()
+
+    overlay.show_answer("A new answer")
+    app.processEvents()
+    app.processEvents()
+    assert scroll.property("followTail")
+    assert flick.property("contentY") == 0
+
+    overlay.close()
+    dispose_engine(engine)
+
+
+def test_streaming_timer_keeps_autoscroll_and_manual_position():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    engine, _ = create_engine(app, visible=False, overlay_model=overlay)
+    window = engine.rootObjects()[1]
+    scroll = window.findChild(QObject, "answerScroll")
+    flick = scroll.property("contentItem")
+
+    overlay.show_answer(" ".join(["This sentence wraps as the answer streams in."] * 40))
+    for _ in range(180):
+        overlay._type_next()
+    app.processEvents()
+
+    def run_timer(milliseconds):
+        loop = QEventLoop()
+        QTimer.singleShot(milliseconds, loop.quit)
+        loop.exec()
+
+    run_timer(300)
+    assert scroll.property("followTail")
+    assert abs(flick.property("contentY") -
+               (flick.property("contentHeight") - flick.height())) <= 1
+
+    flick.setProperty("contentY", 20)
+    app.processEvents()
+    assert not scroll.property("followTail")
+    height_before = flick.property("contentHeight")
+    run_timer(650)
+    assert flick.property("contentHeight") > height_before
+    assert flick.property("contentY") == 20
 
     overlay.close()
     dispose_engine(engine)
