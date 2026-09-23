@@ -21,17 +21,40 @@ def test_needs_first_run_no_settings():
         assert setup_utils.needs_first_run() is True
 
 
-def test_needs_first_run_setup_complete():
-    mock_db = _make_mock_db(setup_complete="1")
+def test_needs_first_run_setup_complete_with_model(tmp_path):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"model")
+    mock_db = _make_mock_db(setup_complete="1", llama_model=str(model))
     with patch.object(setup_utils, "db", mock_db):
         assert setup_utils.needs_first_run() is False
 
 
-def test_needs_first_run_has_model_no_flag():
+def test_needs_first_run_has_model_no_flag(tmp_path):
     """Existing install without flag — llama_model present means setup was done."""
-    mock_db = _make_mock_db(llama_model="/path/to/model.gguf")
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"model")
+    mock_db = _make_mock_db(llama_model=str(model))
     with patch.object(setup_utils, "db", mock_db):
         assert setup_utils.needs_first_run() is False
+
+
+def test_needs_first_run_reopens_for_missing_legacy_assets():
+    mock_db = _make_mock_db(setup_complete="1", llama_model="/old/writher/models/model.gguf")
+    with patch.object(setup_utils, "db", mock_db):
+        assert setup_utils.needs_first_run() is False
+        assert setup_utils.needs_asset_repair() is True
+
+
+def test_existing_assets_need_no_repair(tmp_path):
+    model = tmp_path / "model.gguf"
+    binary = tmp_path / "llama-server"
+    model.write_bytes(b"model")
+    binary.write_bytes(b"binary")
+    with patch.object(setup_utils.db, "get_setting",
+                      side_effect=lambda key, default="": {
+                          "llama_model": str(model), "llama_server_bin": str(binary),
+                      }.get(key, default)):
+        assert setup_utils.needs_asset_repair() is False
 
 
 def test_needs_first_run_preserves_legacy_ollama_install():

@@ -501,6 +501,7 @@ def main():
 
     db.init()
     first_run = setup_utils.needs_first_run()
+    repair_setup = not first_run and setup_utils.needs_asset_repair()
     # Fail fast if another Vigil is already running — avoid wasting ~1s on
     # Whisper load + widget/tray init before the bus name collision would kick
     # us out anyway.
@@ -671,6 +672,11 @@ def main():
     if not first_run:
         if not _start_runtime():
             return 1
+        if repair_setup:
+            setup_model.reopen()
+            setup_win.show()
+            setup_win.raise_()
+            setup_win.requestActivate()
 
     def _signal_handler(sig, frame):
         log.info("Signal %s received — shutting down cleanly.", sig)

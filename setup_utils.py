@@ -13,14 +13,21 @@ _TERMINALS = [
 
 
 def needs_first_run() -> bool:
-    if db.get_setting("setup_complete", ""):
-        return False
     provider = db.get_setting("llm_provider", "llama_cpp")
     if provider == "llama_cpp":
         return not db.get_setting("llama_model", "")
     if provider in ("ollama_local", "ollama_cloud"):
         return not db.get_setting("ollama_model", "")
     return True
+
+
+def needs_asset_repair() -> bool:
+    """Open setup over the running app when saved llama assets disappeared."""
+    if db.get_setting("llm_provider", "llama_cpp") != "llama_cpp":
+        return False
+    return any(path and not Path(path).expanduser().is_file() for path in (
+        db.get_setting("llama_model", ""), db.get_setting("llama_server_bin", ""),
+    ))
 
 
 def find_terminal() -> str | None:

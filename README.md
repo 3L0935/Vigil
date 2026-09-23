@@ -105,7 +105,7 @@ The Fold setup window handles configuration without opening a terminal:
 | **Shortcuts** | Choose distinct dictation and assistant bindings |
 | **Review** | Download selected assets with visible progress before saving |
 
-Choose **existing binary** or **existing GGUF model** only when you want to use files already on disk; otherwise the wizard installs assets under Vigil's XDG data directory. Missing paths saved by older WritHer installs are cleared from the setup draft. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
+Choose **existing binary** or **existing GGUF model** only when you want to use files already on disk; otherwise the wizard installs assets under Vigil's XDG data directory. If saved llama assets are missing, Vigil opens the setup window over the running app and clears those paths from the draft. Settings → **Redo setup** opens the same window with the current choices prefilled. Cancel keeps active settings.
 
 ---
 
