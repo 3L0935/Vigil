@@ -198,7 +198,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         # web search
         "web_no_results":       "No web results found for '{query}'",
 
-        # settings_window.py
+        # Settings UI
         "setting_saved":            "Settings saved",
         "setting_whisper_model":    "Whisper model",
         "setting_llm_model":        "LLM model (.gguf)",
@@ -743,7 +743,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         # web search
         "web_no_results":       "Aucun résultat web pour '{query}'",
 
-        # settings_window.py
+        # Settings UI
         "setting_saved":            "Paramètres enregistrés",
         "setting_whisper_model":    "Modèle Whisper",
         "setting_llm_model":        "Modèle LLM (.gguf)",

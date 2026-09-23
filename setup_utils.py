@@ -13,10 +13,14 @@ _TERMINALS = [
 
 
 def needs_first_run() -> bool:
-    return (
-        not db.get_setting("setup_complete", "")
-        and not db.get_setting("llama_model", "")
-    )
+    if db.get_setting("setup_complete", ""):
+        return False
+    provider = db.get_setting("llm_provider", "llama_cpp")
+    if provider == "llama_cpp":
+        return not db.get_setting("llama_model", "")
+    if provider in ("ollama_local", "ollama_cloud"):
+        return not db.get_setting("ollama_model", "")
+    return True
 
 
 def find_terminal() -> str | None:

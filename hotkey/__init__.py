@@ -79,7 +79,7 @@ class HotkeyListener:
         a = self._adapter
         if not a.is_available():
             log.warning("Hotkey adapter %s is not available on this system.", a.name)
-            return
+            return False
 
         a.set_callback("dictate", self._toggle_dictation)
         dict_ok = a.register("dictate", config.HOTKEY,
@@ -98,6 +98,7 @@ class HotkeyListener:
             config.ASSISTANT_HOTKEY if self._on_assist_press else "none",
             "ok" if assist_ok else ("FAIL" if self._on_assist_press else "skipped"),
         )
+        return a.name == "manual" or (dict_ok and assist_ok)
 
     def rebind(self, dict_combo: str | None = None,
                asst_combo: str | None = None) -> bool:

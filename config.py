@@ -10,7 +10,7 @@ ASSISTANT_HOTKEY = "Ctrl+Alt+R"   # assistant
 # ── Language ──────────────────────────────────────────────────────────────
 # Controls UI / assistant strings. Recognition has its own saved language.
 # Supported values: "en" (English), "it" (Italian), "fr" (French).
-LANGUAGE = "en"   # first_run.py sets the real value; DB overrides at startup
+LANGUAGE = "en"   # integrated setup saves the real value; DB overrides at startup
 
 # ── Whisper ───────────────────────────────────────────────────────────────
 MODEL_SIZE = "base"

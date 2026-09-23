@@ -99,20 +99,16 @@ def test_late_success_animation_does_not_hide_new_recording(app, monkeypatch):
 
 
 def test_main_event_loop_keeps_settings_available_after_model_failure(app, monkeypatch):
-    import tkinter as tk
-    import time
-    real_tk = tk.Tk
-    try:
-        root = real_tk()
-    except tk.TclError:
-        pytest.skip('Tk display unavailable')
-    root.withdraw()
-    widget, tray = Mock(), Mock()
-    from types import SimpleNamespace
-    monkeypatch.setattr(main, 'tk', SimpleNamespace(Tk=lambda: root))
+    from PySide6.QtCore import QObject
+    import threading
+    import database as db
+    from pathlib import Path
+    import tempfile
+
+    temp = tempfile.TemporaryDirectory()
+    monkeypatch.setattr(db, '_DB_PATH', str(Path(temp.name) / 'vigil.db'))
     monkeypatch.setattr(main.signal, 'signal', Mock())
-    monkeypatch.setattr(main, 'RecordingWidget', Mock(return_value=widget))
-    monkeypatch.setattr(main, 'TrayIcon', Mock(return_value=tray))
+    monkeypatch.setattr(main, 'TrayIcon', Mock())
     monkeypatch.setattr(main, 'Transcriber', Mock(side_effect=RuntimeError('missing model')))
     monkeypatch.setattr(main, 'HotkeyListener', Mock())
     monkeypatch.setattr(main.setup_utils, 'needs_first_run', lambda: False)
@@ -123,24 +119,21 @@ def test_main_event_loop_keeps_settings_available_after_model_failure(app, monke
     monkeypatch.setattr(main.clipboard_bridge, 'initialize', Mock())
     monkeypatch.setattr('hotkey.kde.preflight_grab_install', Mock())
     monkeypatch.setattr('recorder.input_devices', lambda: ['Synthetic microphone'])
+    monkeypatch.setattr(main.tts, 'init', Mock())
     monkeypatch.setattr(main.sys, 'argv', ['vigil'])
     observed = []
-    deadline = time.monotonic() + 3
+
     def check():
-        if main._model_loading.is_set() and time.monotonic() < deadline:
-            root.after(50, check)
-            return
         observed.append(main.transcriber is None and not main._model_loading.is_set())
-        main.settings_win._build()
-        main.settings_win._win.withdraw()
-        observed.append(main.settings_win._dictation_settings is not None)
-        root.quit()
-    root.after(100, check)
-    root.after(4000, root.quit)
+        observed.append(main.settings_win.findChild(QObject, 'voiceModelsGroup') is not None)
+        main.root.quit()
+
+    threading.Timer(0.3, lambda: main._ui(check)).start()
+    threading.Timer(4, lambda: main._ui(main.root.quit) if main.root else None).start()
     try:
         main.main()
         assert observed == [True, True]
     finally:
         main._pipeline_queue.put(main._STOP)
         main._assistant_queue.put(main._STOP)
-        root.destroy()
+        temp.cleanup()

@@ -47,7 +47,14 @@ class TrayIcon:
         self._icon = QSystemTrayIcon(_pil_to_qicon(img))
         self._icon.setToolTip(self._translate("tray_idle"))
         self._icon.setContextMenu(self._build_menu())
+        self._icon.activated.connect(self._on_activated)
         self._icon.show()
+
+    def _on_activated(self, reason):
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger,
+                      QSystemTrayIcon.ActivationReason.DoubleClick):
+            if self._on_show_settings:
+                self._on_show_settings()
 
     def _build_menu(self) -> QMenu:
         menu = QMenu()

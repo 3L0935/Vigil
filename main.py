@@ -3,21 +3,8 @@ import sys
 import signal
 import queue
 import threading
-
-try:
-    import tkinter as tk
-except ImportError as _tk_err:
-    print(
-        f"ERROR: cannot import tkinter — {_tk_err}\n"
-        "Install the system Tk package, then retry:\n"
-        "  Arch / Manjaro / CachyOS : sudo pacman -S tk\n"
-        "  Ubuntu / Debian           : sudo apt install python3-tk\n"
-        "  Fedora                    : sudo dnf install python3-tkinter\n"
-    )
-    sys.exit(1)
-
-import customtkinter as ctk
-ctk.set_appearance_mode("dark")
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 
 # Windows-only: fix DPI awareness before any window is created.
 if sys.platform == "win32":
@@ -45,7 +32,6 @@ import injector
 from injector import inject
 from hotkey import HotkeyListener
 from tray_qt import TrayIcon
-from widget import RecordingWidget
 import assistant
 import service as dbus_service
 import tts
@@ -53,8 +39,12 @@ from llm_manager import manager as _llm_manager
 import config
 import database as db
 import locales
-from settings_window import SettingsWindow
 import setup_utils
+from vigil_ui.app import create_engine, dispose_engine
+from vigil_ui.i18n import TranslationBridge
+from vigil_ui.live_settings import LiveSettingsModel
+from vigil_ui.overlay import OverlayModel
+from vigil_ui.setup_model import SetupModel
 
 _pipeline_queue   = queue.Queue()
 _assistant_queue  = queue.Queue()
@@ -65,10 +55,14 @@ tray        = None
 widget      = None
 root        = None
 settings_win = None
+setup_win = None
+setup_model = None
+settings_model = None
 hotkey_listener = None
 _ui_actions = queue.Queue()
 _pipeline_busy = threading.Event()
 _model_loading = threading.Event()
+_setup_applying = threading.Event()
 _record_lock = threading.RLock()
 
 # ── Load persisted settings into config at startup ────────────────────────
@@ -138,7 +132,7 @@ def _on_whisper_model_change(model_name: str, download: bool = False):
     global transcriber
     if _pipeline_busy.is_set() or recorder.recording or _model_loading.is_set():
         widget.show_message(locales.get("busy"), 3000)
-        return
+        return False
     config.MODEL_SIZE = model_name
     db.save_setting("whisper_model", model_name)
     _model_loading.set()
@@ -158,6 +152,7 @@ def _on_whisper_model_change(model_name: str, download: bool = False):
             log.error("Speech model load failed: %s", type(exc).__name__)
             _ui(lambda: _finish_model_load(None, locales.get("speech_missing")))
     threading.Thread(target=load, daemon=True, name="vigil-model-load").start()
+    return True
 
 
 def _finish_model_load(model, error):
@@ -176,7 +171,7 @@ def _finish_model_load(model, error):
 
 def _toggle_recording(owner):
     """All hotkey/tray/D-Bus sources use the recorder's single owner state."""
-    if _shutting_down:
+    if _shutting_down or _setup_applying.is_set():
         return
     with _record_lock:
         if recorder.owner == owner:
@@ -232,7 +227,7 @@ def _hide_if_idle():
 def _display_dictation(outcome):
     if outcome == "pasted":
         widget.set_expression("happy")
-        root.after(1200, _hide_if_idle)
+        QTimer.singleShot(1200, _hide_if_idle)
     elif outcome in ("recovered", "failed"):
         widget.show_message(locales.get("paste_" + outcome), 7000)
     else:
@@ -276,11 +271,11 @@ def _display_assistant(result, waiting, level):
         widget.set_expression("happy")
         if config.TTS_MODE in ("overlay", "both", "off"):
             widget.show_answer(result)
-        root.after(1500, _hide_if_idle)
+        QTimer.singleShot(1500, _hide_if_idle)
 
 
 def _assistant_worker():
-    """Keep all Tk/Qt presentation on the GUI thread."""
+    """Keep all Qt presentation on the GUI thread."""
     while True:
         item = _assistant_queue.get()
         if item is _STOP:
@@ -323,12 +318,12 @@ def _hide_settings():
 
 def _clear_assistant_context():
     assistant.reset_context()
-    if widget and root:
+    if widget:
         def _do():
             widget.set_context_state(0, False)
             widget.hide_answer()
             widget.hide()
-        root.after(0, _do)
+        _ui(_do)
 
 
 assistant.register_action("open_settings", _show_settings)
@@ -358,6 +353,8 @@ def _build_tray_tip() -> str:
 
 def _restart_hotkeys():
     global hotkey_listener
+    if os.environ.get("VIGIL_SKIP_HOTKEYS") == "1":
+        return True
     if hotkey_listener is None:
         hotkey_listener = HotkeyListener(
             on_press_cb=_tray_toggle_dictation,
@@ -365,7 +362,7 @@ def _restart_hotkeys():
             on_assist_press_cb=_tray_toggle_assistant,
             on_assist_release_cb=_tray_toggle_assistant,
         )
-        hotkey_listener.start()
+        ok = hotkey_listener.start()
     else:
         # Atomic rebind preserves adapter state (KGA signal handler, pynput
         # thread, D-Bus loop) — avoids the transient "no shortcuts" window
@@ -380,6 +377,7 @@ def _restart_hotkeys():
                 widget.show_message(locales.get("hotkey_rebind_failed"), 3000)
     if tray:
         _refresh_tray_labels()
+    return ok
 
 
 def _refresh_tray_labels():
@@ -422,41 +420,34 @@ def _quit():
             widget.close()
         except Exception:
             pass
+    global transcriber
+    transcriber = None
     if root:
-        def _destroy():
-            global transcriber
-            try:
-                transcriber = None  # release faster-whisper before exit to avoid semaphore leak
-            except Exception:
-                pass
-            try:
-                root.destroy()
-            except Exception:
-                pass
-            os._exit(0)
-        try:
-            root.after(0, _destroy)
-        except Exception:
-            os._exit(0)
+        root.quit()
     log.info("Shutdown complete.")
 
 
 def _cli_reconfigure_hotkeys() -> int:
-    """`vigil --reconfigure-hotkeys` — re-run the hotkey wizard standalone.
-
-    Useful after a WM switch or when the initial first_run bind failed.
-    Does not start the full app.
-    """
-    import first_run
+    """Rebind the saved shortcuts without starting the desktop UI."""
+    from hotkey import pick_adapter
     db.init()
     _load_settings()
     try:
-        result = first_run.setup_hotkeys()
+        adapter = pick_adapter()
+        if not adapter.is_available():
+            print("Manual shortcut binding required for this compositor.")
+            return 1
+        dict_ok = adapter.register("dictate", config.HOTKEY,
+                                   command=["vigil-trigger", "dictate"])
+        assist_ok = adapter.register("assistant", config.ASSISTANT_HOTKEY,
+                                     command=["vigil-trigger", "assistant"])
+        result = adapter.name if dict_ok and assist_ok else adapter.name + "-partial"
+        db.save_setting("hotkey_adapter", result)
     except Exception as exc:
         print(f"Reconfigure failed: {exc}", file=sys.stderr)
         return 1
     print(f"Hotkey adapter: {result}")
-    return 0
+    return 0 if dict_ok and assist_ok else 1
 
 
 def _cli_uninstall_hotkeys() -> int:
@@ -486,9 +477,9 @@ def _cli_uninstall_hotkeys() -> int:
 
 def main():
     global transcriber, tray, widget, root, settings_win
-    global hotkey_listener
+    global hotkey_listener, setup_win, setup_model, settings_model
 
-    # CLI utilities short-circuit before the full Tk/UI init.
+    # CLI utilities short-circuit before Qt/UI initialization.
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         if arg == "--reconfigure-hotkeys":
@@ -500,23 +491,14 @@ def main():
                 "Vigil — voice dictation and AI assistant\n\n"
                 "Usage:\n"
                 "  vigil                       run the app\n"
-                "  vigil --reconfigure-hotkeys re-run the compositor hotkey wizard\n"
+                "  vigil --reconfigure-hotkeys rebind saved compositor shortcuts\n"
                 "  vigil --uninstall-hotkeys   remove every vigil-managed binding\n"
                 "  vigil -h | --help           show this help\n"
             )
             sys.exit(0)
 
     db.init()
-    if setup_utils.needs_first_run():
-        script = str(setup_utils.REPO_DIR / "first_run.py")
-        launched = setup_utils.launch_in_terminal(f'uv run python "{script}"')
-        if not launched:
-            print(
-                "First-run setup required but no terminal found.\n"
-                "Run manually: uv run python first_run.py",
-                flush=True,
-            )
-        sys.exit(0)
+    first_run = setup_utils.needs_first_run()
     # Fail fast if another Vigil is already running — avoid wasting ~1s on
     # Whisper load + widget/tray init before the bus name collision would kick
     # us out anyway.
@@ -525,77 +507,59 @@ def main():
         sys.exit(0)
     _load_settings()
     recovery.prune()
+    if not first_run:
+        from hotkey.kde import preflight_grab_install
+        preflight_grab_install()
+    # KWin/XWayland supports positioned, non-activating overlays. Native
+    # XDG Shell does not provide client-controlled top-level placement.
+    if (sys.platform.startswith("linux") and os.environ.get("XDG_SESSION_TYPE") == "wayland"
+            and os.environ.get("XDG_CURRENT_DESKTOP", "").lower().find("kde") >= 0
+            and os.environ.get("DISPLAY")):
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
-    # KDE Plasma 6 Wayland workaround: the first vigil process of a session
-    # registers KGA actions but never installs the Wayland keyboard grab.
-    # Re-exec from a fresh D-Bus client name so the actual grab installs.
-    # No-op on every other compositor and on subsequent same-session vigils.
-    from hotkey.kde import preflight_grab_install
-    preflight_grab_install()
+    root = QApplication.instance() or QApplication(sys.argv)
+    root.setApplicationName("Vigil")
+    root.setQuitOnLastWindowClosed(False)
+    translator = TranslationBridge(config.LANGUAGE)
+    widget = OverlayModel()
+    widget.set_close_callback(assistant.reset_context)
 
-    tts.init()
+    def _redo_setup():
+        if recorder.recording or _pipeline_busy.is_set() or _model_loading.is_set():
+            widget.show_message(locales.get("busy"), 3000)
+            return
+        setup_model.reopen()
+        settings_win.hide()
+        setup_win.show()
+        setup_win.raise_()
+        setup_win.requestActivate()
 
-    root = tk.Tk()
-    root.withdraw()
+    settings_model = LiveSettingsModel(
+        translator, on_whisper_change=_on_whisper_model_change,
+        on_hotkey_change=_restart_hotkeys,
+        on_language_change=_refresh_tray_labels,
+        on_redo_setup=_redo_setup,
+    )
+    setup_model = SetupModel(translator, initial=first_run)
+    engine, translator = create_engine(
+        root, language=config.LANGUAGE, visible=False, translator=translator,
+        settings_model=settings_model, overlay_model=widget, setup_model=setup_model,
+    )
+    if len(engine.rootObjects()) != 3:
+        log.error("Fold UI failed to load")
+        return 1
+    settings_win, _, setup_win = engine.rootObjects()
+    root._vigil_engine = engine
+    root._vigil_settings_model = settings_model
+    root._vigil_setup_model = setup_model
+    root._vigil_overlay = widget
 
-    widget = RecordingWidget(root)
-    widget.set_close_callback(lambda: assistant.reset_context())
-    settings_win = SettingsWindow(root, on_whisper_change=_on_whisper_model_change,
-                                   on_hotkey_change=_restart_hotkeys,
-                                   on_language_change=_refresh_tray_labels)
-
-    recorder.on_level = lambda rms: widget.update_level(min(1.0, rms * 8))
-    recorder.on_mic_error = lambda msg: widget.show_message(msg, 4000)
+    level_sample = [0.0]
+    recorder.on_level = lambda rms: level_sample.__setitem__(0, min(1.0, rms * 8))
+    recorder.on_mic_error = lambda msg: _ui(lambda: widget.show_message(msg, 4000))
     recorder.on_timeout = _recording_expired
 
-    tray = TrayIcon(on_quit=_quit, on_show_settings=_show_settings,
-                    on_dictate=_tray_toggle_dictation,
-                    on_assist=_tray_toggle_assistant,
-                    on_stop_tts=tts.stop,
-                    on_clear_context=_clear_assistant_context)
-    tray.start()
-    clipboard_bridge.initialize()
-    _refresh_tray_labels()
-
-    tray.set_tooltip(_build_tray_tip())
-
-    # Check dictation injection tools
-    _inj_warn = injector.check_deps()
-    if _inj_warn:
-        log.warning("Injection deps: %s", _inj_warn.replace("\n", " | "))
-        root.after(2000, lambda: widget.show_message(_inj_warn, 6000))
-
-    # KDE Plasma 6 Wayland: trigger the Fake-Input permission prompt now,
-    # while the user is already watching the app start, so the first real
-    # dictation isn't swallowed by the dialog. Cheap no-op for everyone else.
-    injector.prewarm()
-
-    _on_whisper_model_change(config.MODEL_SIZE)
-
-    t1 = threading.Thread(target=_dictation_worker, daemon=True)
-    t1.start()
-    t2 = threading.Thread(target=_assistant_worker, daemon=True)
-    t2.start()
-
-    # D-Bus service: exposes org.vigil.Service.Trigger(action) so external
-    # callers (vigil-trigger CLI, compositor key bindings) can toggle
-    # recording. Also functions as a single-instance lock via bus-name
-    # ownership.
-    if not dbus_service.start(on_dictate=_tray_toggle_dictation,
-                              on_assistant=_tray_toggle_assistant):
-        log.info("D-Bus service failed to start — another Vigil may have "
-                 "claimed the name between probe and start. Exiting.")
-        sys.exit(0)
-
-    hotkey_listener = HotkeyListener(
-        on_press_cb=_tray_toggle_dictation,
-        on_release_cb=_tray_toggle_dictation,
-        on_assist_press_cb=_tray_toggle_assistant,
-        on_assist_release_cb=_tray_toggle_assistant,
-    )
-    hotkey_listener.start()
-
-    def _pump_qt():
+    def _pump_ui():
         if _shutting_down:
             return
         for _ in range(30):
@@ -607,9 +571,104 @@ def main():
                 callback()
             except Exception as exc:
                 log.error("UI callback failed: %s", type(exc).__name__)
-        if tray:
-            tray.process_events()
-        root.after(50, _pump_qt)
+        if recorder.recording:
+            widget.update_level(level_sample[0])
+
+    pump = QTimer(root)
+    pump.setInterval(50)
+    pump.timeout.connect(_pump_ui)
+    pump.start()
+
+    def _start_runtime():
+        global tray, hotkey_listener
+        if first_run:
+            from hotkey.kde import preflight_grab_install
+            preflight_grab_install()
+        _load_settings()
+        tts.init()
+        if not dbus_service.start(on_dictate=_tray_toggle_dictation,
+                                  on_assistant=_tray_toggle_assistant):
+            log.error("D-Bus service could not start")
+            return False
+        if os.environ.get("VIGIL_SKIP_HOTKEYS") != "1":
+            hotkey_listener = HotkeyListener(
+                on_press_cb=_tray_toggle_dictation,
+                on_release_cb=_tray_toggle_dictation,
+                on_assist_press_cb=_tray_toggle_assistant,
+                on_assist_release_cb=_tray_toggle_assistant,
+            )
+            if not hotkey_listener.start():
+                log.warning("Shortcut activation was incomplete")
+                if first_run:
+                    hotkey_listener.stop()
+                    hotkey_listener = None
+                    dbus_service.stop()
+                    return False
+        tray = TrayIcon(on_quit=_quit, on_show_settings=_show_settings,
+                        on_dictate=_tray_toggle_dictation,
+                        on_assist=_tray_toggle_assistant,
+                        on_stop_tts=tts.stop,
+                        on_clear_context=_clear_assistant_context)
+        tray.start()
+        translator.languageChanged.connect(tray.retranslate)
+        clipboard_bridge.initialize()
+        _refresh_tray_labels()
+        warning = injector.check_deps()
+        if warning:
+            log.warning("Injection deps: %s", warning.replace("\n", " | "))
+            QTimer.singleShot(2000, lambda: widget.show_message(warning, 6000))
+        injector.prewarm()
+        _on_whisper_model_change(config.MODEL_SIZE)
+        threading.Thread(target=_dictation_worker, daemon=True).start()
+        threading.Thread(target=_assistant_worker, daemon=True).start()
+        log.info("Ready. %s", _build_tray_tip())
+        return True
+
+    def _activate_setup(initial):
+        if recorder.recording or _pipeline_busy.is_set() or _model_loading.is_set():
+            return False
+        _setup_applying.set()
+        try:
+            if initial:
+                if not _start_runtime():
+                    return False
+            else:
+                _load_settings()
+                tts.init()
+                if not _restart_hotkeys():
+                    return False
+                from llm_manager import manager
+                manager.shutdown()
+                assistant.reload_backend()
+                _on_whisper_model_change(config.MODEL_SIZE)
+            settings_model.reload()
+            setup_win.hide()
+            return True
+        finally:
+            _setup_applying.clear()
+
+    def _rollback_setup(initial):
+        try:
+            _load_settings()
+            tts.init()
+            if not initial:
+                _restart_hotkeys()
+                assistant.reload_backend()
+        finally:
+            settings_model.reload()
+
+    def _setup_cancelled(initial):
+        setup_win.hide()
+        if initial:
+            _quit()
+        else:
+            settings_win.show()
+
+    setup_model.set_activation_callbacks(_activate_setup, _rollback_setup)
+    setup_model.cancelled.connect(_setup_cancelled)
+    if not first_run:
+        if not _start_runtime():
+            return 1
 
     def _signal_handler(sig, frame):
         log.info("Signal %s received — shutting down cleanly.", sig)
@@ -617,10 +676,10 @@ def main():
 
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
-
-    log.info("Ready. %s", _build_tray_tip())
-    root.after(50, _pump_qt)
-    root.mainloop()
+    try:
+        return root.exec()
+    finally:
+        dispose_engine(engine)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,15 @@ def test_needs_first_run_has_model_no_flag():
         assert setup_utils.needs_first_run() is False
 
 
+def test_needs_first_run_preserves_legacy_ollama_install():
+    with patch.object(setup_utils.db, "get_setting",
+                      side_effect=lambda key, default="": {
+                          "llm_provider": "ollama_local",
+                          "ollama_model": "qwen3.5:latest",
+                      }.get(key, default)):
+        assert setup_utils.needs_first_run() is False
+
+
 def test_find_terminal_returns_none_when_nothing_found():
     with patch("setup_utils.shutil.which", return_value=None):
         assert setup_utils.find_terminal() is None
