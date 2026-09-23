@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unittest.mock import MagicMock, patch
 import setup_utils
+from transcriber import ModelUnavailable
 
 
 def _make_mock_db(setup_complete="", llama_model=""):
@@ -55,6 +56,15 @@ def test_existing_assets_need_no_repair(tmp_path):
                           "llama_model": str(model), "llama_server_bin": str(binary),
                       }.get(key, default)):
         assert setup_utils.needs_asset_repair() is False
+
+
+def test_missing_saved_speech_model_needs_repair():
+    with patch.object(setup_utils.db, "get_setting",
+                      side_effect=lambda key, default="": {
+                          "llm_provider": "ollama_local", "whisper_model": "medium",
+                      }.get(key, default)), \
+         patch("transcriber.model_path", side_effect=ModelUnavailable):
+        assert setup_utils.needs_asset_repair() is True
 
 
 def test_needs_first_run_preserves_legacy_ollama_install():

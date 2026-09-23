@@ -331,6 +331,7 @@ class SetupModel(QObject):
     @Slot(str)
     def _set_progress(self, message):
         key = {"binary": "setup_progress_binary", "model": "setup_progress_model",
+               "speech": "setup_progress_speech",
                "voice fr": "setup_progress_voice_fr", "voice en": "setup_progress_voice_en"}.get(message)
         self._status = self._translator.text(key) if key else message
         self._download_done = 0

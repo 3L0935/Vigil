@@ -297,6 +297,13 @@ def prepare(draft: dict[str, str], cancelled, report, progress=None) -> dict[str
         raise ValueError("Unknown assistant provider")
     if cancelled.is_set():
         raise SetupCancelled()
+    speech_model = values.get("whisper_model", "")
+    if speech_model:
+        report("speech")
+        from transcriber import model_path
+        model_path(speech_model, download=True)
+        if cancelled.is_set():
+            raise SetupCancelled()
     if values.get("tts_mode") in ("tts", "both"):
         needed_lang = "fr" if values.get("language") == "fr" else "en"
         if not values.get("tts_voice_" + needed_lang):

@@ -22,12 +22,19 @@ def needs_first_run() -> bool:
 
 
 def needs_asset_repair() -> bool:
-    """Open setup over the running app when saved llama assets disappeared."""
-    if db.get_setting("llm_provider", "llama_cpp") != "llama_cpp":
-        return False
-    return any(path and not Path(path).expanduser().is_file() for path in (
-        db.get_setting("llama_model", ""), db.get_setting("llama_server_bin", ""),
-    ))
+    """Open setup when an asset selected by a completed setup is missing."""
+    speech_model = db.get_setting("whisper_model", "")
+    if speech_model:
+        from transcriber import ModelUnavailable, model_path
+        try:
+            model_path(speech_model)
+        except ModelUnavailable:
+            return True
+    if db.get_setting("llm_provider", "llama_cpp") == "llama_cpp":
+        return any(path and not Path(path).expanduser().is_file() for path in (
+            db.get_setting("llama_model", ""), db.get_setting("llama_server_bin", ""),
+        ))
+    return False
 
 
 def find_terminal() -> str | None:
