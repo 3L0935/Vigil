@@ -15,7 +15,7 @@ ApplicationWindow {
     color: themeModel.background
     background: Rectangle {
         gradient: Gradient {
-            GradientStop { position: 0; color: "#101c2a" }
+            GradientStop { position: 0; color: themeModel.backgroundTop }
             GradientStop { position: 1; color: themeModel.background }
         }
     }
@@ -202,6 +202,7 @@ ApplicationWindow {
     ScrollView {
         anchors.fill: parent
         clip: true
+        ScrollBar.vertical: ThemedScrollBar {}
         ColumnLayout {
             width: wizard.width - 48
             x: 24

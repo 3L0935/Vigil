@@ -27,9 +27,9 @@ Item {
     component FoldInput: TextField {
         implicitHeight: 34
         color: themeModel.text
-        placeholderTextColor: "#667085"
+        placeholderTextColor: themeModel.faint
         selectionColor: themeModel.line
-        selectedTextColor: "#ffffff"
+        selectedTextColor: themeModel.text
         font.pixelSize: 13
         leftPadding: 11
         rightPadding: 11
@@ -57,8 +57,7 @@ Item {
                     onClicked: picker.open()
                     background: Rectangle {
                         radius: 6
-                        color: /^#[0-9a-fA-F]{6}$/.test(root.currentValue)
-                               ? root.currentValue : themeModel.accentA
+                        color: root.backend.themePreviewColor(root.field.key, root.backend.revision)
                         border.width: 2
                         border.color: colorButton.activeFocus ? themeModel.text : themeModel.line
                     }
@@ -75,8 +74,7 @@ Item {
             ColorDialog {
                 id: picker
                 title: i18n.text(root.field.labelKey, i18n.revision)
-                selectedColor: /^#[0-9a-fA-F]{6}$/.test(root.currentValue)
-                               ? root.currentValue : themeModel.accentA
+                selectedColor: root.backend.themePreviewColor(root.field.key, root.backend.revision)
                 onAccepted: root.backend.setValue(root.field.key, selectedColor.toString())
             }
         }
@@ -181,7 +179,7 @@ Item {
             Slider {
                 id: slider
                 width: parent.width - 44
-                from: 0
+                from: root.field.key === "theme_glass_opacity" ? 0.25 : 0
                 to: 1
                 value: Number(root.currentValue)
                 onMoved: root.backend.setValue(root.field.key, value.toFixed(2))

@@ -94,6 +94,7 @@ Window {
                 clip: true
                 contentWidth: availableWidth
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: ThemedScrollBar {}
                 property bool followTail: true
                 property bool settingScroll: false
                 property bool layoutPending: false

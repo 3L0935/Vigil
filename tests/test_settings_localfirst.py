@@ -68,17 +68,27 @@ def test_theme_changes_apply_to_all_windows_only_after_save(model):
     theme = settings._theme
     settings.setValue("theme_accent_a", "#28cde0")
     settings.setValue("theme_accent_b", "#ed70de")
+    settings.setValue("theme_background", "#201b29")
+    settings.setValue("theme_surface", "#352b44")
+    settings.setValue("theme_text", "#f8ecff")
+    settings.setValue("theme_glass_opacity", "0.40")
     settings.setValue("theme_gradient", "false")
     settings.setValue("theme_reduced_motion", "true")
 
     assert theme.accentA == "#6aafbe"
+    assert theme.background == "#0a1019"
     assert settings.save()
+    assert theme.background == "#201b29"
+    assert theme.surface == "#352b44"
+    assert theme.text == "#f8ecff"
+    assert theme.glassOpacity == 0.4
     assert theme.accentA == "#28cde0"
     assert theme.accentB == "#ed70de"
     assert not theme.gradientEnabled
     assert theme.reducedMotion
     assert db.get_setting("theme_accent_a") == "#28cde0"
     assert db.get_setting("theme_gradient") == "false"
+    assert db.get_setting("theme_background") == "#201b29"
 
 
 def test_invalid_theme_color_cannot_be_saved(model):

@@ -12,8 +12,8 @@ Button {
 
     background: Rectangle {
         radius: 9
-        color: control.down ? "#80405b70"
-             : control.hovered || control.activeFocus ? "#50384f64" : "transparent"
+        color: control.down ? themeModel.raised
+             : control.hovered || control.activeFocus ? themeModel.glassTop : "transparent"
         border.width: 1
         border.color: control.activeFocus ? themeModel.accentReadable
                     : control.hovered ? themeModel.line : "transparent"

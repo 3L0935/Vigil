@@ -2,7 +2,9 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QObject, QTimer
+import pytest
+from PySide6.QtCore import QEventLoop, QObject, QPoint, QPointF, QTimer, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
@@ -11,6 +13,7 @@ from vigil_ui.i18n import TranslationBridge
 from vigil_ui.overlay import OverlayModel
 from vigil_ui.settings_model import SettingsModel
 from vigil_ui.setup_model import SetupModel
+from vigil_ui.theme import ThemeModel
 
 
 def test_translation_bridge_switches_language_and_notifies():
@@ -60,6 +63,63 @@ def test_fold_settings_qml_loads_offscreen():
 
     # Keep context properties alive until the engine is torn down.
     assert translator.language == "en"
+    dispose_engine(engine)
+
+
+def test_theme_draft_preview_and_saved_palette_update_windows():
+    app = QApplication.instance() or QApplication([])
+    translator = TranslationBridge("en")
+    settings = SettingsModel(translator)
+    theme = ThemeModel()
+    overlay = OverlayModel()
+    engine, _ = create_engine(app, visible=False, translator=translator,
+                              settings_model=settings, theme_model=theme,
+                              overlay_model=overlay,
+                              setup_model=SetupModel(translator, initial=True))
+    window, overlay_window, setup = engine.rootObjects()
+    preview = window.findChild(QObject, "themePreviewCard")
+    panel = window.findChild(QObject, "themePreviewPanel")
+    preview_glass = window.findChild(QObject, "themePreviewGlass")
+    settings.setValue("theme_background", "#f8f0e0")
+    settings.setValue("theme_surface", "#e8ddca")
+    settings.setValue("theme_glass_opacity", "0.40")
+    app.processEvents()
+    assert preview.property("color").name() == "#f8f0e0"
+    assert panel.property("color").name() == "#f8f0e0"
+    assert preview_glass.property("color").name() == "#e8ddca"
+    assert preview_glass.property("opacity") == 0.4
+    assert window.property("color").name() == "#0a1019"
+    theme.apply_values({"theme_background": "#f8f0e0", "theme_surface": "#e8ddca",
+                        "theme_glass_opacity": "0.35"})
+    app.processEvents()
+    assert window.property("color").name() == "#f8f0e0"
+    assert setup.property("color").name() == "#f8f0e0"
+    glass = overlay_window.findChild(QObject, "answerCard")
+    assert glass.property("color").alphaF() == pytest.approx(0.35, abs=0.01)
+    overlay.close()
+    dispose_engine(engine)
+
+
+def test_settings_wheel_moves_by_90_pixels_and_touchpad_keeps_pixel_delta():
+    app = QApplication.instance() or QApplication([])
+    engine, _ = create_engine(app, visible=True)
+    window = engine.rootObjects()[0]
+    flick = window.findChild(QObject, "settingsScroll").property("contentItem")
+    app.processEvents()
+
+    def wheel(pixel, angle):
+        event = QWheelEvent(QPointF(300, 300), QPointF(300, 300),
+                            QPoint(0, pixel), QPoint(0, angle), Qt.NoButton,
+                            Qt.NoModifier, Qt.ScrollUpdate, False)
+        app.sendEvent(window, event)
+        loop = QEventLoop()
+        QTimer.singleShot(100, loop.quit)
+        loop.exec()
+
+    wheel(0, -120)
+    assert flick.property("contentY") == 90
+    wheel(-18, 0)
+    assert flick.property("contentY") == 108
     dispose_engine(engine)
 
 
@@ -203,6 +263,8 @@ def test_streaming_timer_keeps_autoscroll_and_manual_position():
         loop.exec()
 
     run_timer(300)
+    app.processEvents()
+    app.processEvents()
     assert scroll.property("followTail")
     assert abs(flick.property("contentY") -
                (flick.property("contentHeight") - flick.height())) <= 1

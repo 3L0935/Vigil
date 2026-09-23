@@ -19,7 +19,7 @@ Rectangle {
     radius: 10
     clip: true
     gradient: Gradient {
-        GradientStop { position: 0; color: "#ee1d2b3c" }
+        GradientStop { position: 0; color: themeModel.foldTop }
         GradientStop { position: 1; color: themeModel.panelGlass }
     }
 
@@ -45,7 +45,7 @@ Rectangle {
         }
 
         background: Rectangle {
-            color: header.down ? "#1b2432" : (header.hovered ? themeModel.raised : "transparent")
+            color: header.down ? themeModel.control : (header.hovered ? themeModel.raised : "transparent")
             radius: 9
         }
 

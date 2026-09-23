@@ -94,8 +94,16 @@ FIELDS = (
     Field("overlay_answer_timeout", "overlay", "setting_answer_timeout", "choice", "8",
           ("5", "8", "10", "15", "20", "30")),
 
+    Field("theme_background", "theme", "theme_background", "color", "#0a1019"),
+    Field("theme_surface", "theme", "theme_surface", "color", "#151e2b"),
+    Field("theme_raised", "theme", "theme_raised", "color", "#1c2939"),
+    Field("theme_control", "theme", "theme_control", "color", "#111b29"),
+    Field("theme_text", "theme", "theme_text", "color", "#edf4fb"),
+    Field("theme_muted", "theme", "theme_muted", "color", "#a1b2c4"),
+    Field("theme_line", "theme", "theme_line", "color", "#34485b"),
     Field("theme_accent_a", "theme", "theme_accent_a", "color", "#6aafbe"),
     Field("theme_accent_b", "theme", "theme_accent_b", "color", "#a78bfa"),
+    Field("theme_glass_opacity", "theme", "theme_glass_opacity", "slider", "0.53"),
     Field("theme_gradient", "theme", "theme_gradient", "toggle", "true"),
     Field("theme_reduced_motion", "theme", "theme_reduced_motion", "toggle", "false"),
 

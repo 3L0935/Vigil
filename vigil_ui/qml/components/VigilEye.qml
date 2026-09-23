@@ -20,7 +20,7 @@ Item {
 
         Rectangle {
             x: 1; y: 1; width: 38; height: 38; radius: 19
-            color: "#b008131e"
+            color: themeModel.glass
             border.width: 1.5
             border.color: eye.reactiveRing && eye.contextActive
                           ? eye.irisColor : eye.frameColor
@@ -31,7 +31,7 @@ Item {
             ShapePath {
                 strokeColor: eye.frameColor
                 strokeWidth: 1.2
-                fillColor: "#4a173343"
+                fillColor: themeModel.glassTop
                 startX: 0; startY: 11
                 PathCubic { x: 32; y: 11; control1X: 0; control1Y: 0; control2X: 32; control2Y: 0 }
                 PathCubic { x: 0; y: 11; control1X: 32; control1Y: 22; control2X: 0; control2Y: 22 }
@@ -54,7 +54,7 @@ Item {
         Rectangle {
             id: iris
             x: 12; y: 12; width: 16; height: 16; radius: 8
-            color: "#081723"
+            color: themeModel.background
             border.width: 2.3
             border.color: eye.irisColor
             transformOrigin: Item.Center

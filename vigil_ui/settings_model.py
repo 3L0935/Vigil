@@ -80,7 +80,7 @@ class SettingsModel(QObject):
 
     @Slot(str, int, result=str)
     def themePreviewColor(self, key, _revision=0):
-        if key not in ("theme_accent_a", "theme_accent_b"):
+        if key not in DEFAULTS or not BY_KEY.get(key) or BY_KEY[key].kind != "color":
             return DEFAULTS["theme_accent_a"]
         try:
             return validated_theme({key: self.value(key)})[key]

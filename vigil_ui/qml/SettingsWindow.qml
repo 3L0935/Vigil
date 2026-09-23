@@ -15,7 +15,7 @@ ApplicationWindow {
     color: themeModel.background
     background: Rectangle {
         gradient: Gradient {
-            GradientStop { position: 0; color: "#101c2a" }
+            GradientStop { position: 0; color: themeModel.backgroundTop }
             GradientStop { position: 1; color: themeModel.background }
         }
     }
@@ -138,7 +138,20 @@ ApplicationWindow {
         contentWidth: availableWidth
         contentHeight: groups.implicitHeight + 36
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ScrollBar.vertical: ThemedScrollBar {}
+        WheelHandler {
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+                var flick = scroll.contentItem
+                var delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y
+                    : event.angleDelta.y * 0.75
+                if (event.inverted) delta = -delta
+                flick.contentY = Math.max(0, Math.min(
+                    flick.contentHeight - flick.height, flick.contentY - delta))
+                event.accepted = true
+            }
+        }
 
         ColumnLayout {
             id: groups
@@ -193,17 +206,83 @@ ApplicationWindow {
                         font.pixelSize: 11
                     }
                     Rectangle {
+                        id: themeSample
+                        objectName: "themePreviewCard"
                         Layout.fillWidth: true
-                        height: 38
+                        height: 112
                         radius: 9
                         border.width: 1
-                        border.color: themeModel.line
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0; color: window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
-                            GradientStop { position: 1; color: window.settingsBackend.value("theme_gradient", window.settingsBackend.revision) === "true"
-                                ? window.settingsBackend.themePreviewColor("theme_accent_b", window.settingsBackend.revision)
-                                : window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                        border.color: window.settingsBackend.themePreviewColor("theme_line", window.settingsBackend.revision)
+                        color: window.settingsBackend.themePreviewColor("theme_background", window.settingsBackend.revision)
+                        Rectangle {
+                            objectName: "themePreviewPanel"
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            radius: 8
+                            color: themeSample.color
+                            border.color: themeSample.border.color
+                            Rectangle {
+                                objectName: "themePreviewGlass"
+                                anchors.fill: parent
+                                anchors.margins: 1
+                                radius: 7
+                                color: window.settingsBackend.themePreviewColor("theme_surface", window.settingsBackend.revision)
+                                opacity: Number(window.settingsBackend.value("theme_glass_opacity", window.settingsBackend.revision))
+                            }
+                            Rectangle {
+                                x: 12; y: 10; width: 34; height: 4; radius: 2
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0; color: window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                                    GradientStop { position: 1; color: window.settingsBackend.value("theme_gradient", window.settingsBackend.revision) === "true"
+                                        ? window.settingsBackend.themePreviewColor("theme_accent_b", window.settingsBackend.revision)
+                                        : window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                                }
+                            }
+                            Text {
+                                x: 12; y: 20
+                                text: "VIGIL"
+                                color: window.settingsBackend.themePreviewColor("theme_text", window.settingsBackend.revision)
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                x: 12; y: 44
+                                text: i18n.text("theme_preview", i18n.revision)
+                                color: window.settingsBackend.themePreviewColor("theme_muted", window.settingsBackend.revision)
+                                font.pixelSize: 11
+                            }
+                            Rectangle {
+                                x: 105; y: 22; width: 75; height: 32; radius: 6
+                                color: window.settingsBackend.themePreviewColor("theme_control", window.settingsBackend.revision)
+                                border.color: themeSample.border.color
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "Aa"
+                                    color: window.settingsBackend.themePreviewColor("theme_muted", window.settingsBackend.revision)
+                                    font.pixelSize: 12
+                                }
+                            }
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.rightMargin: 12
+                                y: 22; width: 75; height: 32; radius: 6
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0; color: window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                                    GradientStop { position: 1; color: window.settingsBackend.value("theme_gradient", window.settingsBackend.revision) === "true"
+                                        ? window.settingsBackend.themePreviewColor("theme_accent_b", window.settingsBackend.revision)
+                                        : window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                                }
+                                border.color: themeSample.border.color
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "Aa"
+                                    color: window.settingsBackend.themePreviewColor("theme_background", window.settingsBackend.revision)
+                                    font.pixelSize: 12
+                                    font.weight: Font.DemiBold
+                                }
+                            }
                         }
                     }
                 }
