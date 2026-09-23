@@ -12,6 +12,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 from .i18n import TranslationBridge
 from .settings_model import SettingsModel
+from .theme import ThemeModel
 
 _QML_DIR = Path(__file__).with_name("qml")
 _STYLE_SET = False
@@ -24,6 +25,7 @@ def create_engine(
     visible: bool = True,
     translator: TranslationBridge | None = None,
     settings_model: SettingsModel | None = None,
+    theme_model: ThemeModel | None = None,
     overlay_model=None,
     setup_model=None,
 ) -> tuple[QQmlApplicationEngine, TranslationBridge]:
@@ -39,12 +41,14 @@ def create_engine(
     engine = QQmlApplicationEngine(app)
     translator = translator or TranslationBridge(language)
     settings_model = settings_model or SettingsModel(translator)
+    theme_model = theme_model or ThemeModel()
     # Python owns these context objects until all QML roots are destroyed.
     # Parenting them to the engine destroys them before binding teardown.
-    engine._vigil_context_objects = (translator, settings_model, overlay_model, setup_model)
+    engine._vigil_context_objects = (translator, settings_model, theme_model, overlay_model, setup_model)
     context = engine.rootContext()
     context.setContextProperty("i18n", translator)
     context.setContextProperty("settingsModel", settings_model)
+    context.setContextProperty("themeModel", theme_model)
     if overlay_model is not None:
         context.setContextProperty("overlayModel", overlay_model)
     if setup_model is not None:

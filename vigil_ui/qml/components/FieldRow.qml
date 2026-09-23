@@ -21,7 +21,7 @@ Item {
 
             Text {
                 text: root.label
-                color: "#e1e5ed"
+                color: themeModel.text
                 font.pixelSize: 14
                 font.weight: Font.Medium
                 wrapMode: Text.WordWrap
@@ -31,7 +31,7 @@ Item {
             Text {
                 visible: root.description.length > 0
                 text: root.description
-                color: "#788397"
+                color: themeModel.faint
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true

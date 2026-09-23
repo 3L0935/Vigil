@@ -25,6 +25,7 @@ GROUPS = (
     ("dictation", "setting_dictation"),
     ("privacy", "setting_privacy"),
     ("overlay", "group_overlay"),
+    ("theme", "group_theme"),
     ("speech", "group_speech_output"),
     ("maintenance", "group_maintenance"),
 )
@@ -90,6 +91,11 @@ FIELDS = (
     Field("overlay_screen", "overlay", "setting_overlay_screen", "choice", "auto"),
     Field("overlay_answer_timeout", "overlay", "setting_answer_timeout", "choice", "8",
           ("5", "8", "10", "15", "20", "30")),
+
+    Field("theme_accent_a", "theme", "theme_accent_a", "color", "#6aafbe"),
+    Field("theme_accent_b", "theme", "theme_accent_b", "color", "#a78bfa"),
+    Field("theme_gradient", "theme", "theme_gradient", "toggle", "true"),
+    Field("theme_reduced_motion", "theme", "theme_reduced_motion", "toggle", "false"),
 
     Field("tts_mode", "speech", "setting_tts_mode", "choice", "overlay",
           ("off", "overlay", "tts", "both")),

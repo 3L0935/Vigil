@@ -13,11 +13,15 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: header.height + bodyFrame.height
-    color: "#0e131d"
-    border.color: expanded ? "#344054" : "#27303e"
+    color: themeModel.surface
+    border.color: expanded ? themeModel.accentA : themeModel.line
     border.width: 1
     radius: 10
     clip: true
+    gradient: Gradient {
+        GradientStop { position: 0; color: "#ee1d2b3c" }
+        GradientStop { position: 1; color: themeModel.panelGlass }
+    }
 
     Behavior on border.color {
         ColorAnimation { duration: root.reducedMotion ? 0 : 140 }
@@ -41,7 +45,7 @@ Rectangle {
         }
 
         background: Rectangle {
-            color: header.down ? "#1b2432" : (header.hovered ? "#151c28" : "transparent")
+            color: header.down ? "#1b2432" : (header.hovered ? themeModel.raised : "transparent")
             radius: 9
         }
 
@@ -49,7 +53,7 @@ Rectangle {
             spacing: 10
             Text {
                 text: root.title
-                color: "#e1e5ed"
+                color: themeModel.text
                 font.pixelSize: 14
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
@@ -57,12 +61,12 @@ Rectangle {
             Text {
                 visible: root.hint.length > 0
                 text: root.hint
-                color: "#788397"
+                color: themeModel.faint
                 font.pixelSize: 11
             }
             Text {
                 text: root.expanded ? "−" : "+"
-                color: "#b9c1cf"
+                color: themeModel.text
                 font.pixelSize: 19
                 horizontalAlignment: Text.AlignHCenter
                 Layout.preferredWidth: 18
@@ -75,7 +79,7 @@ Rectangle {
         anchors.top: header.bottom
         width: parent.width
         height: root.expanded ? 1 : 0
-        color: "#27303e"
+        color: themeModel.line
     }
 
     Item {

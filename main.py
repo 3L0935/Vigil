@@ -43,6 +43,7 @@ import setup_utils
 from vigil_ui.app import create_engine, dispose_engine
 from vigil_ui.i18n import TranslationBridge
 from vigil_ui.live_settings import LiveSettingsModel
+from vigil_ui.theme import ThemeModel, DEFAULTS as THEME_DEFAULTS
 from vigil_ui.overlay import OverlayModel
 from vigil_ui.setup_model import SetupModel
 
@@ -530,6 +531,8 @@ def main():
     root.setApplicationName("Vigil")
     root.setQuitOnLastWindowClosed(False)
     translator = TranslationBridge(config.LANGUAGE)
+    theme = ThemeModel({key: db.get_setting(key, default)
+                        for key, default in THEME_DEFAULTS.items()})
     widget = OverlayModel()
     widget.set_close_callback(assistant.reset_context)
 
@@ -548,11 +551,13 @@ def main():
         on_hotkey_change=_restart_hotkeys,
         on_language_change=_refresh_tray_labels,
         on_redo_setup=_redo_setup,
+        theme_model=theme,
     )
     setup_model = SetupModel(translator, initial=first_run)
     engine, translator = create_engine(
         root, language=config.LANGUAGE, visible=False, translator=translator,
-        settings_model=settings_model, overlay_model=widget, setup_model=setup_model,
+        settings_model=settings_model, theme_model=theme,
+        overlay_model=widget, setup_model=setup_model,
     )
     if len(engine.rootObjects()) != 3:
         log.error("Fold UI failed to load")

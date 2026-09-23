@@ -56,6 +56,41 @@ def test_invalid_vocabulary_prevents_batch_save(model):
     assert db.get_setting("local_only", "true") == "true"
 
 
+def test_theme_changes_apply_to_all_windows_only_after_save(model):
+    settings, _ = model
+    theme = settings._theme
+    settings.setValue("theme_accent_a", "#28cde0")
+    settings.setValue("theme_accent_b", "#ed70de")
+    settings.setValue("theme_gradient", "false")
+    settings.setValue("theme_reduced_motion", "true")
+
+    assert theme.accentA == "#6aafbe"
+    assert settings.save()
+    assert theme.accentA == "#28cde0"
+    assert theme.accentB == "#ed70de"
+    assert not theme.gradientEnabled
+    assert theme.reducedMotion
+    assert db.get_setting("theme_accent_a") == "#28cde0"
+    assert db.get_setting("theme_gradient") == "false"
+
+
+def test_invalid_theme_color_cannot_be_saved(model):
+    settings, _ = model
+    settings.setValue("theme_accent_a", "not-a-color")
+    assert settings.themePreviewColor("theme_accent_a") == "#6aafbe"
+    assert not settings.save()
+    assert db.get_setting("theme_accent_a", "") == ""
+
+
+def test_failed_settings_activation_keeps_previous_theme(model):
+    settings, _ = model
+    settings._on_hotkey_change = Mock(return_value=False)
+    settings.setValue("theme_accent_a", "#ff6633")
+    assert not settings.save()
+    assert settings._theme.accentA == "#6aafbe"
+    assert db.get_setting("theme_accent_a", "") == ""
+
+
 def test_download_is_an_explicit_action(model):
     settings, callback = model
     settings.setValue("whisper_model", "small")

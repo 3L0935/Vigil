@@ -3,6 +3,7 @@
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from .settings_schema import BY_KEY, FIELDS, IMMEDIATE_KEYS
+from .theme import DEFAULTS, validated_theme
 
 
 class SettingsModel(QObject):
@@ -77,6 +78,15 @@ class SettingsModel(QObject):
     def value(self, key, _revision=0):
         return str(self._values.get(key, ""))
 
+    @Slot(str, int, result=str)
+    def themePreviewColor(self, key, _revision=0):
+        if key not in ("theme_accent_a", "theme_accent_b"):
+            return DEFAULTS["theme_accent_a"]
+        try:
+            return validated_theme({key: self.value(key)})[key]
+        except ValueError:
+            return DEFAULTS[key]
+
     @Slot(str, str)
     def setValue(self, key, value):
         if key not in BY_KEY or BY_KEY[key].kind == "action":
@@ -141,6 +151,11 @@ class SettingsModel(QObject):
     @Slot(str)
     def action(self, key):
         """Fixtures deliberately do not run downloads or system actions."""
+
+    @Slot()
+    def resetTheme(self):
+        for key, value in DEFAULTS.items():
+            self.setValue(key, value)
 
     @Slot()
     def invalidateRequests(self):

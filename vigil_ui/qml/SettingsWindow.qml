@@ -12,8 +12,14 @@ ApplicationWindow {
     minimumHeight: 520
     visible: startVisible
     title: i18n.text("settings_title", i18n.revision) + " — Vigil"
-    color: "#080b11"
-    property bool reducedMotion: false
+    color: themeModel.background
+    background: Rectangle {
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#101c2a" }
+            GradientStop { position: 1; color: themeModel.background }
+        }
+    }
+    property bool reducedMotion: themeModel.reducedMotion
     property var settingsBackend: settingsModel
     Component.onCompleted: settingsBackend = settingsModel
     property bool previewMode: window.settingsBackend.preview
@@ -37,8 +43,18 @@ ApplicationWindow {
 
     header: Rectangle {
         implicitHeight: 76
-        color: "#0e131d"
-        border.color: "#1f2835"
+        color: themeModel.panelGlass
+        border.color: themeModel.line
+        Rectangle {
+            anchors.top: parent.top
+            width: parent.width
+            height: 2
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: themeModel.accentA }
+                GradientStop { position: 1; color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentA }
+            }
+        }
         ColumnLayout {
             anchors.fill: parent
             anchors.leftMargin: 23
@@ -47,13 +63,13 @@ ApplicationWindow {
             Item { Layout.fillHeight: true }
             Text {
                 text: i18n.text("settings_title", i18n.revision)
-                color: "#e1e5ed"
+                color: themeModel.text
                 font.pixelSize: 22
                 font.weight: Font.DemiBold
             }
             Text {
                 text: i18n.text("settings_intro", i18n.revision)
-                color: "#9ca6b7"
+                color: themeModel.muted
                 font.pixelSize: 12
             }
             Item { Layout.fillHeight: true }
@@ -62,9 +78,9 @@ ApplicationWindow {
 
     footer: Rectangle {
         implicitHeight: 62
-        color: "#0e131d"
-        border.color: "#1f2835"
-        ProgressBar {
+        color: themeModel.panelGlass
+        border.color: themeModel.line
+        AccentProgressBar {
             id: settingsDownloadBar
             objectName: "settingsDownloadProgress"
             anchors.left: parent.left
@@ -81,7 +97,7 @@ ApplicationWindow {
             Text {
                 text: window.settingsBackend.status.length ? window.settingsBackend.status
                     : (window.previewMode ? i18n.text("ui_preview", i18n.revision) : "")
-                color: "#9ca6b7"
+                color: themeModel.muted
                 font.pixelSize: 12
                 elide: Text.ElideRight
                 Layout.fillWidth: true
@@ -95,14 +111,15 @@ ApplicationWindow {
                 enabled: !window.previewMode
                 onClicked: window.settingsBackend.save()
                 background: Rectangle {
-                    color: !saveButton.enabled ? "#838c9d"
-                        : (saveButton.down ? "#aeb5c4" : (saveButton.hovered ? "#d5d9e2" : "#c6cbd8"))
+                    color: !saveButton.enabled ? themeModel.faint
+                        : (saveButton.down ? themeModel.accentA : themeModel.accentReadable)
                     radius: 7
+                    border.color: saveButton.activeFocus ? themeModel.text : themeModel.accentA
                 }
                 contentItem: Text {
                     id: saveButtonText
                     text: saveButton.text
-                    color: "#11151c"
+                    color: themeModel.background
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
@@ -161,6 +178,51 @@ ApplicationWindow {
                 title: i18n.text("group_overlay", i18n.revision)
                 reducedMotion: window.reducedMotion
                 SettingsRows { groupKey: "overlay" }
+            }
+            FoldGroup {
+                objectName: "themeGroup"
+                title: i18n.text("group_theme", i18n.revision)
+                reducedMotion: window.reducedMotion
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 7
+                    Text {
+                        text: i18n.text("theme_preview", i18n.revision)
+                        color: themeModel.muted
+                        font.pixelSize: 11
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 38
+                        radius: 9
+                        border.width: 1
+                        border.color: themeModel.line
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0; color: window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                            GradientStop { position: 1; color: window.settingsBackend.value("theme_gradient", window.settingsBackend.revision) === "true"
+                                ? window.settingsBackend.themePreviewColor("theme_accent_b", window.settingsBackend.revision)
+                                : window.settingsBackend.themePreviewColor("theme_accent_a", window.settingsBackend.revision) }
+                        }
+                    }
+                }
+                SettingsRows { groupKey: "theme" }
+                Button {
+                    text: i18n.text("theme_reset", i18n.revision)
+                    onClicked: window.settingsBackend.resetTheme()
+                    background: Rectangle {
+                        radius: 7
+                        color: parent.hovered ? themeModel.raised : themeModel.control
+                        border.color: themeModel.line
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: themeModel.text
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
             }
             FoldGroup {
                 objectName: "speechOutputGroup"

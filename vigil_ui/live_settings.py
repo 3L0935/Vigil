@@ -16,6 +16,7 @@ from logger import configure_content_logging, log, purge_logs
 
 from .settings_model import SettingsModel
 from .settings_schema import EDITABLE_KEYS, FIELDS
+from .theme import DEFAULTS as THEME_DEFAULTS, ThemeModel, validated_theme
 from .assets import download_voice, is_loopback_url, url_is_valid as _url_is_valid
 
 
@@ -49,7 +50,7 @@ class LiveSettingsModel(SettingsModel):
 
     def __init__(self, translator, *, on_whisper_change=None,
                  on_hotkey_change=None, on_language_change=None,
-                 on_redo_setup=None, parent=None):
+                 on_redo_setup=None, theme_model=None, parent=None):
         defaults = {field.key: field.default for field in FIELDS if field.key in EDITABLE_KEYS}
         values = {key: db.get_setting(_DB_ALIASES.get(key, key), default)
                   for key, default in defaults.items()}
@@ -61,6 +62,8 @@ class LiveSettingsModel(SettingsModel):
         self._on_hotkey_change = on_hotkey_change
         self._on_language_change = on_language_change
         self._on_redo_setup = on_redo_setup
+        self._theme = theme_model or ThemeModel()
+        self._theme.changed.connect(self._restyle_voice_dialogs)
         self._request_id = 0
         self._voice_dialogs = {}
         self._voice_generation = {"fr": 0, "en": 0}
@@ -83,6 +86,10 @@ class LiveSettingsModel(SettingsModel):
                 self._values[field.key] = db.get_setting(field.key, field.default)
         self._revision += 1
         self.valuesChanged.emit()
+        try:
+            self._theme.apply_values(self._values)
+        except ValueError:
+            self._theme.apply_values(THEME_DEFAULTS)
         self.refresh_voices()
 
     def apply_immediate(self, key, value):
@@ -167,6 +174,7 @@ class LiveSettingsModel(SettingsModel):
             if not 0 <= volume <= 1:
                 raise ValueError
             int(values["overlay_answer_timeout"])
+            values.update(validated_theme(values))
         except ValueError:
             self.set_status(self._text("setting_invalid_value"))
             return False
@@ -212,6 +220,7 @@ class LiveSettingsModel(SettingsModel):
             self.set_status(self._text("setting_save_failed"))
             return False
         self.set_status(self._text("setting_saved"))
+        self._theme.apply_values(values)
         return True
 
     @Slot(str)
@@ -306,17 +315,7 @@ class LiveSettingsModel(SettingsModel):
         dialog = QDialog()
         dialog.setWindowTitle(self._text("setting_voices_title") + " (" + lang.upper() + ")")
         dialog.resize(500, 420)
-        dialog.setStyleSheet("""
-            QDialog { background: #0e131d; color: #e1e5ed; }
-            QLabel { color: #9ca6b7; }
-            QListWidget { background: #111823; color: #e1e5ed;
-                          border: 1px solid #27303e; border-radius: 6px; }
-            QListWidget::item:selected { background: #354357; }
-            QPushButton { background: #192231; color: #e1e5ed;
-                          border: 1px solid #354357; border-radius: 6px;
-                          min-height: 32px; }
-            QPushButton:hover { background: #263141; }
-        """)
+        dialog.setStyleSheet(self._voice_dialog_style())
         layout = QVBoxLayout(dialog)
         status = QLabel(self._text("setting_loading"))
         names = QListWidget()
@@ -345,6 +344,30 @@ class LiveSettingsModel(SettingsModel):
             self._voicesReady.emit(lang, generation, voices, error)
 
         threading.Thread(target=fetch, daemon=True, name="vigil-voice-catalog").start()
+
+    def _voice_dialog_style(self):
+        theme = self._theme
+        accent_b = theme.accentB if theme.gradientEnabled else theme.accentA
+        return f"""
+            QDialog {{ background: {theme.surface}; color: {theme.text}; }}
+            QLabel {{ color: {theme.muted}; }}
+            QListWidget {{ background: {theme.control}; color: {theme.text};
+                           border: 1px solid {theme.line}; border-radius: 7px; }}
+            QListWidget::item:selected {{ background: {theme.raised}; color: {theme.text}; }}
+            QPushButton {{ background: {theme.raised}; color: {theme.text};
+                           border: 1px solid {theme.line}; border-radius: 7px;
+                           min-height: 32px; }}
+            QPushButton:hover {{ border-color: {theme.accentA}; }}
+            QProgressBar {{ background: {theme.control}; color: {theme.text};
+                            border: 1px solid {theme.line}; border-radius: 5px; }}
+            QProgressBar::chunk {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                  stop:0 {theme.accentA}, stop:1 {accent_b}); }}
+        """
+
+    def _restyle_voice_dialogs(self):
+        style = self._voice_dialog_style()
+        for dialog, *_ in self._voice_dialogs.values():
+            dialog.setStyleSheet(style)
 
     @Slot(str, int, object, str)
     def _receive_voices(self, lang, generation, voices, error):

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "components"
 
 ApplicationWindow {
     id: wizard
@@ -11,7 +12,13 @@ ApplicationWindow {
     minimumHeight: 540
     visible: setupVisible
     title: i18n.text("setup_title", i18n.revision) + " — Vigil"
-    color: "#080b11"
+    color: themeModel.background
+    background: Rectangle {
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#101c2a" }
+            GradientStop { position: 1; color: themeModel.background }
+        }
+    }
     property var backend: setupModel
     Component.onCompleted: backend = setupModel
     onClosing: function(close) { close.accepted = false; wizard.backend.cancel() }
@@ -20,10 +27,10 @@ ApplicationWindow {
         property string settingKey: ""
         implicitHeight: 36
         text: wizard.backend.value(settingKey)
-        color: "#e1e5ed"
+        color: themeModel.text
         font.pixelSize: 13
         onEditingFinished: wizard.backend.setValue(settingKey, text)
-        background: Rectangle { color: "#111823"; border.color: parent.activeFocus ? "#687386" : "#27303e"; radius: 6 }
+        background: Rectangle { color: themeModel.control; border.color: parent.activeFocus ? themeModel.accentReadable : themeModel.line; radius: 6 }
     }
     component WizardChoice: ComboBox {
         id: control
@@ -45,12 +52,12 @@ ApplicationWindow {
             highlighted: control.highlightedIndex === index
             contentItem: Text {
                 text: option.text
-                color: "#e1e5ed"
+                color: themeModel.text
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 leftPadding: 8
             }
-            background: Rectangle { color: option.highlighted ? "#263141" : "#111823"; radius: 4 }
+            background: Rectangle { color: option.highlighted ? themeModel.raised : themeModel.control; radius: 4 }
         }
         popup: Popup {
             y: control.height - 1
@@ -64,19 +71,19 @@ ApplicationWindow {
                 currentIndex: control.highlightedIndex
                 ScrollIndicator.vertical: ScrollIndicator {}
             }
-            background: Rectangle { color: "#111823"; border.color: "#354357"; radius: 6 }
+            background: Rectangle { color: themeModel.control; border.color: themeModel.line; radius: 6 }
         }
         contentItem: Text {
             text: control.displayText
-            color: "#e1e5ed"
+            color: themeModel.text
             font.pixelSize: 13
             verticalAlignment: Text.AlignVCenter
             leftPadding: 10
         }
-        background: Rectangle { color: "#111823"; border.color: control.activeFocus ? "#687386" : "#27303e"; radius: 6 }
+        background: Rectangle { color: themeModel.control; border.color: control.activeFocus ? themeModel.accentReadable : themeModel.line; radius: 6 }
     }
     component WizardLabel: Text {
-        color: "#aeb8c8"
+        color: themeModel.muted
         font.pixelSize: 13
         wrapMode: Text.WordWrap
         Layout.fillWidth: true
@@ -87,15 +94,15 @@ ApplicationWindow {
         leftPadding: 14
         rightPadding: 14
         background: Rectangle {
-            color: !parent.enabled ? "#27303e" : parent.primary
-                ? (parent.down ? "#aeb5c4" : "#c6cbd8")
-                : (parent.down ? "#263141" : "#192231")
-            border.color: parent.primary ? "transparent" : "#354357"
+            color: !parent.enabled ? themeModel.line : parent.primary
+                ? (parent.down ? themeModel.accentA : themeModel.accentReadable)
+                : (parent.down ? themeModel.control : themeModel.raised)
+            border.color: parent.primary ? "transparent" : themeModel.line
             radius: 7
         }
         contentItem: Text {
             text: parent.text
-            color: !parent.enabled ? "#8791a0" : parent.primary ? "#11151c" : "#e1e5ed"
+            color: !parent.enabled ? themeModel.faint : parent.primary ? themeModel.background : themeModel.text
             font.pixelSize: 13
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
@@ -112,20 +119,20 @@ ApplicationWindow {
             x: control.leftPadding
             y: (control.height - height) / 2
             radius: 4
-            color: control.checked ? "#c6cbd8" : "#111823"
-            border.color: control.checked ? "#c6cbd8" : "#596579"
+            color: control.checked ? themeModel.accentReadable : themeModel.control
+            border.color: control.checked ? themeModel.accentReadable : themeModel.line
             Text {
                 anchors.centerIn: parent
                 text: "✓"
                 visible: control.checked
-                color: "#11151c"
+                color: themeModel.background
                 font.pixelSize: 14
                 font.weight: Font.Bold
             }
         }
         contentItem: Text {
             text: control.text
-            color: control.enabled ? "#d3dae5" : "#8791a0"
+            color: control.enabled ? themeModel.text : themeModel.faint
             font.pixelSize: 13
             verticalAlignment: Text.AlignVCenter
             leftPadding: control.indicator.width + control.spacing
@@ -135,22 +142,32 @@ ApplicationWindow {
 
     header: Rectangle {
         height: 90
-        color: "#0e131d"
-        border.color: "#27303e"
+        color: themeModel.panelGlass
+        border.color: themeModel.line
+        Rectangle {
+            anchors.top: parent.top
+            width: parent.width
+            height: 2
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: themeModel.accentA }
+                GradientStop { position: 1; color: themeModel.gradientEnabled ? themeModel.accentB : themeModel.accentA }
+            }
+        }
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 22
             spacing: 3
             Text {
                 text: i18n.text("setup_title", i18n.revision)
-                color: "#e1e5ed"
+                color: themeModel.text
                 font.pixelSize: 22
                 font.weight: Font.DemiBold
             }
             Text {
                 text: i18n.text(["setup_welcome", "setup_engine", "setup_model", "setup_dictation",
                     "setup_voice", "setup_shortcuts", "setup_review", "setup_ready"][wizard.backend.page], i18n.revision)
-                color: "#9ca6b7"
+                color: themeModel.muted
                 font.pixelSize: 13
             }
         }
@@ -158,8 +175,8 @@ ApplicationWindow {
 
     footer: Rectangle {
         height: 66
-        color: "#0e131d"
-        border.color: "#27303e"
+        color: themeModel.panelGlass
+        border.color: themeModel.line
         RowLayout {
             anchors.fill: parent
             anchors.margins: 18
@@ -365,7 +382,7 @@ ApplicationWindow {
                 WizardLabel { text: i18n.text("setting_llm_model", i18n.revision) + ": " + (wizard.backend.value("llm_provider") === "llama_cpp" ? (wizard.backend.value("use_existing_model") === "true" ? wizard.backend.value("llama_model") : wizard.backend.value("llama_catalog_model")) : wizard.backend.value("ollama_model")) }
                 WizardLabel { text: i18n.text("setting_whisper_model", i18n.revision) + ": " + wizard.backend.value("whisper_model") }
                 WizardLabel { text: i18n.text("setting_tts_mode", i18n.revision) + ": " + wizard.backend.value("tts_mode") }
-                ProgressBar {
+                AccentProgressBar {
                     id: downloadBar
                     objectName: "setupDownloadProgress"
                     visible: wizard.backend.busy
