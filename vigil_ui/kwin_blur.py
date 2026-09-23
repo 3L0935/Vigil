@@ -40,6 +40,8 @@ def request_kwin_blur(window):
     scale = window.devicePixelRatio()
     rectangles = []
     for name in ("answerCard", "statusPill"):
+        if name == "statusPill" and not window.property("pillVisible"):
+            continue
         item = window.findChild(QObject, name)
         if item is None:
             return False

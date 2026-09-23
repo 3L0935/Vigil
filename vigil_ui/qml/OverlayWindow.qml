@@ -7,12 +7,13 @@ Window {
     id: overlay
     objectName: "overlayWindow"
     width: 420
-    height: backend.hasAnswer ? 250 : 54
+    height: backend.hasAnswer ? (pillVisible ? 250 : 188) : 54
     visible: false
     color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
     title: "Vigil"
     property var backend: overlayModel
+    property bool pillVisible: !backend.hasAnswer || backend.mode !== "answer"
     property color contextEyeColor: {
         var active = backend.mode === "recording" || backend.mode === "assistant"
         if (active) return themeModel.accentReadable
@@ -26,7 +27,10 @@ Window {
     }
     Component.onCompleted: backend = overlayModel
     onVisibleChanged: {
-        if (visible && !themeModel.reducedMotion) pillAppear.restart()
+        if (visible && pillVisible && !themeModel.reducedMotion) pillAppear.restart()
+    }
+    onPillVisibleChanged: {
+        if (visible && pillVisible && !themeModel.reducedMotion) pillAppear.restart()
     }
 
     GlassSurface {
@@ -156,6 +160,7 @@ Window {
     GlassSurface {
         id: pill
         objectName: "statusPill"
+        visible: overlay.pillVisible
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         width: 252
@@ -172,7 +177,7 @@ Window {
                 if (pill.lastMode === backend.mode) return
                 pill.lastMode = backend.mode
                 if (overlay.visible && !themeModel.reducedMotion
-                        && (backend.mode === "answer" || backend.mode === "message"))
+                        && backend.mode === "message")
                     pillSettle.restart()
             }
         }

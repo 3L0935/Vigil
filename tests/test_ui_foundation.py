@@ -111,3 +111,30 @@ def test_complete_fold_qml_loads_and_overlay_does_not_take_focus():
     assert not overlay_window.isActive()
     overlay.hide()
     dispose_engine(engine)
+
+
+def test_answer_replaces_status_pill_until_followup_listening():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    engine, _ = create_engine(app, visible=False, overlay_model=overlay)
+    window = engine.rootObjects()[1]
+    pill = window.findChild(QObject, "statusPill")
+
+    overlay.show_processing()
+    app.processEvents()
+    assert pill.isVisible()
+    assert window.height() == 54
+
+    overlay.show_answer("Answer")
+    app.processEvents()
+    assert not pill.isVisible()
+    assert window.height() == 188
+
+    overlay.set_context_state(1, True)
+    overlay.show_assistant()
+    app.processEvents()
+    assert pill.isVisible()
+    assert window.height() == 250
+
+    overlay.close()
+    dispose_engine(engine)
