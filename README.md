@@ -156,7 +156,7 @@ Old `recovery_notes.txt` files left beside the source by previous versions are n
 
 ## Dictation preferences
 
-Settings → **Dictation** provides recognition language, microphone, recording limit, clipboard restoration delay, vocabulary and recognition hints. On upgrade, recognition initially retains the previous interface language; subsequent UI-language changes do not change it. Auto uses per-clip detection.
+Settings → **Dictation** provides recognition language, microphone, recording limit, clipboard restoration delay, vocabulary, recognition hints, and optional preview and spoken formatting. On upgrade, recognition initially retains the previous interface language; subsequent UI-language changes do not change it. Auto uses per-clip detection.
 
 Vocabulary uses one `spoken = written` mapping per line, for example:
 
@@ -166,6 +166,10 @@ vigil local = Vigil Local
 ```
 
 Matching ignores case, respects whole words, prefers longer phrases and never recursively replaces its own output. Vocabulary applies only to dictation. Recognition hints such as `Vigil, ROCm, Obsidian` also help the assistant's speech recognition, but are best effort.
+
+The last raw and processed dictation can be kept in memory for five minutes (64 KiB per version). Use the tray to copy either version, clear it, or arm reinsertion. After arming, focus the target app and press the dictation shortcut within 30 seconds. Retention can be disabled in Settings; it does not retain audio. The tray also has **Cancel dictation**: cancellation before insertion starts suppresses the result, while insertion already in progress cannot be rolled back.
+
+**Preview before insertion** is off by default. When enabled, edit the transcript in the overlay, then copy, discard, add a confirmed vocabulary mapping, or choose **Insert**. To insert, focus the target app and press the dictation shortcut within 30 seconds. **Spoken formatting** is also off by default; explicit phrases such as “new line”, “nouvelle ligne”, or “nuova riga” insert line breaks, with corresponding paragraph phrases. Literal mode keeps those words as text. Formatting runs before vocabulary replacement.
 
 If a selected microphone disappears, Vigil reports it instead of choosing a different input silently. Reconnect it and refresh, or select another device; retry capture. Devices that reject 16 kHz are recorded at their native rate and resampled. PortAudio's device visibility depends on the audio backend; if a reconnected device still does not appear after refresh, restart Vigil. The default input follows the system selection at each recording.
 
@@ -179,6 +183,8 @@ A recording timeout **discards** the audio; it never pastes or executes it. Dict
 2. Press **`Ctrl+Alt+W`** — the overlay widget appears
 3. Speak
 4. Press **`Ctrl+Alt+W`** again — transcribed text is pasted automatically
+
+If preview is enabled, step 4 opens the editable preview instead. Select **Insert**, focus the target field, and press **`Ctrl+Alt+W`** again.
 
 ### Assistant
 
@@ -240,6 +246,8 @@ Right-click the tray icon for:
 - **Dictate / Assistant** — toggle buttons (useful on Wayland as hotkey fallback)
 - **Stop TTS** — interrupt ongoing speech
 - **Settings** — open the settings window
+- **Copy last dictation / Copy raw / Reinsert / Clear** — use the bounded in-memory draft
+- **Cancel dictation** — suppress a recording or pending transcription before insertion
 - **Quit**
 
 ---
@@ -252,6 +260,7 @@ Open from the tray → **Settings**. All changes are saved to the local database
 |---|---|
 | Whisper model | tiny / base / small / medium / large-v3 |
 | LLM model | Path to `.gguf` file (browse or type) |
+| Generation profile | Compatible default or an experimental model-specific profile |
 | LLM unload timeout | Seconds of inactivity before the model is unloaded from RAM (0 = never) |
 | LLM server URL | llama-server endpoint (default `http://localhost:8080`) |
 | Obsidian vault | Path to your vault directory |
