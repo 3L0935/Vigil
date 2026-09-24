@@ -195,32 +195,32 @@ def launch(app_name: str) -> tuple[bool, str]:
 def close(app_name: str) -> tuple[bool, str]:
     """Close a running application by name. Returns (success, label).
 
-    Tries (in order):
-    1. pkill exact match on the binary extracted from .desktop Exec
-    2. pkill case-insensitive exact match on the query word
-    3. pkill case-insensitive substring match
+    Only exact process names are accepted. A partial match can kill an
+    unrelated application and is never used for a voice command.
     """
     app = _find_app(app_name)
+    if app and app_name.casefold().strip() not in {
+            app["name"].casefold(), app.get("generic", "").casefold()}:
+        app = None
     label = app["name"] if app else app_name
 
-    # Candidates to try: binary from .desktop first, then raw query word
+    # A resolved desktop entry supplies its executable. For an unresolved
+    # target, only a single exact process name is safe to try.
     candidates: list[str] = []
     if app:
-        candidates.append(_binary_from_exec(app["exec"]))
-    candidates.append(app_name.lower().split()[0])  # first word, e.g. "zen" from "Zen Browser"
-    candidates.append(app_name.lower())
+        binary = _binary_from_exec(app["exec"])
+        # These launchers can host many unrelated desktop applications.
+        if binary and binary not in {"env", "sh", "bash", "flatpak", "snap",
+                                     "python", "python3", "java"}:
+            candidates.append(binary)
+    if app_name.strip() and " " not in app_name.strip():
+        candidates.append(app_name.lower().strip())
 
     for name in dict.fromkeys(candidates):  # deduplicate, preserve order
         r = subprocess.run(["pkill", "-ix", name], capture_output=True)
         if r.returncode == 0:
             log_content("Closed app: %s (matched '%s')", label, name)
             return True, label
-
-    # Last resort: substring match
-    r = subprocess.run(["pkill", "-i", candidates[0]], capture_output=True)
-    if r.returncode == 0:
-        log_content("Closed app: %s (substring '%s')", label, candidates[0])
-        return True, label
 
     log.warning("No matching process to close")
     return False, label

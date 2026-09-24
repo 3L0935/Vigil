@@ -1,5 +1,6 @@
 """llama-server assistant with function calling for web search and vault search."""
 
+import json
 import re
 import subprocess
 import threading
@@ -15,7 +16,8 @@ import app_launcher
 import url_shortcuts
 import folders
 import file_search
-from assistant_tools import InvalidToolCall, validate_call
+from assistant_tools import (InvalidToolCall, PendingChoice, ToolResult,
+                             message_result, validate_call)
 from assistant_prompts import system_prompt
 
 def _get_backend():
@@ -33,6 +35,7 @@ def _get_backend():
             db.get_setting("ollama_local_url", "http://localhost:11434"),
             db.get_setting("ollama_model", ""),
             provider="ollama_local",
+            use_model_profile=db.get_setting("llm_profile", "compat") == "model",
         )
     if provider == "ollama_cloud":
         return LlamaServerBackend(
@@ -40,10 +43,12 @@ def _get_backend():
             db.get_setting("ollama_model", ""),
             db.get_setting("ollama_api_key", ""),
             provider="ollama_cloud",
+            use_model_profile=db.get_setting("llm_profile", "compat") == "model",
         )
     return LlamaServerBackend(
         db.get_setting("llama_server_url", "http://localhost:8081"),
         db.get_setting("llama_model", ""),
+        use_model_profile=db.get_setting("llm_profile", "compat") == "model",
     )
 
 _history_policy = None
@@ -55,9 +60,7 @@ _CONTEXT_TIMEOUT  = 30.0       # seconds of inactivity before auto-reset
 _context_lock     = threading.Lock()
 _conversation_history: list[dict] = []
 _last_interaction: float = 0.0
-_waiting_for_reply: bool = False
-_pending_candidates: list[str] = []
-_pending_action: str = ""      # "launch" | "close" | "open_file"
+_pending_choice: PendingChoice | None = None
 
 # True when the most recent process() result came from the synthesis pass
 # (raw tool result re-fed to the LLM for a spoken-language paraphrase).
@@ -117,21 +120,40 @@ def _is_clear_context_request(text: str) -> bool:
     return t in _CLEAR_CONTEXT_PATTERNS
 
 
+_NEGATED_ACTION = re.compile(
+    r"^(?:n['’](?:ouvre|lance|démarre|ferme)|ne\s+(?:ouvre|lance|démarre|ferme))"
+    r"\s+pas\s+\S|^(?:do not|don't|never)\s+(?:open|launch|start|close)\s+\S"
+    r"|^non\s+(?:apri|aprire|lanciare|chiudere)\s+\S",
+    re.IGNORECASE,
+)
+_TWO_TARGETS = re.compile(
+    r"^(?:ouvre|lance|open|launch|start|apri|avvia)\s+"
+    r"[\w.-]+\s+(?:et|and|e)\s+[\w.-]+[.!?]?$",
+    re.IGNORECASE,
+)
+
+
+def _is_negated_action(text: str) -> bool:
+    return bool(_NEGATED_ACTION.match(text.strip()))
+
+
+def _has_two_explicit_targets(text: str) -> bool:
+    return bool(_TWO_TARGETS.fullmatch(text.strip()))
+
+
 def reset_context() -> None:
-    global _conversation_history, _last_interaction, _waiting_for_reply
-    global _pending_candidates, _pending_action, _history_has_local_data
+    global _conversation_history, _last_interaction, _pending_choice
+    global _history_has_local_data
     with _context_lock:
         _history_has_local_data = False
         _conversation_history = []
         _last_interaction     = 0.0
-        _waiting_for_reply    = False
-        _pending_candidates   = []
-        _pending_action       = ""
+        _pending_choice       = None
 
 
 def is_waiting() -> bool:
     with _context_lock:
-        return _waiting_for_reply
+        return _pending_choice is not None
 
 
 def context_level() -> int:
@@ -455,14 +477,10 @@ def _build_launch_retry_context(app_name: str, user_text: str) -> str:
     return locales.get("retry_launch_ctx", name=app_name, list="\n".join(lines))
 
 
-def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | None]:
-    """Execute a tool and return (user_facing_text, retry_context_or_None).
-
-    If retry_context is non-None, the caller (process) should re-query the LLM
-    with this as a tool result so it can correct a failed launch_app call.
-    """
-    global _waiting_for_reply, _pending_candidates, _pending_action
-    global _last_source_refs, _last_spoken_result
+def _dispatch(name: str, args: dict, user_text: str = "") -> ToolResult:
+    """Execute one validated action; presentation is handled by the caller."""
+    global _pending_choice
+    global _last_source_refs
     log.info("Assistant dispatch: %s", name)
     log_content("Assistant arguments: %s", args)
     if name in _WEB_TOOLS:
@@ -477,32 +495,34 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
             max_results = min(int(args.get("max_results", 5)), 10)
             results = list(DDGS().text(query, max_results=max_results))
             if not results:
-                return (locales.get("web_no_results", query=query), None)
-            lines = []
+                return message_result("not_found", "web_no_results", query=query)
+            bounded = []
             for r in results:
                 title = str(r.get("title", ""))[:160]
                 body  = str(r.get("body", ""))[:240]
                 href  = str(r.get("href", ""))[:512]
-                lines.append(f"**{title}**\n{body}\n{href}")
+                bounded.append({"title": title, "body": body, "href": href})
                 if href:
                     _last_source_refs.append(href)
-            return ("\n\n".join(lines), None)
+            return ToolResult("ok", {"kind": "web_results", "results": bounded})
 
         elif name == "open_settings":
             cb = _action_callbacks.get("open_settings")
-            if cb:
-                cb()
-            return (locales.get("settings_opened"), None)
+            if not cb:
+                return message_result("error", "assistant_error")
+            cb()
+            return message_result("ok", "settings_opened")
 
         elif name == "close_settings":
             cb = _action_callbacks.get("close_settings")
-            if cb:
-                cb()
-            return (locales.get("settings_closed"), None)
+            if not cb:
+                return message_result("error", "assistant_error")
+            cb()
+            return message_result("ok", "settings_closed")
 
         elif name == "search_obsidian_vault":
             if not config.OBSIDIAN_VAULT_PATH or not Path(config.OBSIDIAN_VAULT_PATH).is_dir():
-                return (locales.get("vault_not_configured"), None)
+                return message_result("not_found", "vault_not_configured")
             from obsidian import search_vault
             results = search_vault(
                 query=args.get("query", ""),
@@ -510,51 +530,57 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 max_results=args.get("max_results", 5),
             )
             if not results:
-                return (locales.get("vault_no_results", query=args.get("query", "")), None)
-            lines = []
+                return message_result("not_found", "vault_no_results", query=args["query"])
+            bounded = []
             for r in results:
                 title = str(r["title"])[:160]
-                lines.append(f"**{title}**\n{str(r['excerpt'])[:200]}")
-                _last_source_refs.append(f"{title} — {Path(r['path']).name}")
-            return ("\n\n".join(lines), None)
+                filename = Path(r["path"]).name
+                bounded.append({"title": title, "excerpt": str(r["excerpt"])[:200],
+                                "filename": filename})
+                _last_source_refs.append(f"{title} — {filename}")
+            return ToolResult("ok", {"kind": "vault_results", "results": bounded})
 
         elif name == "app_action":
             app_name = (args.get("name") or "").strip()
             action   = args.get("action")
             if action not in ("launch", "close"):
-                return (locales.get("not_understood"), None)
+                return message_result("error", "not_understood")
+            if action == "launch" and url_shortcuts.is_known(app_name):
+                installed = {app["name"].casefold() for app in app_launcher.list_all_apps()}
+                if app_name.casefold() not in installed:
+                    if privacy.web_allowed():
+                        return _dispatch("open_url", {"target": app_name}, user_text)
+                    return message_result("error", "privacy_web_blocked")
             do = app_launcher.launch if action == "launch" else app_launcher.close
             ok, label = do(app_name)
             if ok:
                 key = "app_launched" if action == "launch" else "app_closed"
-                return (locales.get(key, name=label), None)
+                return message_result("ok", key, name=label)
             # Exact match failed — try fuzzy
             candidates = app_launcher.find_candidates(app_name)
             if len(candidates) == 1:
                 ok2, label2 = do(candidates[0])
                 if action == "launch":
-                    text = locales.get("app_launched", name=label2) if ok2 else locales.get("app_not_found", name=label2)
+                    key = "app_launched" if ok2 else "app_not_found"
                 else:
-                    text = locales.get("app_closed", name=label2) if ok2 else locales.get("app_close_failed", name=label2)
-                return (text, None)
+                    key = "app_closed" if ok2 else "app_close_failed"
+                return message_result("ok" if ok2 else "not_found", key, name=label2)
             if len(candidates) > 1:
                 with _context_lock:
-                    _waiting_for_reply  = True
-                    _pending_candidates = candidates
-                    _pending_action     = action
-                lines = "\n".join(f"{i + 1}: {c}" for i, c in enumerate(candidates))
-                return (locales.get("app_candidates", list=lines), None)
+                    _pending_choice = PendingChoice(action, tuple(candidates))
+                return ToolResult("needs_choice", {"kind": "app_choices", "candidates": candidates})
             # Zero candidates. For launch, retry with hints (and URL hint if
             # the name matches a known web shortcut). For close, just report.
             if action == "close":
-                return (locales.get("app_close_failed", name=app_name), None)
+                return message_result("not_found", "app_close_failed", name=app_name)
             retry_ctx = _build_launch_retry_context(app_name, user_text)
             if url_shortcuts.is_known(app_name):
                 retry_ctx = (
                     retry_ctx + "\n\n"
                     + locales.get("retry_launch_url_hint", name=app_name)
                 )
-            return (locales.get("app_not_found", name=app_name), retry_ctx)
+            return message_result("not_found", "app_not_found",
+                                  retry_context=retry_ctx, name=app_name)
 
         elif name == "search_files":
             folder = (args.get("folder") or "").strip()
@@ -565,51 +591,26 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                                    include_size=include_size,
                                    include_date=include_date)
             if r["folder_resolved"] is None:
-                return (locales.get("folder_unknown", name=folder), None)
+                return message_result("not_found", "folder_unknown", name=folder)
             results = r["found"] or r["similar"]
             if not results:
-                return (locales.get("file_no_results",
-                                    folder=r["folder_resolved"],
-                                    query=query), None)
+                return message_result("not_found", "file_no_results",
+                                      folder=r["folder_resolved"], query=query)
             # Set multi-turn state so a numbered reply opens a file.
             paths = [item["path"] for item in results]
             with _context_lock:
-                _waiting_for_reply  = True
-                _pending_candidates = paths
-                _pending_action     = "open_file"
-            # Build a compact human-readable list. Skip the absolute path in
-            # the LLM's view — paths are noisy tokens. The LLM only needs
-            # name + optional date/size + matched (for similar) to formulate.
-            lines: list[str] = []
-            for i, item in enumerate(results, 1):
-                bits = [item["name"]]
-                extras = []
-                if "mtime" in item:
-                    extras.append(item["mtime"])
-                if "size_kb" in item:
-                    extras.append(f"{item['size_kb']} KB")
-                if "matched" in item:
-                    extras.append("partial: " + ", ".join(item["matched"]))
-                if extras:
-                    bits.append(f"({'; '.join(extras)})")
-                lines.append(f"{i}. {' '.join(bits)}")
-            list_str = "\n".join(lines)
-            if r["found"]:
-                msg = locales.get("file_results_found",
-                                  folder=r["folder_resolved"],
-                                  list=list_str)
-            else:
-                msg = locales.get("file_results_similar",
-                                  folder=r["folder_resolved"],
-                                  query=query, list=list_str)
-            _last_spoken_result = locales.get("file_results_spoken", count=len(results))
-            return (msg, None)
+                _pending_choice = PendingChoice("open_file", tuple(paths))
+            visible = [{key: value for key, value in item.items() if key != "path"}
+                       for item in results]
+            return ToolResult("needs_choice", {"kind": "file_choices",
+                              "folder": r["folder_resolved"], "query": query,
+                              "found": bool(r["found"]), "results": visible})
 
         elif name == "open_url":
             target = (args.get("target") or "").strip()
             url = url_shortcuts.resolve(target)
             if not url:
-                return (locales.get("url_invalid", target=target), None)
+                return message_result("not_found", "url_invalid", target=target)
             try:
                 subprocess.Popen(
                     ["xdg-open", url],
@@ -617,7 +618,7 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                     start_new_session=True,
                 )
             except Exception as exc:
-                return (locales.get("url_invalid", target=target), None)
+                return message_result("error", "url_invalid", target=target)
             # TTS-friendly: return the spoken keyword if it's a known shortcut,
             # else extract just the hostname stem ("https://www.example.com/x"
             # → "example"). Avoids reading "https colon slash slash..." aloud.
@@ -627,15 +628,15 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                 from urllib.parse import urlparse
                 host = urlparse(url).netloc.removeprefix("www.")
                 display = host.split(".")[0] if host else target
-            return (locales.get("url_opened", url=display), None)
+            return message_result("ok", "url_opened", url=display)
 
         elif name == "open_folder":
             folder_name = (args.get("name") or "").strip()
             path = folders.resolve(folder_name)
             if path is None:
-                return (locales.get("folder_unknown", name=folder_name), None)
+                return message_result("not_found", "folder_unknown", name=folder_name)
             if not path.exists():
-                return (locales.get("folder_missing", path=str(path)), None)
+                return message_result("not_found", "folder_missing", path=str(path))
             try:
                 subprocess.Popen(
                     ["xdg-open", str(path)],
@@ -643,17 +644,53 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> tuple[str, str | No
                     start_new_session=True,
                 )
             except Exception:
-                return (locales.get("folder_missing", path=str(path)), None)
+                return message_result("error", "folder_missing", path=str(path))
             # TTS-friendly: pass the keyword the user actually said rather than
             # the absolute filesystem path (which would be read literally).
-            return (locales.get("folder_opened", path=folder_name), None)
+            return message_result("ok", "folder_opened", path=folder_name)
 
         else:
-            return (locales.get("unknown_command", name=name), None)
+            return message_result("error", "unknown_command", name=name)
 
     except Exception as exc:
         log.error("Dispatch error: %s", type(exc).__name__)
-        return (locales.get("error", detail=str(exc)), None)
+        return message_result("error", "assistant_error")
+
+
+def _render_tool_result(result: ToolResult) -> str:
+    """Localize application-owned data after execution, without altering IDs."""
+    global _last_spoken_result
+    data = result.data
+    kind = data["kind"]
+    if kind == "message":
+        return locales.get(data["key"], **data["params"])
+    if kind == "web_results":
+        return "\n\n".join(f"**{r['title']}**\n{r['body']}\n{r['href']}"
+                           for r in data["results"])
+    if kind == "vault_results":
+        return "\n\n".join(f"**{r['title']}**\n{r['excerpt']}"
+                           for r in data["results"])
+    if kind == "app_choices":
+        lines = "\n".join(f"{i}: {name}" for i, name in
+                          enumerate(data["candidates"], 1))
+        return locales.get("app_candidates", list=lines)
+    if kind == "file_choices":
+        lines = []
+        for i, item in enumerate(data["results"], 1):
+            extras = []
+            if "mtime" in item:
+                extras.append(item["mtime"])
+            if "size_kb" in item:
+                extras.append(f"{item['size_kb']} KB")
+            if "matched" in item:
+                extras.append("partial: " + ", ".join(item["matched"]))
+            suffix = f" ({'; '.join(extras)})" if extras else ""
+            lines.append(f"{i}. {item['name']}{suffix}")
+        _last_spoken_result = locales.get("file_results_spoken", count=len(lines))
+        key = "file_results_found" if data["found"] else "file_results_similar"
+        return locales.get(key, folder=data["folder"], query=data["query"],
+                           list="\n".join(lines))
+    raise ValueError(f"unknown tool result kind: {kind}")
 
 
 # ── Public API ────────────────────────────────────────────────────────────
@@ -670,8 +707,7 @@ def reload_backend():
 
 def process(text: str) -> str:
     """Process transcribed text through llama-server. Returns answer string."""
-    global _conversation_history, _last_interaction, _waiting_for_reply
-    global _pending_candidates, _pending_action
+    global _conversation_history, _last_interaction, _pending_choice
 
     global _history_policy, _history_has_local_data
     turn_local_data = False
@@ -694,12 +730,17 @@ def process(text: str) -> str:
     if _is_clear_context_request(text):
         reset_context()
         return locales.get("context_cleared")
+    if _is_negated_action(text):
+        return locales.get("action_negated")
+    if _has_two_explicit_targets(text):
+        return locales.get("one_action")
 
     # Snapshot mutable state under the lock
     with _context_lock:
-        waiting        = _waiting_for_reply
-        candidates     = list(_pending_candidates)
-        action         = _pending_action
+        pending        = _pending_choice
+        waiting        = pending is not None
+        candidates     = pending.candidates if pending else ()
+        action         = pending.action if pending else ""
         history        = list(_conversation_history)
         history_local  = _history_has_local_data
         last_time      = _last_interaction
@@ -723,9 +764,7 @@ def process(text: str) -> str:
             chosen = candidates[n - 1]
             log_content("Resolving candidate %d: %s (action=%s)", n, chosen, action)
             with _context_lock:
-                _waiting_for_reply  = False
-                _pending_candidates = []
-                _pending_action     = ""
+                _pending_choice = None
             if action == "open_file":
                 # `chosen` is an absolute file path here, not an app name.
                 from pathlib import Path as _Path
@@ -759,18 +798,21 @@ def process(text: str) -> str:
         else:
             # Not a valid number — drop waiting state and process normally
             with _context_lock:
-                _waiting_for_reply  = False
-                _pending_candidates = []
-                _pending_action     = ""
+                _pending_choice = None
 
     # Normal LLM flow (with history for multi-turn)
     messages = [{"role": "system", "content": _system_prompt()}] + history + [
         {"role": "user", "content": text},
     ]
     available_tools = _get_tools()
+    started = _time.perf_counter()
     _llm_manager.ensure_running()
+    startup_ms = (_time.perf_counter() - started) * 1000
+    started = _time.perf_counter()
     data = backend.chat(messages=messages, tools=available_tools, local_data=history_local,
-                        max_tokens=256)
+                        max_tokens=512)
+    llm_ms = (_time.perf_counter() - started) * 1000
+    tool_ms = 0.0
 
     if data is None:
         return locales.get("not_understood")
@@ -827,7 +869,11 @@ def process(text: str) -> str:
                 except InvalidToolCall:
                     return locales.get("not_understood")
             turn_local_data = fn_name in _LOCAL_TOOLS
-            raw_result, retry_ctx = _dispatch(fn_name, args, user_text=text)
+            started = _time.perf_counter()
+            tool_result = _dispatch(fn_name, args, user_text=text)
+            tool_ms += (_time.perf_counter() - started) * 1000
+            raw_result = _render_tool_result(tool_result)
+            retry_ctx = tool_result.retry_context
 
             # Launch retry: LLM hit a not-found — give it candidate apps and
             # let it try again once. No further retry from that second call.
@@ -838,8 +884,10 @@ def process(text: str) -> str:
                     {"role": "assistant", "tool_calls": [tc]},
                     {"role": "tool", "tool_call_id": tool_call_id, "content": retry_ctx},
                 ]
+                started = _time.perf_counter()
                 retry_data = backend.chat(messages=retry_messages, tools=available_tools,
                                           local_data=True, max_tokens=256)
+                llm_ms += (_time.perf_counter() - started) * 1000
                 if retry_data:
                     try:
                         retry_choice = retry_data.get("choices", [{}])[0]
@@ -858,7 +906,10 @@ def process(text: str) -> str:
                             retry_fn, retry_args = validate_call(retry_tcs[0], available_tools)
                             # Execute once, ignore any further retry_ctx to avoid loops
                             turn_local_data |= retry_fn in _LOCAL_TOOLS
-                            retry_text, _ = _dispatch(retry_fn, retry_args, user_text=text)
+                            started = _time.perf_counter()
+                            retry_result = _dispatch(retry_fn, retry_args, user_text=text)
+                            tool_ms += (_time.perf_counter() - started) * 1000
+                            retry_text = _render_tool_result(retry_result)
                             if retry_text:
                                 raw_result = retry_text
                         else:
@@ -876,11 +927,15 @@ def process(text: str) -> str:
                 tool_call_id = tc.get("id", "tc_0")
                 synthesis_messages = messages + [
                     {"role": "assistant", "tool_calls": [tc]},
-                    {"role": "tool", "tool_call_id": tool_call_id, "content": raw_result},
+                    {"role": "tool", "tool_call_id": tool_call_id,
+                     "content": json.dumps({"status": tool_result.status,
+                                            "data": tool_result.data}, ensure_ascii=False)},
                 ]
+                started = _time.perf_counter()
                 syn_data = backend.chat(messages=synthesis_messages, tools=None,
                                          local_data=history_local or fn_name != "search_web",
                                          max_tokens=384)
+                llm_ms += (_time.perf_counter() - started) * 1000
                 if syn_data:
                     syn_choices = syn_data.get("choices", [])
                     if syn_choices and syn_choices[0].get("finish_reason") != "length":
@@ -916,6 +971,7 @@ def process(text: str) -> str:
         return locales.get("not_understood")
 
     # Append this turn to history.
+    post_started = _time.perf_counter()
     with _context_lock:
         _history_has_local_data |= turn_local_data
         _conversation_history.append({"role": "user",      "content": text})
@@ -923,5 +979,10 @@ def process(text: str) -> str:
         if len(_conversation_history) > 16:
             _conversation_history = _conversation_history[-16:]
         _last_interaction = _time.monotonic()
+
+    log.info("Assistant stages: model_startup=%.1fms llm_response=%.1fms "
+             "tool_execution=%.1fms postprocessing=%.1fms",
+             startup_ms, llm_ms, tool_ms,
+             (_time.perf_counter() - post_started) * 1000)
 
     return result

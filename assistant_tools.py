@@ -1,6 +1,31 @@
 """Small, strict boundary between model output and desktop actions."""
 
 import json
+from dataclasses import dataclass
+from typing import Literal
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    status: Literal["ok", "not_found", "needs_choice", "error"]
+    data: dict
+    retry_context: str | None = None
+
+
+@dataclass(frozen=True)
+class PendingChoice:
+    action: Literal["launch", "close", "open_file"]
+    candidates: tuple[str, ...]
+
+    def __post_init__(self):
+        if not 1 <= len(self.candidates) <= 10:
+            raise ValueError("pending choices must be bounded")
+
+
+def message_result(status: str, key: str, *, retry_context: str | None = None,
+                   **params) -> ToolResult:
+    return ToolResult(status, {"kind": "message", "key": key, "params": params},
+                      retry_context)
 
 
 class InvalidToolCall(ValueError):

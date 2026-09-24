@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 import assistant
+from assistant_tools import PendingChoice
 import file_search
 import privacy
 
@@ -50,6 +51,15 @@ def test_explicit_reset_uses_no_inference_but_negated_reset_does(flow):
     assert len(backend.calls) == 1
 
 
+def test_negated_and_two_target_commands_do_not_start_model(flow):
+    backend, manager = flow
+    assert assistant.process("N'ouvre pas Firefox") == assistant.locales.get('action_negated')
+    assert assistant.process("Ne lance pas Firefox") == assistant.locales.get('action_negated')
+    assert assistant.process("Ouvre Firefox et VLC") == assistant.locales.get('one_action')
+    assert not backend.calls
+    manager.assert_not_called()
+
+
 def test_file_results_do_not_trigger_synthesis_and_keep_order(flow, monkeypatch, tmp_path):
     backend, manager = flow
     paths = [tmp_path / "invoice-a.pdf", tmp_path / "invoice-b.pdf"]
@@ -61,17 +71,20 @@ def test_file_results_do_not_trigger_synthesis_and_keep_order(flow, monkeypatch,
     assert result.index("invoice-a.pdf") < result.index("invoice-b.pdf")
     assert len(backend.calls) == 1
     assert manager.call_count == 1
-    assert assistant._pending_candidates == [str(p) for p in paths]
+    assert assistant._pending_choice.candidates == tuple(str(p) for p in paths)
     assert assistant._parse_number("n'ouvre pas la deuxième") is None
+    structured = assistant._dispatch('search_files', {'folder': 'downloads', 'query': 'invoice'})
+    assert structured.status == 'needs_choice'
+    assert [item['name'] for item in structured.data['results']] == [
+        'invoice-a.pdf', 'invoice-b.pdf']
+    assert all('path' not in item for item in structured.data['results'])
 
 
 def test_pending_selection_does_not_start_model(flow, monkeypatch):
     backend, manager = flow
     launch = Mock(return_value=(True, "Second"))
     monkeypatch.setattr(assistant.app_launcher, "launch", launch)
-    assistant._waiting_for_reply = True
-    assistant._pending_candidates = ["First", "Second"]
-    assistant._pending_action = "launch"
+    assistant._pending_choice = PendingChoice("launch", ("First", "Second"))
     assistant._history_policy = privacy.state_key()
     assert "Second" in assistant.process("ouvre la deuxième")
     launch.assert_called_once_with("Second")
@@ -101,3 +114,61 @@ def test_invalid_action_repair_is_bounded_before_execution(flow, monkeypatch):
     assert assistant.process("Open Firefox") == assistant.locales.get("not_understood")
     assert len(backend.calls) == 2
     launch.assert_not_called()
+
+
+def test_named_web_service_does_not_fuzzy_launch_an_unrelated_app(flow, monkeypatch):
+    backend, _ = flow
+    open_process = Mock()
+    launch = Mock()
+    monkeypatch.setattr(assistant.app_launcher, 'list_all_apps', lambda: [])
+    monkeypatch.setattr(assistant.app_launcher, 'launch', launch)
+    monkeypatch.setattr(assistant.subprocess, 'Popen', open_process)
+    backend.responses.append(tool('app_action', {'name': 'YouTube', 'action': 'launch'}))
+    assert 'YouTube' in assistant.process('Ouvre YouTube')
+    launch.assert_not_called()
+    assert open_process.call_args.args[0][0] == 'xdg-open'
+    assert len(backend.calls) == 1
+
+
+def test_named_web_service_respects_web_permission(flow, monkeypatch):
+    backend, _ = flow
+    monkeypatch.setattr(assistant.app_launcher, 'list_all_apps', lambda: [])
+    launch = Mock()
+    monkeypatch.setattr(assistant.app_launcher, 'launch', launch)
+    monkeypatch.setattr(privacy, 'web_allowed', lambda: False)
+    backend.responses.append(tool('app_action', {'name': 'YouTube', 'action': 'launch'}))
+    assert assistant.process('Ouvre YouTube') == assistant.locales.get('privacy_web_blocked')
+    launch.assert_not_called()
+
+
+def test_web_synthesis_retains_application_owned_source(flow, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    backend, _ = flow
+    class FakeSearch:
+        def text(self, query, max_results):
+            return [{'title': 'Release note', 'body': 'A bounded excerpt',
+                     'href': 'https://example.org/release'}]
+    monkeypatch.setitem(sys.modules, 'ddgs', SimpleNamespace(DDGS=FakeSearch))
+    backend.responses.extend([
+        tool('search_web', {'query': 'release'}),
+        {'choices': [{'message': {'content': 'A short summary.'}}]},
+    ])
+    result = assistant.process('Search the release')
+    assert result.startswith('A short summary.')
+    assert 'https://example.org/release' in result
+    assert assistant.spoken_reply(result) == 'A short summary.'
+    assert len(backend.calls) == 2
+
+
+def test_repair_and_launch_resolution_share_one_retry(flow, monkeypatch):
+    backend, _ = flow
+    monkeypatch.setattr(assistant.app_launcher, 'launch', lambda name: (False, name))
+    monkeypatch.setattr(assistant.app_launcher, 'find_candidates', lambda *a, **kw: [])
+    monkeypatch.setattr(assistant.app_launcher, 'list_all_apps', lambda: [])
+    backend.responses.extend([
+        tool('app_action', {'name': 'Missing App', 'action': 'launchh'}),
+        tool('app_action', {'name': 'Missing App', 'action': 'launch'}),
+    ])
+    assert 'Missing App' in assistant.process('Open Missing App')
+    assert len(backend.calls) == 2
