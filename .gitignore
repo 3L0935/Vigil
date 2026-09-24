@@ -33,6 +33,7 @@ site/
 
 # Dev-internal files (not for public repo)
 docs/
+tools/
 .superpowers/
 CLAUDE.md
 TODO.md
