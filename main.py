@@ -3,6 +3,7 @@ import sys
 import signal
 import queue
 import threading
+import time
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
@@ -345,10 +346,14 @@ def _dictation_worker():
         preview_text = ""
         try:
             log.info("Transcribing (dictation)")
+            stage_started = time.perf_counter()
             text = transcriber.transcribe(audio)
+            stt_ms = (time.perf_counter() - stage_started) * 1000
             if text:
                 log_content("Transcribed: %r", text)
+                stage_started = time.perf_counter()
                 final = dictation.postprocess(text)
+                postprocess_ms = (time.perf_counter() - stage_started) * 1000
                 if db.get_setting("dictation_preview", "false") == "true":
                     if max(len(text.encode("utf-8")), len(final.encode("utf-8"))) > LastDictation.MAX_BYTES:
                         outcome = "preview_oversize" if recovery.save(final) else "failed"
@@ -360,7 +365,12 @@ def _dictation_worker():
                         _last_dictation.store(text, final, enabled=enabled)
                         outcome = "preview"
                 elif _dictation_sessions.begin_injection(session):
+                    stage_started = time.perf_counter()
                     outcome = inject(final)
+                    dispatch_ms = (time.perf_counter() - stage_started) * 1000
+                    log.info("Dictation stages: stt=%.1fms postprocess=%.1fms "
+                             "injection_dispatch=%.1fms (text arrival unverified)",
+                             stt_ms, postprocess_ms, dispatch_ms)
                     enabled = (db.get_setting("dictation_retain_last", "true") == "true"
                                and _dictation_sessions.retention_allowed(session))
                     retained = _last_dictation.store(text, final, enabled=enabled)

@@ -193,6 +193,8 @@ class SettingsModel(QObject):
 
 
 def _option_label(key, value):
+    if key == "llm_profile":
+        return "choice_llm_" + value
     if key == "llm_provider":
         return "provider_" + value
     if key == "language":

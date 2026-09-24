@@ -1,9 +1,13 @@
 """Generation settings supported by the local llama.cpp API."""
 
+from functools import lru_cache
 from pathlib import Path
 import re
 
+from logger import log
 
+
+@lru_cache(maxsize=32)
 def profile(model: str, provider: str) -> dict:
     if provider != "llama_cpp":
         return {}
@@ -18,4 +22,5 @@ def profile(model: str, provider: str) -> dict:
         return {"temperature": 0.7, "top_p": 0.8, "top_k": 20,
                 "min_p": 0, "chat_template_kwargs": {"enable_thinking": False},
                 "parallel_tool_calls": False}
+    log.info("No model-specific generation profile; using compatible settings")
     return {"parallel_tool_calls": False}

@@ -32,12 +32,13 @@ class LlamaServerBackend:
     """HTTP client for llama-server / Ollama (OpenAI-compatible /v1/chat/completions)."""
 
     def __init__(self, base_url: str, model: str, api_key: str = "",
-                 provider: str = "llama_cpp"):
+                 provider: str = "llama_cpp", use_model_profile: bool = False):
         base = base_url.rstrip("/")
         self._url = base + ("" if base.endswith("/v1") else "/v1") + "/chat/completions"
         self._model = model
         self._api_key = api_key  # empty for local; Bearer token for cloud
         self._provider = provider
+        self._use_model_profile = use_model_profile
 
     def chat(
         self,
@@ -54,7 +55,10 @@ class LlamaServerBackend:
 
         body: dict = {"model": self._model, "messages": messages,
                       "max_tokens": max_tokens}
-        body.update(profile(self._model, self._provider))
+        if self._provider == "llama_cpp":
+            body["parallel_tool_calls"] = False
+        if self._use_model_profile:
+            body.update(profile(self._model, self._provider))
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"

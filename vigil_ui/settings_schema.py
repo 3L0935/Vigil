@@ -47,6 +47,8 @@ FIELDS = (
           ("off", "10", "20", "33", "99"), provider=("llama_cpp",)),
     Field("llama_ctx_size", "voice", "setting_llm_ctx_size", "choice", "8192",
           ("2048", "4096", "8192", "16384", "32768"), provider=("llama_cpp",)),
+    Field("llm_profile", "voice", "setting_llm_profile", "choice", "compat",
+          ("compat", "model")),
     Field("ollama_local_url", "voice", "setting_ollama_url", "text",
           "http://localhost:11434", provider=("ollama_local",)),
     Field("ollama_cloud_url", "voice", "setting_ollama_url", "text",
