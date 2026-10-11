@@ -39,6 +39,11 @@ FIELDS = (
           ("faster_whisper", "whisper_cpp")),
     Field("stt_gpu", "voice", "setting_stt_gpu", "toggle", "false",
           provider=("whisper_cpp",)),
+    # The resident model weighs 3.1 GB of video memory: releasing it after a
+    # spell without dictation is what keeps the user from closing the app to
+    # get that memory back. 0 keeps it loaded for good.
+    Field("whisper_unload_timeout", "voice", "setting_whisper_unload", "choice", "600",
+          ("60", "300", "600", "1800", "0"), provider=("whisper_cpp",)),
     Field("download_speech", "voice", "setting_download_speech", "action"),
     Field("llama_model", "voice", "setting_llm_model", provider=("llama_cpp",)),
     Field("browse_llama_model", "voice", "setting_browse", "action",

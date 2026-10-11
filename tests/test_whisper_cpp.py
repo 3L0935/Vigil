@@ -246,3 +246,65 @@ def test_factory_defaults_to_ctranslate(monkeypatch, tmp_path):
 def test_close_transcriber_tolerates_a_failing_backend():
     transcriber.close_transcriber(Mock(close=Mock(side_effect=RuntimeError("boom"))))
     transcriber.close_transcriber(None)
+
+
+# ── The resident model has to let go of the video memory ──────────────────
+# A server that never stops leaves the user closing the whole application to
+# get 3.1 GB back.
+
+def _live_server(monkeypatch, timeout):
+    live = Mock()
+    live.poll.return_value = None
+    monkeypatch.setattr(whisper_cpp.subprocess, "Popen", Mock(return_value=live))
+    monkeypatch.setattr(whisper_cpp.Server, "_probe", lambda self, port, deadline: True)
+    monkeypatch.setattr(whisper_cpp.Server, "_timeout_sec", lambda self: timeout)
+    return whisper_cpp.Server("base")
+
+
+def test_a_dictation_arms_the_release_timer(installed, monkeypatch):
+    server = _live_server(monkeypatch, 600)
+    assert server._timer is None
+    server.ensure_running()
+    assert server._timer is not None and server._timer.is_alive()
+    server.close()
+
+
+def test_the_model_is_released_after_a_spell_without_dictation(installed, monkeypatch):
+    import time
+    released = []
+    monkeypatch.setattr(whisper_cpp.Server, "close", lambda self: released.append(True))
+    server = _live_server(monkeypatch, 0.8)
+    server.ensure_running()
+    assert released == []
+    time.sleep(1.1)
+    assert released == [True]
+
+
+def test_a_new_dictation_postpones_the_release(installed, monkeypatch):
+    import time
+    released = []
+    monkeypatch.setattr(whisper_cpp.Server, "close", lambda self: released.append(True))
+    server = _live_server(monkeypatch, 0.8)
+    server.ensure_running()
+    time.sleep(0.2)
+    server.ensure_running()          # the user dictates again
+    time.sleep(0.7)                  # past the first deadline, before the second
+    assert released == []
+    time.sleep(0.5)                  # past the second
+    assert released == [True]
+
+
+def test_a_replaced_timer_releases_nothing(installed, monkeypatch):
+    released = []
+    monkeypatch.setattr(whisper_cpp.Server, "close", lambda self: released.append(True))
+    server = _live_server(monkeypatch, 600)
+    server.ensure_running()
+    server._auto_shutdown(server._generation - 1)    # a stale timer, not the armed one
+    assert released == []
+
+
+def test_a_zero_timeout_keeps_the_model_loaded_for_good(monkeypatch):
+    monkeypatch.setattr(whisper_cpp.Server, "_timeout_sec", lambda self: 0)
+    server = whisper_cpp.Server("base")
+    server._reset_timer()
+    assert server._timer is None

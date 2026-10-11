@@ -2,8 +2,11 @@
 
 Measured on an RX 7900 XT (Vulkan, large-v3, French): a resident model answers
 in about 165 ms for a 5 s dictation, against roughly 1.45 s when a
-whisper-cli process is spawned per request. The model weighs 3.1 GB, so it
-must stay loaded: one server, kept warm, one HTTP request per dictation.
+whisper-cli process is spawned per request. One server is therefore kept warm
+across dictations -- but not forever: the model weighs 3.1 GB of video memory,
+and one that never releases it leaves the user closing the whole application
+to get the memory back. It is released after a spell without dictation, see
+``whisper_unload_timeout``.
 
 The server is only ever bound to the loopback interface.
 """
@@ -100,6 +103,12 @@ def write_wav(audio: np.ndarray, path: Path) -> None:
         handle.writeframes(pcm.tobytes())
 
 
+# Seconds of silence before the resident model is released. Long enough to
+# serve a burst of dictations without paying the spawn again, short enough that
+# 3.1 GB are not held all day. 0 keeps the server loaded for good.
+DEFAULT_UNLOAD_SEC = 600
+
+
 class Server:
     """One whisper-server process, started on first use and kept warm."""
 
@@ -110,6 +119,8 @@ class Server:
         self._process = None
         self._port = 0
         self._lock = threading.Lock()
+        self._timer: threading.Timer | None = None
+        self._generation = 0
 
     @property
     def port(self) -> int:
@@ -146,6 +157,7 @@ class Server:
     def ensure_running(self) -> int:
         with self._lock:
             if self._process is not None and self._process.poll() is None and self._port:
+                self._reset_timer()
                 return self._port
             if not is_installed():
                 raise ModelUnavailable("whisper-server is not installed")
@@ -159,7 +171,41 @@ class Server:
             if not self._probe(port, time.monotonic() + _START_TIMEOUT):
                 self.close()
                 raise ModelUnavailable("whisper-server did not become ready")
+            self._reset_timer()
             return port
+
+    def _timeout_sec(self) -> int:
+        import database as db
+        try:
+            return int(db.get_setting("whisper_unload_timeout", str(DEFAULT_UNLOAD_SEC)))
+        except ValueError:
+            return DEFAULT_UNLOAD_SEC
+
+    def _reset_timer(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+        self._generation += 1
+        generation = self._generation
+        timeout = self._timeout_sec()
+        if timeout <= 0:
+            self._timer = None
+            return
+        self._timer = threading.Timer(timeout, lambda: self._auto_shutdown(generation))
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _auto_shutdown(self, generation: int) -> None:
+        """Release the model, unless a dictation came in and re-armed the timer.
+
+        The lock is deliberately released before closing: close() takes it, and
+        it is a plain Lock, so acquiring it twice from this thread would
+        deadlock the timer and the model would never be released.
+        """
+        with self._lock:
+            if generation != self._generation:
+                return
+        log.info("whisper-server auto-unloaded after inactivity.")
+        self.close()
 
     def close(self) -> None:
         with self._lock:

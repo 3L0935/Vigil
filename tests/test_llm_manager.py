@@ -54,16 +54,31 @@ def test_ensure_running_unmanaged_does_not_spawn():
 
 
 def test_auto_shutdown_kills_process():
-    """_auto_shutdown() terminates the managed process."""
+    """_auto_shutdown() terminates the managed process when its own timer fired."""
     from llm_manager import LlamaServerManager
     mgr = LlamaServerManager()
     mock_proc = MagicMock()
     mock_proc.poll.return_value = None
     mgr._process = mock_proc
 
-    mgr._auto_shutdown()
+    mgr._auto_shutdown(mgr._generation)
 
     mock_proc.terminate.assert_called_once()
+
+
+def test_a_replaced_timer_does_not_kill_the_process():
+    """A request re-arms the timer; the old callback must not fire anyway."""
+    from llm_manager import LlamaServerManager
+    mgr = LlamaServerManager()
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    mgr._process = mock_proc
+    stale = mgr._generation
+    mgr._generation += 1                 # a newer timer now owns the release
+
+    mgr._auto_shutdown(stale)
+
+    mock_proc.terminate.assert_not_called()
 
 
 def test_timeout_zero_never_schedules_timer():
@@ -124,6 +139,6 @@ def test_auto_shutdown_ollama_skips():
 
     with patch("llm_manager.db") as mock_db:
         mock_db.get_setting.return_value = "ollama"
-        mgr._auto_shutdown()
+        mgr._auto_shutdown(mgr._generation)
 
     mgr._process.terminate.assert_not_called()

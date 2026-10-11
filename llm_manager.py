@@ -16,6 +16,7 @@ class LlamaServerManager:
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._timer: threading.Timer | None = None
+        self._generation = 0
         self._lock = threading.RLock()
 
     # ── DB-backed properties (read at call time) ──────────────────────────
@@ -164,17 +165,23 @@ class LlamaServerManager:
     def _reset_timer(self):
         if self._timer is not None:
             self._timer.cancel()
+        self._generation += 1
+        generation = self._generation
         timeout = self._timeout_sec()
         if timeout <= 0:
+            self._timer = None
             return
-        self._timer = threading.Timer(timeout, self._auto_shutdown)
+        self._timer = threading.Timer(timeout, lambda: self._auto_shutdown(generation))
         self._timer.daemon = True
         self._timer.start()
 
-    def _auto_shutdown(self):
+    def _auto_shutdown(self, generation: int):
+        """Release the model, unless a later request re-armed the timer."""
         if self._is_ollama():
             return  # Ollama daemon manages its own lifecycle
         with self._lock:
+            if generation != self._generation:
+                return  # a request came in and re-armed the timer
             if self._process is not None:
                 log.info("llama-server auto-unloaded after inactivity.")
                 self.shutdown()
