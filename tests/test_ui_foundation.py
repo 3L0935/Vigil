@@ -263,13 +263,16 @@ def test_answer_replaces_status_pill_until_followup_listening():
     overlay.show_answer("Answer")
     app.processEvents()
     assert not pill.isVisible()
-    assert window.height() == 188
+    card = window.findChild(QObject, "answerCard")
+    assert window.height() == card.property("height")
+    # A short answer opens the card at its default, compact height.
+    assert card.property("height") == window.property("answerCardMinHeight")
 
     overlay.set_context_state(1, True)
     overlay.show_assistant()
     app.processEvents()
     assert pill.isVisible()
-    assert window.height() == 250
+    assert window.height() == card.property("height") + window.property("pillGap")
 
     overlay.close()
     dispose_engine(engine)
@@ -294,6 +297,23 @@ def test_preview_is_editable_and_can_take_focus_only_while_open():
     dispose_engine(engine)
 
 
+def drive_until_scrollable(app, overlay, flick, limit=800):
+    """Advance the paced reveal until the card really has a scroll range.
+
+    The answer card grows with the reply up to its maximum, so the viewport
+    only stops expanding once the reply is long enough to reach that maximum.
+    Anything asserted about scrolling has to wait for that state.
+    """
+    for _ in range(limit):
+        if flick.property("contentHeight") - flick.height() > 40:
+            return True
+        if len(overlay._visible_answer) >= len(overlay._answer):
+            return False
+        overlay._type_next()
+        app.processEvents()
+    return False
+
+
 def test_streaming_answer_follows_tail_until_user_scrolls_up():
     app = QApplication.instance() or QApplication([])
     overlay = OverlayModel()
@@ -305,13 +325,7 @@ def test_streaming_answer_follows_tail_until_user_scrolls_up():
     overlay.show_answer(" ".join(["A long answer arrives a few words at a time."] * 30))
     # This test advances the typewriter manually; the timer is covered below.
     overlay._type_timer.stop()
-    # The reveal is paced, so drive it until the card has a real scroll range
-    # before asserting anything about the scrolling itself.
-    for _ in range(400):
-        if flick.property("contentHeight") - flick.height() > 40:
-            break
-        overlay._type_next()
-        app.processEvents()
+    assert drive_until_scrollable(app, overlay, flick)
     app.processEvents()
     app.processEvents()
     assert flick.property("contentHeight") > flick.height()
@@ -360,8 +374,10 @@ def test_streaming_timer_keeps_autoscroll_and_manual_position():
         QTimer.singleShot(milliseconds, loop.quit)
         loop.exec()
 
-    # Long enough for the paced reveal to produce text that overflows the card.
-    run_timer(700)
+    # Reach a scrollable state, then hand the reveal back to its timer: this
+    # test is about the timer keeping the tail in view as the answer streams.
+    assert drive_until_scrollable(app, overlay, flick)
+    run_timer(300)
     app.processEvents()
     app.processEvents()
     assert scroll.property("followTail")

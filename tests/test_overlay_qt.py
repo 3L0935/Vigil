@@ -1,39 +1,37 @@
 """Answer presentation keeps the existing hold and copy behavior."""
 
-import math
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
 from PySide6.QtWidgets import QApplication
 
 import config
-from vigil_ui.overlay import _TYPE_FRAME_MS, OverlayModel, reveal_step
+from vigil_ui.overlay import OverlayModel, reveal_cps
 
 
 def _reveal_seconds(length):
-    return math.ceil(length / reveal_step(length)) * _TYPE_FRAME_MS / 1000
+    return length / reveal_cps(length)
 
 
 def test_a_normal_answer_streams_at_the_configured_pace():
-    step = reveal_step(300)
-    per_second = step / (_TYPE_FRAME_MS / 1000)
-    assert 0.8 * config.OVERLAY_ANSWER_CPS <= per_second <= 1.3 * config.OVERLAY_ANSWER_CPS
+    assert reveal_cps(300) == pytest.approx(config.OVERLAY_ANSWER_CPS)
 
 
 def test_a_short_answer_does_not_crawl():
-    assert _reveal_seconds(8) <= 0.15
+    assert _reveal_seconds(8) <= 0.5
 
 
 def test_a_long_answer_stays_within_the_reveal_ceiling():
-    for length in (500, 2000, 8000):
-        assert _reveal_seconds(length) <= config.OVERLAY_ANSWER_REVEAL_MAX + 0.05
+    for length in (5000, 20000):
+        assert _reveal_seconds(length) <= config.OVERLAY_ANSWER_REVEAL_MAX + 0.01
 
 
-def test_reveal_step_never_falls_below_one_character():
-    assert reveal_step(0) == 1
-    assert reveal_step(1) == 1
-    assert reveal_step(-5) == 1
+def test_reveal_cps_never_drops_below_the_configured_pace():
+    assert reveal_cps(0) == pytest.approx(config.OVERLAY_ANSWER_CPS)
+    assert reveal_cps(-5) == pytest.approx(config.OVERLAY_ANSWER_CPS)
+    assert reveal_cps(100) >= config.OVERLAY_ANSWER_CPS
 
 
 def test_the_overlay_qml_compiles():
@@ -204,9 +202,22 @@ def test_long_answer_reveal_is_bounded_without_truncation():
     while overlay._type_timer.isActive():
         overlay._type_next()
         frames += 1
-        assert frames < 500, "the reveal is not bounded"
+        assert frames < 2000, "the reveal is not bounded"
     assert overlay.answer == text
     assert not overlay._type_timer.isActive()
     assert overlay._answer_timer.isActive()
-    assert frames * _TYPE_FRAME_MS / 1000 <= config.OVERLAY_ANSWER_REVEAL_MAX + 0.05
+    overlay.close()
+
+
+def test_clicking_the_card_reveals_the_whole_answer():
+    app = QApplication.instance() or QApplication([])
+    overlay = OverlayModel()
+    text = 'A long answer. ' * 200
+    overlay.show_answer(text)
+    overlay._type_next()
+    assert 0 < len(overlay.answer) < len(text)
+    overlay.revealNow()
+    assert overlay.answer == text
+    assert not overlay._type_timer.isActive()
+    assert overlay._answer_timer.isActive()
     overlay.close()

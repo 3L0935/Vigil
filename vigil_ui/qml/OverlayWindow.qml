@@ -6,8 +6,21 @@ import "components"
 Window {
     id: overlay
     objectName: "overlayWindow"
-    width: 420
-    height: backend.mode === "preview" ? 280 : (backend.hasAnswer ? (pillVisible ? 250 : 188) : 54)
+    width: 480
+    // The answer card grows with the reply. It opens at its minimum so a short
+    // exchange stays compact, and stops at its maximum so a long answer never
+    // takes over the screen. The card is placed by the backend, and the window
+    // is re-placed on every size change, so all nine anchors stay correct.
+    readonly property int answerCardMinHeight: 230
+    readonly property int answerCardMaxHeight: 350
+    // Card chrome around the scrolling text: margins, header row, separator,
+    // footer row and the spacing between them.
+    readonly property int answerCardChrome: 95
+    readonly property int pillGap: 62
+    height: backend.mode === "preview" ? 280
+            : (backend.hasAnswer
+               ? answerCard.height + (pillVisible ? pillGap : 0)
+               : 54)
     visible: false
     color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
@@ -127,7 +140,9 @@ Window {
         objectName: "answerCard"
         visible: backend.hasAnswer
         width: parent.width
-        height: 188
+        height: Math.max(answerCardMinHeight,
+                        Math.min(answerCardMaxHeight,
+                                 answerText.contentHeight + answerCardChrome))
         radius: 14
         accentEdge: false
         clip: true
@@ -323,6 +338,8 @@ Window {
         }
 
         HoverHandler { onHoveredChanged: backend.setHover(hovered) }
+        // The reveal is paced for reading; a click skips to the whole answer.
+        TapHandler { onTapped: backend.revealNow() }
         Timer { id: copyFeedback; interval: 1400; onTriggered: copied.visible = false }
     }
 
