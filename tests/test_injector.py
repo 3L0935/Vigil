@@ -1,8 +1,10 @@
-"""Injection must carry accented characters, or fail loudly rather than mangle.
+"""Injection must actually land, and keep accented characters when it can.
 
 On KWin there is no virtual keyboard protocol, so wtype cannot work and the
-clipboard is the only path that keeps "plutôt" intact. Typing through xdotool
-drops what the layout cannot produce, silently.
+pipeline falls through to xdotool. xdotool reaches the focused window reliably
+but silently drops characters the layout cannot produce. The clipboard carries
+them exactly, but a paste can report success without anything appearing, so it
+stays last: losing an accent is survivable, losing the dictation is not.
 """
 
 import subprocess
@@ -41,13 +43,12 @@ def methods(monkeypatch):
 
 
 ACCENTED = "Je vois déjà qu'il faudrait peut-être fixer ça, plutôt."
-ASCII = "plain ascii text"
 
 
-def test_the_clipboard_carries_accents_before_xdotool_is_considered(methods):
+def test_xdotool_is_tried_before_the_clipboard(methods):
     calls, _ = methods
     assert injector.inject(ACCENTED) == "pasted"
-    assert calls == ["wtype", "clipboard"]
+    assert calls == ["wtype", "xdotool"]
 
 
 def test_wtype_still_wins_when_the_compositor_supports_it(methods):
@@ -57,27 +58,22 @@ def test_wtype_still_wins_when_the_compositor_supports_it(methods):
     assert calls == ["wtype"]
 
 
-def test_xdotool_is_never_given_accented_text(methods):
+def test_the_clipboard_is_the_last_resort(methods):
     calls, results = methods
+    results["xdotool"] = False
+    assert injector.inject(ACCENTED) == "pasted"
+    assert calls == ["wtype", "xdotool", "clipboard"]
+
+
+def test_recovery_when_every_method_fails(methods):
+    calls, results = methods
+    results["xdotool"] = False
     results["clipboard"] = False
     assert injector.inject(ACCENTED) == "recovered"
-    assert "xdotool" not in calls
+    assert calls == ["wtype", "xdotool", "clipboard"]
 
 
-def test_ascii_may_fall_back_to_xdotool(methods):
-    calls, results = methods
-    results["clipboard"] = False
-    assert injector.inject(ASCII) == "pasted"
-    assert calls == ["wtype", "clipboard", "xdotool"]
-
-
-def test_ascii_prefers_the_clipboard_too(methods):
-    calls, _ = methods
-    assert injector.inject(ASCII) == "pasted"
-    assert calls == ["wtype", "clipboard"]
-
-
-def test_empty_text_fails_without_trying_anything(methods):
+def test_an_empty_request_is_never_injected(methods):
     calls, _ = methods
     assert injector.inject("") == "failed"
     assert calls == []
@@ -125,11 +121,6 @@ def test_x11_never_tries_wtype(monkeypatch):
     monkeypatch.setattr(injector.subprocess, "run", lambda *a, **k: called.append(1))
     assert injector._inject_wtype(ACCENTED) is False
     assert called == []
-
-
-def test_ascii_predicate():
-    assert injector._is_ascii(ASCII)
-    assert not injector._is_ascii("déjà")
 
 
 def test_prewarm_falls_through_to_a_working_tool(monkeypatch):

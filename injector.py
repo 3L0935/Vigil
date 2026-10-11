@@ -22,10 +22,6 @@ from logger import log
 _wtype_unsupported = False
 
 
-def _is_ascii(text: str) -> bool:
-    return all(ord(char) < 128 for char in text)
-
-
 def _inject_wtype(text: str) -> bool:
     """Type text via wtype (Wayland). Returns True on success."""
     global _wtype_unsupported
@@ -127,9 +123,9 @@ def prewarm() -> None:
                          "keyup", "shift", "keyup", "super"])
     for cmd in commands:
         try:
-            result = subprocess.run(cmd, check=False, capture_output=True,
+            result = subprocess.run(cmd, check=False, timeout=2,
                                     stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL, timeout=2)
+                                    stderr=subprocess.DEVNULL)
         except Exception as exc:
             log.debug("Injector prewarm skipped (%s)", exc)
             continue
@@ -144,9 +140,11 @@ def inject(text: str) -> str:
         return "failed"
     if _inject_wtype(text):
         return "pasted"
-    # The clipboard carries any character exactly; xdotool is only safe when
-    # there is nothing it can silently drop.
-    if _inject_clipboard(text) or (_is_ascii(text) and _inject_xdotool(text)):
+    # xdotool is proven to reach the focused window here, but it drops some
+    # accented characters. The clipboard carries them exactly, yet a paste can
+    # report success without landing, so it must not pre-empt a path that
+    # actually works: losing an accent is survivable, losing the dictation is not.
+    if _inject_xdotool(text) or _inject_clipboard(text):
         return "pasted"
     log.warning("All injection methods failed")
     import recovery
