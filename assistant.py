@@ -5,6 +5,7 @@ import re
 import subprocess
 import threading
 import time as _time
+import unicodedata
 from pathlib import Path
 from logger import log, log_content
 import privacy
@@ -101,23 +102,54 @@ _WORD_TO_NUM: dict[str, int] = {
 # c'est quoi" as choice #1.
 _PHONETIC_ONE = frozenset({"hein", "han", "ein", "in"})
 
-# Hardcoded keywords that trigger a context reset without going through the
-# LLM. Faster than a tool call, frees one tool slot for the small model, and
-# the regex match is unambiguous on these phrasings (fr/en/it). Match is on
-# the full transcript lowercased+stripped — substring match so things like
-# "non, nettoie la conv" still work.
-_CLEAR_CONTEXT_PATTERNS = (
-    "nettoie la conv", "nettoie la conversation", "efface la conv",
-    "efface la conversation", "repart à zéro", "repart a zero",
-    "recommence", "remet à zéro", "remet a zero",
-    "clear context", "reset context", "start over", "start fresh",
-    "pulisci la conversazione", "ricomincia", "azzera",
+# Hardcoded request that resets the context without going through the LLM.
+# Faster than a tool call and it frees a tool slot for the small model.
+#
+# Matching is a small grammar, not a list of exact sentences. The tray menu
+# offers "Effacer le contexte", so that wording has to work, and so does the
+# same request dressed up ("ok, efface le contexte"). Accents and case are
+# normalised away, which also absorbs what dictation actually produces.
+# The match stays anchored at the start so "n'efface pas la conversation"
+# cannot be read as a request to erase it.
+_CLEAR_VERBS = (
+    "effac", "nettoi", "vid", "reinitialis", "remet", "repart", "recommenc",
+    "oubli", "clear", "reset", "wipe", "pulisc", "azzer", "ricominc", "cancell",
 )
+_CLEAR_TARGETS = (
+    "conversation", "conv", "conversazione", "contexte", "context", "contesto",
+    "historique", "history", "cronologia", "memoire", "memory", "memoria",
+    "discussion", "chat", "tout", "tutto", "everything",
+)
+_CLEAR_LEAD_IN = r"(?:(?:bon|ben|ok|okay|salut|hey|coucou|alors|donc|euh)[,\s]+)*"
+_CLEAR_ARTICLE = r"(?:(?:l[ae]s?|un|une|the|my|this|our|il|la|lo)\s+|l')?"
+_CLEAR_REQUEST = re.compile(
+    r"^" + _CLEAR_LEAD_IN
+    + r"(?:" + "|".join(_CLEAR_VERBS) + r")\w*\s+"
+    + _CLEAR_ARTICLE
+    + r"(?:" + "|".join(_CLEAR_TARGETS) + r")\b"
+)
+# Whole-utterance forms, where the verb carries the meaning on its own.
+_CLEAR_ALONE = frozenset((
+    "recommence", "recommencer", "repart a zero", "remets a zero",
+    "remet a zero", "start over", "start fresh", "ricomincia", "azzera", "raz",
+))
+
+
+def _normalise_request(text: str) -> str:
+    """Lowercase, strip accents, collapse spacing and trailing punctuation."""
+    decomposed = unicodedata.normalize("NFD", text.strip().lower())
+    plain = "".join(char for char in decomposed
+                    if unicodedata.category(char) != "Mn")
+    return re.sub(r"\s+", " ", plain).strip(" \t.!?,")
 
 
 def _is_clear_context_request(text: str) -> bool:
-    t = text.strip().lower().rstrip(".!? ")
-    return t in _CLEAR_CONTEXT_PATTERNS
+    normalised = _normalise_request(text)
+    if not normalised:
+        return False
+    if normalised in _CLEAR_ALONE:
+        return True
+    return bool(_CLEAR_REQUEST.match(normalised))
 
 
 _NEGATED_ACTION = re.compile(
