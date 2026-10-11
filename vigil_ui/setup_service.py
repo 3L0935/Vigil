@@ -403,6 +403,30 @@ def install_whisper_model(choice: str, cancelled, progress=None) -> Path:
     return target
 
 
+def ensure_speech_assets(backend: str, model_name: str, cancelled, progress=None) -> None:
+    """Install everything one speech backend needs to run one model.
+
+    The wizard installs the server and its weights together. The download button
+    in the dictation settings took the weights only, so selecting whisper.cpp
+    from there left the server binary missing and nothing could transcribe until
+    the next launch offered the repair.
+    """
+    if backend == "whisper_cpp":
+        import whisper_cpp
+
+        if not whisper_cpp.is_installed():
+            install_whisper_binary(
+                detect_whisper_backend(), cancelled,
+                progress=(lambda done, total: progress("binary", done, total)) if progress else None)
+        install_whisper_model(
+            model_name, cancelled,
+            progress=(lambda done, total: progress("speech", done, total)) if progress else None)
+        return
+    from transcriber import model_path
+
+    model_path(model_name, download=True)
+
+
 def prepare(draft: dict[str, str], cancelled, report, progress=None) -> dict[str, str]:
     """Prepare assets and return DB values; caller commits after success."""
     values = dict(draft)

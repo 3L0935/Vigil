@@ -23,7 +23,6 @@ _STOP = object()  # sentinel to shut down pipeline workers
 from logger import log, log_content
 from recorder import Recorder
 from transcriber import create_transcriber, close_transcriber
-import transcriber as speech
 import privacy
 import dictation
 import dictation_cleanup
@@ -187,12 +186,11 @@ def _on_whisper_model_change(model_name: str, download: bool = False):
 
 
 def _download_model(model_name: str) -> None:
-    """Fetch the weights for whichever backend is active."""
-    if getattr(config, "STT_BACKEND", "faster_whisper") == "whisper_cpp":
-        import whisper_cpp
-        whisper_cpp.model_path(model_name, download=True)
-        return
-    speech.model_path(model_name, download=True)
+    """Fetch whatever the active backend needs to run that model."""
+    from vigil_ui.setup_service import ensure_speech_assets
+
+    ensure_speech_assets(getattr(config, "STT_BACKEND", "faster_whisper"), model_name,
+                         threading.Event())
 
 
 def _finish_model_load(model, error):

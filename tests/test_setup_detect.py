@@ -138,3 +138,120 @@ def test_binary_install_preserves_shared_library_links(monkeypatch, tmp_path):
     assert (target / "libcommon.so").is_symlink()
     assert (target / "libcommon.so").read_bytes() == b"library"
     assert (target / "backend.txt").read_text() == "vulkan"
+
+
+# ── whisper.cpp, the second speech backend ─────────────────────────────────
+
+def test_whisper_backend_prefers_vulkan_and_falls_back_to_cpu(monkeypatch):
+    monkeypatch.setattr(setup_service.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(setup_service.shutil, "which", lambda name: None)
+    assert setup_service.detect_whisper_backend() == "cpu"
+    monkeypatch.setattr(setup_service.shutil, "which", lambda name: "/usr/bin/vulkaninfo")
+    assert setup_service.detect_whisper_backend() == "vulkan"
+
+
+def test_whisper_binary_install_unpacks_the_server_and_its_libraries(monkeypatch, tmp_path):
+    import whisper_cpp
+
+    archive = tmp_path / "whisper.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        for name, data in (("whisper-bin/whisper-server", b"server"),
+                           ("whisper-bin/libggml.so.0", b"library")):
+            item = tarfile.TarInfo(name)
+            item.size = len(data)
+            bundle.addfile(item, io.BytesIO(data))
+        link = tarfile.TarInfo("whisper-bin/libggml.so")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "libggml.so.0"
+        bundle.addfile(link)
+
+    target = tmp_path / "whisper"
+    monkeypatch.setattr(whisper_cpp, "WHISPER_DIR", target)
+    monkeypatch.setattr(setup_service, "fetch_whisper_asset",
+                        lambda backend: ("https://example.invalid/whisper", "whisper.tar.gz"))
+    monkeypatch.setattr(setup_service, "_download_to_temp", lambda *args, **kwargs: archive)
+    monkeypatch.setattr(setup_service, "_binary_runs", lambda path, **kwargs: True)
+
+    binary = setup_service.install_whisper_binary("vulkan", threading.Event())
+
+    assert binary.read_bytes() == b"server"              # le binaire extrait, pas l'archive
+    assert (target / "libggml.so").is_symlink()
+    assert (target / "backend.txt").read_text() == "vulkan"
+    assert not list(target.glob("stage-*"))               # le dossier de travail est nettoye
+
+
+def test_whisper_binary_is_not_fetched_again_when_it_already_runs(monkeypatch, tmp_path):
+    import whisper_cpp
+
+    target = tmp_path / "whisper"
+    target.mkdir()
+    (target / "whisper-server").write_bytes(b"server")
+    (target / "backend.txt").write_text("vulkan")
+    monkeypatch.setattr(whisper_cpp, "WHISPER_DIR", target)
+    monkeypatch.setattr(setup_service, "_binary_runs", lambda path, **kwargs: True)
+
+    def refuse(backend):
+        raise AssertionError("it downloaded a binary it already had")
+
+    monkeypatch.setattr(setup_service, "fetch_whisper_asset", refuse)
+    assert setup_service.install_whisper_binary("vulkan", threading.Event()) == target / "whisper-server"
+
+
+def test_whisper_weights_are_not_downloaded_again_when_present(monkeypatch, tmp_path):
+    import huggingface_hub
+    import whisper_cpp
+
+    models = tmp_path / "whisper"
+    models.mkdir()
+    (models / "ggml-large-v3.bin").write_bytes(b"weights")
+    monkeypatch.setattr(whisper_cpp, "MODEL_DIR", models)
+
+    def refuse(**kwargs):
+        raise AssertionError("it downloaded weights it already had")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", refuse)
+    assert setup_service.install_whisper_model("large-v3", threading.Event()) == models / "ggml-large-v3.bin"
+
+
+def test_the_settings_download_button_installs_the_whisper_server_too(monkeypatch):
+    """It used to take the weights only: selecting whisper.cpp left a config
+    that could not transcribe until the next launch offered the repair."""
+    import whisper_cpp
+
+    calls = []
+    monkeypatch.setattr(whisper_cpp, "is_installed", lambda: False)
+    monkeypatch.setattr(setup_service, "detect_whisper_backend", lambda: "vulkan")
+    monkeypatch.setattr(setup_service, "install_whisper_binary",
+                        lambda backend, cancelled, progress=None: calls.append(("binary", backend)))
+    monkeypatch.setattr(setup_service, "install_whisper_model",
+                        lambda choice, cancelled, progress=None: calls.append(("model", choice)))
+
+    setup_service.ensure_speech_assets("whisper_cpp", "large-v3", threading.Event())
+    assert calls == [("binary", "vulkan"), ("model", "large-v3")]
+
+
+def test_an_installed_whisper_server_is_left_alone(monkeypatch):
+    import whisper_cpp
+
+    calls = []
+    monkeypatch.setattr(whisper_cpp, "is_installed", lambda: True)
+    monkeypatch.setattr(setup_service, "install_whisper_binary",
+                        lambda *args, **kwargs: calls.append("binary"))
+    monkeypatch.setattr(setup_service, "install_whisper_model",
+                        lambda *args, **kwargs: calls.append("model"))
+
+    setup_service.ensure_speech_assets("whisper_cpp", "small", threading.Event())
+    assert calls == ["model"]
+
+
+def test_the_ctranslate2_backend_downloads_its_own_weights(monkeypatch):
+    import transcriber
+
+    seen = []
+    monkeypatch.setattr(transcriber, "model_path",
+                        lambda model, download=False: seen.append((model, download)))
+    monkeypatch.setattr(setup_service, "install_whisper_model",
+                        lambda *args, **kwargs: seen.append("whisper"))
+
+    setup_service.ensure_speech_assets("faster_whisper", "medium", threading.Event())
+    assert seen == [("medium", True)]
