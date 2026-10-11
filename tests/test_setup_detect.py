@@ -230,18 +230,47 @@ def test_the_settings_download_button_installs_the_whisper_server_too(monkeypatc
     assert calls == [("binary", "vulkan"), ("model", "large-v3")]
 
 
-def test_an_installed_whisper_server_is_left_alone(monkeypatch):
-    import whisper_cpp
-
+def test_the_settings_download_reconciles_the_installed_build(monkeypatch):
+    """The installer's own guard skips a needless download, so asking for the
+    server on every call is what replaces a CPU build with the GPU one."""
     calls = []
-    monkeypatch.setattr(whisper_cpp, "is_installed", lambda: True)
+    monkeypatch.setattr(setup_service, "detect_whisper_backend", lambda: "vulkan")
     monkeypatch.setattr(setup_service, "install_whisper_binary",
-                        lambda *args, **kwargs: calls.append("binary"))
+                        lambda backend, cancelled, progress=None: calls.append(("binary", backend)))
     monkeypatch.setattr(setup_service, "install_whisper_model",
-                        lambda *args, **kwargs: calls.append("model"))
+                        lambda choice, cancelled, progress=None: calls.append(("model", choice)))
 
     setup_service.ensure_speech_assets("whisper_cpp", "small", threading.Event())
-    assert calls == ["model"]
+    assert calls == [("binary", "vulkan"), ("model", "small")]
+
+
+def test_a_cpu_build_is_replaced_when_the_machine_can_run_vulkan(monkeypatch, tmp_path):
+    import whisper_cpp
+
+    target = tmp_path / "whisper"
+    target.mkdir()
+    (target / "whisper-server").write_bytes(b"cpu-server")
+    (target / "backend.txt").write_text("cpu")
+    archive = tmp_path / "whisper.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        data = b"vulkan-server"
+        item = tarfile.TarInfo("whisper-bin/whisper-server")
+        item.size = len(data)
+        bundle.addfile(item, io.BytesIO(data))
+
+    asked = []
+    monkeypatch.setattr(whisper_cpp, "WHISPER_DIR", target)
+    monkeypatch.setattr(setup_service, "_binary_runs", lambda path, **kwargs: True)
+    monkeypatch.setattr(setup_service, "fetch_whisper_asset",
+                        lambda backend: (asked.append(backend),
+                                         ("https://example.invalid/whisper", "whisper.tar.gz"))[1])
+    monkeypatch.setattr(setup_service, "_download_to_temp", lambda *args, **kwargs: archive)
+
+    setup_service.install_whisper_binary("vulkan", threading.Event())
+
+    assert asked == ["vulkan"]                          # un build CPU ne suffit pas ici
+    assert (target / "whisper-server").read_bytes() == b"vulkan-server"
+    assert (target / "backend.txt").read_text() == "vulkan"
 
 
 def test_the_ctranslate2_backend_downloads_its_own_weights(monkeypatch):

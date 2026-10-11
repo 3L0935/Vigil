@@ -410,14 +410,16 @@ def ensure_speech_assets(backend: str, model_name: str, cancelled, progress=None
     in the dictation settings took the weights only, so selecting whisper.cpp
     from there left the server binary missing and nothing could transcribe until
     the next launch offered the repair.
+
+    The server is asked for on every call rather than only when missing. Its own
+    guard compares the marker file to the build the machine should run and skips
+    the download when they agree, so this is what replaces a CPU build with the
+    Vulkan one instead of leaving the GPU switch doing nothing.
     """
     if backend == "whisper_cpp":
-        import whisper_cpp
-
-        if not whisper_cpp.is_installed():
-            install_whisper_binary(
-                detect_whisper_backend(), cancelled,
-                progress=(lambda done, total: progress("binary", done, total)) if progress else None)
+        install_whisper_binary(
+            detect_whisper_backend(), cancelled,
+            progress=(lambda done, total: progress("binary", done, total)) if progress else None)
         install_whisper_model(
             model_name, cancelled,
             progress=(lambda done, total: progress("speech", done, total)) if progress else None)
