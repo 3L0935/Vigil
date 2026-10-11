@@ -153,3 +153,18 @@ def test_provider_fields_follow_draft_selection(model):
     settings.setValue("llm_provider", "ollama_cloud")
     assert not settings.fieldVisible("llama_model")
     assert settings.fieldVisible("ollama_api_key")
+
+def test_dictation_fields_follow_the_dictation_backend(model):
+    """stt_gpu and the unload timer belong to the dictation backend, not to the
+    LLM provider. Gated on llm_provider they were invisible for everyone."""
+    settings, _ = model
+    assert not settings.fieldVisible("stt_gpu")
+    assert not settings.fieldVisible("whisper_unload_timeout")
+    settings.setValue("stt_backend", "whisper_cpp")
+    assert settings.fieldVisible("stt_gpu")
+    assert settings.fieldVisible("whisper_unload_timeout")
+    settings.setValue("llm_provider", "ollama_cloud")   # le LLM n'entre pas en compte
+    assert settings.fieldVisible("stt_gpu")
+    assert settings.fieldVisible("whisper_unload_timeout")
+    settings.setValue("stt_backend", "faster_whisper")
+    assert not settings.fieldVisible("whisper_unload_timeout")

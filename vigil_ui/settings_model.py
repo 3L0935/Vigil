@@ -165,7 +165,7 @@ class SettingsModel(QObject):
         field = BY_KEY.get(key)
         if field is None:
             return False
-        if field.provider and self.value("llm_provider") not in field.provider:
+        if field.provider and self.value(field.provider_key) not in field.provider:
             return False
         if key.startswith("tts_speaker_"):
             lang = key[-2:]

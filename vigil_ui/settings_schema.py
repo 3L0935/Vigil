@@ -16,6 +16,11 @@ class Field:
     default: str = ""
     options: tuple[str, ...] = ()
     provider: tuple[str, ...] = ()
+    # Which setting decides visibility. The model providers need `llm_provider`,
+    # the dictation fields need the dictation backend: comparing those against
+    # the LLM provider is how `stt_gpu` and the unload timeout came out invisible
+    # for everyone.
+    provider_key: str = "llm_provider"
     hint: str = ""
 
 
@@ -38,12 +43,13 @@ FIELDS = (
     Field("stt_backend", "voice", "setting_stt_backend", "choice", "faster_whisper",
           ("faster_whisper", "whisper_cpp")),
     Field("stt_gpu", "voice", "setting_stt_gpu", "toggle", "false",
-          provider=("whisper_cpp",)),
+          provider=("whisper_cpp",), provider_key="stt_backend"),
     # The resident model weighs 3.1 GB of video memory: releasing it after a
     # spell without dictation is what keeps the user from closing the app to
     # get that memory back. 0 keeps it loaded for good.
     Field("whisper_unload_timeout", "voice", "setting_whisper_unload", "choice", "600",
-          ("60", "300", "600", "1800", "0"), provider=("whisper_cpp",)),
+          ("60", "300", "600", "1800", "0"), provider=("whisper_cpp",),
+          provider_key="stt_backend"),
     Field("download_speech", "voice", "setting_download_speech", "action"),
     Field("llama_model", "voice", "setting_llm_model", provider=("llama_cpp",)),
     Field("browse_llama_model", "voice", "setting_browse", "action",
