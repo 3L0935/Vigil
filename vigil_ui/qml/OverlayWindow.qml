@@ -223,14 +223,18 @@ Window {
                 TextArea {
                     id: answerText
                     objectName: "answerText"
+                    // The answer is markdown and Qt rewrites newlines when it
+                    // renders it, so the text property never reads back equal
+                    // to the source. Push the whole source each frame instead
+                    // of trying to append at a length that no longer matches;
+                    // the reveal is paced, so this is one rebuild per frame.
+                    property string source: ""
                     function syncAnswer() {
                         var next = backend.answer
-                        if (next === text) return
+                        if (next === source) return
                         answerScroll.layoutPending = true
-                        if (next.startsWith(text))
-                            insert(text.length, next.slice(text.length))
-                        else
-                            text = next
+                        text = next
+                        source = next
                     }
                     Component.onCompleted: syncAnswer()
                     Connections {
@@ -257,6 +261,7 @@ Window {
                         })
                     }
                     readOnly: true
+                    textFormat: TextEdit.MarkdownText
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap
                     color: themeModel.text

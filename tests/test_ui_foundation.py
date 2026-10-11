@@ -305,8 +305,13 @@ def test_streaming_answer_follows_tail_until_user_scrolls_up():
     overlay.show_answer(" ".join(["A long answer arrives a few words at a time."] * 30))
     # This test advances the typewriter manually; the timer is covered below.
     overlay._type_timer.stop()
-    for _ in range(100):
+    # The reveal is paced, so drive it until the card has a real scroll range
+    # before asserting anything about the scrolling itself.
+    for _ in range(400):
+        if flick.property("contentHeight") - flick.height() > 40:
+            break
         overlay._type_next()
+        app.processEvents()
     app.processEvents()
     app.processEvents()
     assert flick.property("contentHeight") > flick.height()
@@ -315,7 +320,7 @@ def test_streaming_answer_follows_tail_until_user_scrolls_up():
     flick.setProperty("contentY", 20)
     app.processEvents()
     assert not scroll.property("followTail")
-    for _ in range(20):
+    for _ in range(2):
         overlay._type_next()
     app.processEvents()
     app.processEvents()
@@ -324,7 +329,7 @@ def test_streaming_answer_follows_tail_until_user_scrolls_up():
     flick.setProperty("contentY", flick.property("contentHeight") - flick.height())
     app.processEvents()
     assert scroll.property("followTail")
-    for _ in range(30):
+    for _ in range(5):
         overlay._type_next()
     app.processEvents()
     app.processEvents()
@@ -349,16 +354,14 @@ def test_streaming_timer_keeps_autoscroll_and_manual_position():
     flick = scroll.property("contentItem")
 
     overlay.show_answer(" ".join(["This sentence wraps as the answer streams in."] * 40))
-    for _ in range(180):
-        overlay._type_next()
-    app.processEvents()
 
     def run_timer(milliseconds):
         loop = QEventLoop()
         QTimer.singleShot(milliseconds, loop.quit)
         loop.exec()
 
-    run_timer(300)
+    # Long enough for the paced reveal to produce text that overflows the card.
+    run_timer(700)
     app.processEvents()
     app.processEvents()
     assert scroll.property("followTail")

@@ -53,6 +53,13 @@ OBSIDIAN_VAULT_PATH = ""
 OVERLAY_POSITION = "bottom-center"   # {bottom,middle,top}-{left,center,right}
 OVERLAY_SCREEN   = "auto"            # "auto" or xrandr output name e.g. "DP-2"
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes
+# Answer reveal. The reply arrives complete from the model; it is streamed onto
+# the card at a pace the eye can follow instead of appearing all at once.
+# OVERLAY_ANSWER_CPS is the comfortable pace, and OVERLAY_ANSWER_REVEAL_MAX caps
+# how long the reveal may take, so a long answer accelerates rather than making
+# the reader wait for it.
+OVERLAY_ANSWER_CPS = 140            # characters revealed per second
+OVERLAY_ANSWER_REVEAL_MAX = 3.5     # seconds, reveal ceiling for any length
 
 # ── TTS ───────────────────────────────────────────────────────────────────
 TTS_ENGINE   = "off"      # "off" | "piper"

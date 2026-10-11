@@ -13,6 +13,29 @@ from .screen import ActiveScreenTracker
 from .kwin_blur import request_kwin_blur
 
 
+_TYPE_FRAME_MS = 28  # the typewriter tick; one _type_next() call per frame
+
+
+def reveal_step(length, cps=None, max_seconds=None):
+    """Characters to reveal per frame: followable, but bounded in total time.
+
+    A fixed step is wrong at both ends. Small enough for a long answer and a
+    one-line reply crawls; large enough for a short one and a long answer is
+    dumped in a few frames, which is unreadable and drags the card's scroll to
+    the bottom in one jump. Pacing against a comfortable reading speed, then
+    capping the reveal, keeps short replies snappy and long ones readable.
+    """
+    if length <= 0:
+        return 1
+    cps = config.OVERLAY_ANSWER_CPS if cps is None else cps
+    max_seconds = config.OVERLAY_ANSWER_REVEAL_MAX if max_seconds is None else max_seconds
+    frame_seconds = _TYPE_FRAME_MS / 1000.0
+    frames = max(1.0, length / max(0.001, cps) / frame_seconds)
+    if max_seconds > 0:
+        frames = min(frames, max(1.0, max_seconds / frame_seconds))
+    return max(1, math.ceil(length / frames))
+
+
 class OverlayModel(QObject):
     changed = Signal()
 
@@ -30,6 +53,7 @@ class OverlayModel(QObject):
         self._preview_discard_callback = None
         self._preview_vocabulary_callback = None
         self._visible_answer = ""
+        self._reveal_step = 1
         self._level = 0.0
         self._expression = "idle"
         self._waiting = False
@@ -43,7 +67,7 @@ class OverlayModel(QObject):
         self._message_timer.setSingleShot(True)
         self._message_timer.timeout.connect(self.hide)
         self._type_timer = QTimer(self)
-        self._type_timer.setInterval(28)
+        self._type_timer.setInterval(_TYPE_FRAME_MS)
         self._type_timer.timeout.connect(self._type_next)
         self._answer_timer = QTimer(self)
         self._answer_timer.setInterval(100)
@@ -197,6 +221,7 @@ class OverlayModel(QObject):
         self._type_timer.stop()
         self._answer_timer.stop()
         self._answer = text
+        self._reveal_step = reveal_step(len(text))
         self._visible_answer = ""
         self._duration_ms = max(1, int(config.OVERLAY_ANSWER_TIMEOUT * 1000))
         self._deadline_ms = self._duration_ms
@@ -211,7 +236,7 @@ class OverlayModel(QObject):
         if len(self._visible_answer) >= len(self._answer):
             self._type_timer.stop()
             return
-        self._visible_answer = self._answer[:len(self._visible_answer) + 3]
+        self._visible_answer = self._answer[:len(self._visible_answer) + self._reveal_step]
         self.changed.emit()
         if len(self._visible_answer) >= len(self._answer):
             self._type_timer.stop()
