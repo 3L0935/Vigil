@@ -112,22 +112,50 @@ _PHONETIC_ONE = frozenset({"hein", "han", "ein", "in"})
 # The match stays anchored at the start so "n'efface pas la conversation"
 # cannot be read as a request to erase it.
 _CLEAR_VERBS = (
-    "effac", "nettoi", "vid", "reinitialis", "remet", "repart", "recommenc",
-    "oubli", "clear", "reset", "wipe", "pulisc", "azzer", "ricominc", "cancell",
+    "effac", "supprim", "nettoi", "vid", "reinitialis", "remet", "repart", "recommenc",
+    "oubli", "clear", "reset", "wipe", "erase", "pulisc", "azzer", "ricominc", "cancell",
 )
 _CLEAR_TARGETS = (
     "conversation", "conv", "conversazione", "contexte", "context", "contesto",
     "historique", "history", "cronologia", "memoire", "memory", "memoria",
     "discussion", "chat", "tout", "tutto", "everything",
 )
-_CLEAR_LEAD_IN = r"(?:(?:bon|ben|ok|okay|salut|hey|coucou|alors|donc|euh)[,\s]+)*"
-_CLEAR_ARTICLE = r"(?:(?:l[ae]s?|un|une|the|my|this|our|il|la|lo)\s+|l')?"
-_CLEAR_REQUEST = re.compile(
-    r"^" + _CLEAR_LEAD_IN
-    + r"(?:" + "|".join(_CLEAR_VERBS) + r")\w*\s+"
-    + _CLEAR_ARTICLE
-    + r"(?:" + "|".join(_CLEAR_TARGETS) + r")\b"
+# Anything the user may say before the verb and still mean the request:
+# addressing the assistant, or wrapping it in politeness. Without these,
+# "Vigil, tu peux effacer la conversation ?" reads as an ordinary sentence and
+# the model answers that it cannot do it.
+_CLEAR_FILLERS = (
+    "bon", "ben", "ok", "okay", "salut", "hey", "coucou", "alors", "donc", "euh",
+    "tu peux", "peux tu", "est ce que tu peux", "est ce que", "je veux que tu",
+    "je voudrais que tu", "j aimerais que tu", "je te demande de", "s il te plait",
+    "je veux", "je voudrais", "j aimerais", "il faut que tu", "faut que tu",
+    "stp", "svp", "please", "could you", "can you",
 )
+_CLEAR_ADDRESS = ("xana", "vigil", "assistant")
+# "l" alone is "l'historique" once apostrophes are folded to spaces.
+_CLEAR_ARTICLE = r"(?:(?:l[ae]s?|l|un|une|the|my|this|our|il|la|lo|cette|ce|cet|ces)\s+)?"
+_clear_request_cache: tuple[str, re.Pattern] | None = None
+
+
+def _clear_request_pattern() -> re.Pattern:
+    """Compiled once per assistant name, so renaming it keeps the shortcut."""
+    global _clear_request_cache
+    name = _normalise_request(getattr(config, "ASSISTANT_NAME", ""))
+    if _clear_request_cache is not None and _clear_request_cache[0] == name:
+        return _clear_request_cache[1]
+    words = list(_CLEAR_ADDRESS)
+    if name and " " not in name and name not in words:
+        words.insert(0, re.escape(name))
+    pattern = re.compile(
+        r"^(?:(?:" + "|".join(words + list(_CLEAR_FILLERS)) + r")[,\s]+)*"
+        + r"(?:" + "|".join(_CLEAR_VERBS) + r")\w*\s+"
+        + _CLEAR_ARTICLE
+        + r"(?:" + "|".join(_CLEAR_TARGETS) + r")s?\b"
+    )
+    _clear_request_cache = (name, pattern)
+    return pattern
+
+
 # Whole-utterance forms, where the verb carries the meaning on its own.
 _CLEAR_ALONE = frozenset((
     "recommence", "recommencer", "repart a zero", "remets a zero",
@@ -136,10 +164,17 @@ _CLEAR_ALONE = frozenset((
 
 
 def _normalise_request(text: str) -> str:
-    """Lowercase, strip accents, collapse spacing and trailing punctuation."""
+    """Lowercase, strip accents, fold apostrophes and hyphens, collapse spacing.
+
+    Folding them to spaces is what lets one entry in the vocabulary cover the
+    spoken and the written form of the same words: "peux-tu" and "peux tu",
+    "l'historique" and "l historique".
+    """
     decomposed = unicodedata.normalize("NFD", text.strip().lower())
     plain = "".join(char for char in decomposed
                     if unicodedata.category(char) != "Mn")
+    for separator in ("'", "\u2019", "-", "\u2011"):
+        plain = plain.replace(separator, " ")
     return re.sub(r"\s+", " ", plain).strip(" \t.!?,")
 
 
@@ -149,7 +184,7 @@ def _is_clear_context_request(text: str) -> bool:
         return False
     if normalised in _CLEAR_ALONE:
         return True
-    return bool(_CLEAR_REQUEST.match(normalised))
+    return bool(_clear_request_pattern().match(normalised))
 
 
 _NEGATED_ACTION = re.compile(
@@ -302,6 +337,22 @@ _CLOSE_SETTINGS_TOOL = {
     },
 }
 
+_CLEAR_CONTEXT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "clear_context",
+        "description": (
+            "Erase this conversation's history and start over from nothing. "
+            "Use it whenever the user asks to clear, wipe, reset, forget or "
+            "suppress the conversation, the context, the history or the memory "
+            "of this chat, however they phrase it. "
+            "Example: \"clear la conversation stp\" >> clear_context()."
+            "Do NOT use to close an app (use app_action) or delete a file."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+}
+
 _APP_ACTION_TOOL = {
     "type": "function",
     "function": {
@@ -425,8 +476,8 @@ _WEB_TOOLS = {"search_web", "open_url"}
 
 def _get_tools() -> list[dict]:
     tools = [_WEB_SEARCH_TOOL, _OPEN_SETTINGS_TOOL, _CLOSE_SETTINGS_TOOL,
-             _APP_ACTION_TOOL, _OPEN_URL_TOOL, _OPEN_FOLDER_TOOL,
-             _SEARCH_FILES_TOOL]
+             _CLEAR_CONTEXT_TOOL, _APP_ACTION_TOOL, _OPEN_URL_TOOL,
+             _OPEN_FOLDER_TOOL, _SEARCH_FILES_TOOL]
     if config.OBSIDIAN_VAULT_PATH:
         tools.append(_OBSIDIAN_TOOL)
     endpoint = _get_backend()._url
@@ -521,6 +572,9 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> ToolResult:
         privacy.check_endpoint(_get_backend()._url, local_data=True)
 
     try:
+        if name == "clear_context":
+            reset_context()
+            return message_result("ok", "context_cleared")
         if name == "search_web":
             from ddgs import DDGS
             query = args.get("query", "")

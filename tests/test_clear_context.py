@@ -85,3 +85,45 @@ def test_normalisation_strips_accents_case_and_spacing():
 def test_an_empty_request_never_clears():
     assert not _is_clear_context_request("")
     assert not _is_clear_context_request("?!...")
+
+
+# ── Wrapping the request in politeness must not hide it ───────────────────
+# Observed: "clear la conversation stp" reached the model, which had no way to
+# do it and answered that it could not. The shortcut only knew the bare verb.
+
+@pytest.mark.parametrize("text", [
+    "clear la conversation stp",
+    "Vigil, tu peux effacer la conversation ?",
+    "peux-tu clear la conversation",
+    "est-ce que tu peux effacer la conversation",
+    "s'il te plaît efface la conversation",
+    "j'aimerais que tu effaces la conversation",
+    "il faut que tu vides la conversation",
+    "xana, efface le contexte",
+    "supprime le contexte",
+    "supprime l'historique",
+    "oublie cette conversation",
+    "supprime ces conversations",
+])
+def test_a_wrapped_request_still_clears_the_context(text):
+    assert _is_clear_context_request(text)
+
+
+def test_normalisation_folds_apostrophes_and_hyphens():
+    assert _normalise_request("Peux-tu clear l'historique ?") == "peux tu clear l historique"
+
+
+# ── The tool left to the model, as a net under the shortcut ───────────────
+
+def test_the_tool_is_offered_to_the_model():
+    from assistant import _get_tools
+    names = [tool["function"]["name"] for tool in _get_tools()]
+    assert "clear_context" in names
+
+
+def test_the_tool_clears_the_context_and_answers_with_the_shared_wording():
+    import assistant
+    assistant._conversation_history = [{"role": "user", "content": "bonjour"}]
+    result = assistant._dispatch("clear_context", {})
+    assert assistant._conversation_history == []
+    assert assistant._render_tool_result(result) == assistant.locales.get("context_cleared")
