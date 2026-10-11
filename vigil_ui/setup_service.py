@@ -195,9 +195,10 @@ def _write_binary_links(links, stage: Path) -> None:
         (stage / name).symlink_to(target)
 
 
-def _binary_runs(binary: Path) -> bool:
+def _binary_runs(binary: Path, env=None) -> bool:
     try:
-        result = subprocess.run([str(binary), "--version"], capture_output=True, timeout=15)
+        result = subprocess.run([str(binary), "--version"], capture_output=True,
+                                timeout=15, env=env)
         return result.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -242,6 +243,155 @@ def install_model(choice: str, cancelled, progress=None) -> Path:
     if cancelled.is_set():
         raise SetupCancelled()
     with tempfile.NamedTemporaryFile(dir=MODEL_DIR, prefix="model-", delete=False) as tmp:
+        partial = Path(tmp.name)
+    try:
+        shutil.copyfile(cached, partial)
+        if not partial.stat().st_size:
+            raise RuntimeError("Empty model download")
+        os.replace(partial, target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return target
+
+
+# ── whisper.cpp speech backend ─────────────────────────────────────────────
+# One release feed carries the AMD builds: ROCm, Vulkan and CPU.
+WHISPER_RELEASE_API = (
+    "https://api.github.com/repos/lemonade-sdk/whisper.cpp-rocm/releases?per_page=5"
+)
+WHISPER_PATTERNS = {
+    "vulkan": "whisper-*-linux-vulkan-x86_64.tar.gz",
+    "cpu": "whisper-*-linux-cpu-x86_64.tar.gz",
+    "rocm": "whisper-*-linux-rocm-gfx110X.tar.gz",
+}
+
+
+def detect_whisper_backend() -> str:
+    """Pick the whisper.cpp build, preferring Vulkan over ROCm on AMD.
+
+    The ggml HIP backend still targets the ROCm 6.x APIs, so a host running
+    ROCm 7.x cannot build it. Vulkan reaches the same AMD GPU through the
+    driver, which is what the bundled llama-server already does.
+    """
+    if platform.system() != "Linux":
+        return "cpu"
+    if shutil.which("vulkaninfo"):
+        return "vulkan"
+    return "cpu"
+
+
+def whisper_env(directory: Path | None = None) -> dict:
+    """The prebuilt whisper binaries load their .so files from their own folder."""
+    import os as _os
+
+    target = directory or _whisper_dir()
+    env = dict(_os.environ)
+    existing = env.get("LD_LIBRARY_PATH", "")
+    env["LD_LIBRARY_PATH"] = str(target) + (_os.pathsep + existing if existing else "")
+    return env
+
+
+def _whisper_dir() -> Path:
+    from whisper_cpp import WHISPER_DIR
+    return WHISPER_DIR
+
+
+def fetch_whisper_asset(backend: str) -> tuple[str, str]:
+    if platform.system() != "Linux" or platform.machine().lower() not in ("x86_64", "amd64"):
+        raise RuntimeError(
+            "Automatic whisper-server download is available only for Linux x86_64.")
+    pattern = WHISPER_PATTERNS.get(backend)
+    if pattern is None:
+        raise ValueError("Unsupported whisper.cpp backend")
+    with urllib.request.urlopen(WHISPER_RELEASE_API, timeout=20) as response:
+        releases = json.load(response)
+    for release in releases:
+        for asset in release.get("assets", []):
+            if fnmatch.fnmatch(asset["name"], pattern):
+                return asset["browser_download_url"], asset["name"]
+    raise RuntimeError("No whisper.cpp build found for " + backend)
+
+
+def _whisper_entry(path: str) -> bool:
+    name = Path(path).name
+    return name in ("whisper-server", "whisper-cli") or ".so" in name
+
+
+def install_whisper_binary(backend: str, cancelled, progress=None) -> Path:
+    from whisper_cpp import WHISPER_DIR
+
+    WHISPER_DIR.mkdir(parents=True, exist_ok=True)
+    existing = WHISPER_DIR / "whisper-server"
+    marker = WHISPER_DIR / "backend.txt"
+    if (existing.is_file() and existing.stat().st_size and marker.is_file()
+            and marker.read_text().strip() == backend
+            and _binary_runs(existing, env=whisper_env(WHISPER_DIR))):
+        return existing
+    url, name = fetch_whisper_asset(backend)
+    archive = _download_to_temp(url, WHISPER_DIR, ".tar.gz", progress)
+    stage = Path(tempfile.mkdtemp(dir=WHISPER_DIR, prefix="stage-"))
+    try:
+        if cancelled.is_set():
+            raise SetupCancelled()
+        with tarfile.open(archive) as bundle:
+            members = bundle.getmembers()
+            entries = ((item.name, bundle.extractfile(item).read()) for item in members
+                       if item.isfile() and _whisper_entry(item.name))
+            _write_binary_entries(entries, stage)
+            _write_binary_links(((item.name, item.linkname) for item in members
+                                 if item.issym() and _whisper_entry(item.name)), stage)
+        binary = stage / "whisper-server"
+        if not binary.is_file() or not binary.stat().st_size:
+            raise RuntimeError("whisper-server is missing from the archive")
+        if not _binary_runs(binary, env=whisper_env(stage)):
+            raise RuntimeError("Downloaded whisper-server could not start")
+        (stage / "backend.txt").write_text(backend)
+        for item in sorted(stage.iterdir(),
+                           key=lambda path: (path.name == "backend.txt",
+                                             path.name == "whisper-server")):
+            if cancelled.is_set():
+                raise SetupCancelled()
+            os.replace(item, WHISPER_DIR / item.name)
+        return existing
+    finally:
+        archive.unlink(missing_ok=True)
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+def install_whisper_model(choice: str, cancelled, progress=None) -> Path:
+    import whisper_cpp
+
+    name = whisper_cpp.MODEL_FILES.get(choice)
+    if name is None:
+        raise ValueError("Unknown whisper.cpp model")
+    whisper_cpp.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    target = whisper_cpp.MODEL_DIR / name
+    if target.is_file() and target.stat().st_size:
+        return target
+    if cancelled.is_set():
+        raise SetupCancelled()
+    from huggingface_hub import hf_hub_download
+    kwargs = {}
+    if progress is not None:
+        from tqdm.auto import tqdm
+
+        class DownloadProgress(tqdm):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._received = int(kwargs.get("initial") or 0)
+
+            def update(self, amount=1):
+                result = super().update(amount)
+                self._received += amount
+                progress(int(self._received), int(self.total or 0))
+                return result
+
+        kwargs["tqdm_class"] = DownloadProgress
+    cached = Path(hf_hub_download(repo_id=whisper_cpp.MODEL_REPO, filename=name, **kwargs))
+    if cancelled.is_set():
+        raise SetupCancelled()
+    with tempfile.NamedTemporaryFile(dir=whisper_cpp.MODEL_DIR,
+                                     prefix="model-", delete=False) as tmp:
         partial = Path(tmp.name)
     try:
         shutil.copyfile(cached, partial)
@@ -298,7 +448,22 @@ def prepare(draft: dict[str, str], cancelled, report, progress=None) -> dict[str
     if cancelled.is_set():
         raise SetupCancelled()
     speech_model = values.get("whisper_model", "")
-    if speech_model:
+    speech_backend = values.get("stt_backend", "faster_whisper")
+    if speech_model and speech_backend == "whisper_cpp":
+        report("binary")
+        install_whisper_binary(values.get("whisper_backend") or detect_whisper_backend(),
+                               cancelled,
+                               progress=(lambda done, total: progress("binary", done, total)) if progress else None)
+        if cancelled.is_set():
+            raise SetupCancelled()
+        report("speech")
+        install_whisper_model(speech_model, cancelled,
+                              progress=(lambda done, total: progress("speech", done, total)) if progress else None)
+        if cancelled.is_set():
+            raise SetupCancelled()
+    elif speech_model:
+        # CTranslate2 on AMD has no GPU backend, so the switch is meaningless here.
+        values["stt_gpu"] = "false"
         report("speech")
         from transcriber import model_path
         model_path(speech_model, download=True)
@@ -326,4 +491,5 @@ def prepare(draft: dict[str, str], cancelled, report, progress=None) -> dict[str
     values.pop("llama_catalog_model", None)
     values.pop("use_existing_binary", None)
     values.pop("use_existing_model", None)
+    values.pop("whisper_backend", None)
     return values

@@ -13,6 +13,12 @@ ASSISTANT_HOTKEY = "Ctrl+Alt+R"   # assistant
 LANGUAGE = "en"   # integrated setup saves the real value; DB overrides at startup
 
 # ── Whisper ───────────────────────────────────────────────────────────────
+# Speech recognition backend. "faster_whisper" = CTranslate2 (CPU, or CUDA on
+# NVIDIA). "whisper_cpp" = whisper.cpp, which reaches the GPU through Vulkan
+# or ROCm; it keeps a whisper-server process warm so the model is not reloaded
+# between dictations.
+STT_BACKEND = "faster_whisper"
+STT_GPU = False          # whisper.cpp only: run inference on the GPU
 MODEL_SIZE = "base"
 SAMPLE_RATE = 16000
 DEVICE = "cpu"

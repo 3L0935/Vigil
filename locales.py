@@ -249,6 +249,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         # Settings UI
         "setting_saved":            "Settings saved",
         "setting_whisper_model":    "Whisper model",
+        "setting_stt_backend":      "Recognition engine",
+        "setting_stt_gpu":          "Run recognition on the GPU",
+        "stt_backend_faster_whisper": "CTranslate2 (CPU)",
+        "stt_backend_whisper_cpp":  "whisper.cpp (GPU or CPU)",
         "setting_llm_model":        "LLM model (.gguf)",
         "setting_llm_unload":       "LLM unload timeout",
         "setting_llm_gpu_layers":   "GPU layers (ngl)",
@@ -587,6 +591,10 @@ _STRINGS: dict[str, dict[str, str]] = {
 
         "setting_saved":            "Impostazioni salvate",
         "setting_whisper_model":    "Modello Whisper",
+        "setting_stt_backend":      "Motore di riconoscimento",
+        "setting_stt_gpu":          "Esegui il riconoscimento sulla GPU",
+        "stt_backend_faster_whisper": "CTranslate2 (CPU)",
+        "stt_backend_whisper_cpp":  "whisper.cpp (GPU o CPU)",
         "setting_llm_model":        "Modello LLM (.gguf)",
         "setting_llm_unload":       "Scarico LLM (inattività)",
         "setting_llm_gpu_layers":   "Layer GPU (ngl)",
@@ -932,6 +940,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         # Settings UI
         "setting_saved":            "Paramètres enregistrés",
         "setting_whisper_model":    "Modèle Whisper",
+        "setting_stt_backend":      "Moteur de reconnaissance",
+        "setting_stt_gpu":          "Reconnaissance sur le GPU",
+        "stt_backend_faster_whisper": "CTranslate2 (CPU)",
+        "stt_backend_whisper_cpp":  "whisper.cpp (GPU ou CPU)",
         "setting_llm_model":        "Modèle LLM (.gguf)",
         "setting_llm_unload":       "Déchargement LLM (inactivité)",
         "setting_llm_gpu_layers":   "Couches GPU (ngl)",

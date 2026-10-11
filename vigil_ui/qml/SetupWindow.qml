@@ -328,6 +328,19 @@ ApplicationWindow {
                 visible: wizard.backend.page === 3
                 Layout.fillWidth: true
                 WizardLabel { text: i18n.text("setup_dictation_body", i18n.revision) }
+                WizardLabel { text: i18n.text("setting_stt_backend", i18n.revision) }
+                WizardChoice {
+                    settingKey: "stt_backend"
+                    choices: [ {value:"faster_whisper",label:i18n.text("stt_backend_faster_whisper",i18n.revision)},
+                        {value:"whisper_cpp",label:i18n.text("stt_backend_whisper_cpp",i18n.revision)} ]
+                    Layout.fillWidth: true
+                }
+                WizardCheck {
+                    visible: wizard.backend.value("stt_backend") === "whisper_cpp"
+                    text: i18n.text("setting_stt_gpu", i18n.revision)
+                    checked: wizard.backend.value("stt_gpu") === "true"
+                    onToggled: wizard.backend.setValue("stt_gpu", checked ? "true" : "false")
+                }
                 WizardLabel { text: i18n.text("setting_whisper_model", i18n.revision) }
                 WizardChoice {
                     settingKey: "whisper_model"

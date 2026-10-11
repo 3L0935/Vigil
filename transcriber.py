@@ -51,3 +51,30 @@ class Transcriber:
             audio_np, language=recognition_language(), initial_prompt=initial_prompt(),
             beam_size=5, vad_filter=True)
         return ' '.join(seg.text.strip() for seg in segments).strip()
+
+    def close(self) -> None:
+        """Interface parity with the whisper.cpp backend, which owns a process."""
+
+
+def create_transcriber(model_name: str | None = None):
+    """Build the transcriber for the configured backend.
+
+    ``faster_whisper`` (CTranslate2, CPU/CUDA) and ``whisper_cpp``
+    (whisper.cpp, CPU or GPU through Vulkan) expose the same
+    ``transcribe(numpy) -> str`` / ``close()`` pair, so the pipeline never
+    needs to know which one is active.
+    """
+    backend = getattr(config, 'STT_BACKEND', 'faster_whisper')
+    if backend == 'whisper_cpp':
+        import whisper_cpp
+        return whisper_cpp.WhisperCppTranscriber(model_name)
+    return Transcriber(model_name)
+
+
+def close_transcriber(instance) -> None:
+    if instance is None:
+        return
+    try:
+        instance.close()
+    except Exception as exc:
+        log.warning('Speech backend close failed: %s', type(exc).__name__)

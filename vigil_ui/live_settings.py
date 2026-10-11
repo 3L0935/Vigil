@@ -22,6 +22,8 @@ from .assets import download_voice, is_loopback_url, url_is_valid as _url_is_val
 
 _CONFIG_KEYS = {
     "whisper_model": "MODEL_SIZE",
+    "stt_backend": "STT_BACKEND",
+    "stt_gpu": "STT_GPU",
     "language": "LANGUAGE",
     "overlay_position": "OVERLAY_POSITION",
     "overlay_screen": "OVERLAY_SCREEN",
@@ -40,6 +42,13 @@ _CONFIG_KEYS = {
     "hotkey_assist": "ASSISTANT_HOTKEY",
 }
 _DB_ALIASES = {"hotkey_dict": "hotkey_dict", "hotkey_assist": "hotkey_assist"}
+# Stored as "true"/"false" in the DB; config wants a real boolean.
+_CONFIG_BOOLS = frozenset(("stt_gpu",))
+_STT_KEYS = ("whisper_model", "stt_backend", "stt_gpu")
+
+
+def _config_value(key, value):
+    return value == "true" if key in _CONFIG_BOOLS else value
 
 
 class LiveSettingsModel(SettingsModel):
@@ -100,8 +109,12 @@ class LiveSettingsModel(SettingsModel):
             if self._on_whisper_change(value) is False:
                 return False
         if key in _CONFIG_KEYS:
-            setattr(config, _CONFIG_KEYS[key], value)
+            setattr(config, _CONFIG_KEYS[key], _config_value(key, value))
         db.save_setting(key, value)
+        if key in ("stt_backend", "stt_gpu") and self._on_whisper_change:
+            # The backend or its GPU switch changed: rebuild the speech model.
+            if self._on_whisper_change(config.MODEL_SIZE) is False:
+                return False
         if key == "language" and self._on_language_change:
             self._on_language_change()
         elif key in ("tts_mode", "tts_volume", "tts_voice_fr", "tts_voice_en"):
@@ -199,7 +212,7 @@ class LiveSettingsModel(SettingsModel):
         try:
             db.save_settings(values)
             for key, attr in _CONFIG_KEYS.items():
-                setattr(config, attr, values[key])
+                setattr(config, attr, _config_value(key, values[key]))
             config.OVERLAY_ANSWER_TIMEOUT = int(values["overlay_answer_timeout"])
             configure_content_logging(privacy.enabled("log_content"))
             recovery.prune()
@@ -209,6 +222,8 @@ class LiveSettingsModel(SettingsModel):
                    ("llm_provider", "llama_model", "llm_gpu_layers", "llama_ctx_size")):
                 from llm_manager import manager
                 manager.shutdown()
+            if any(values[key] != previous[key] for key in _STT_KEYS) and self._on_whisper_change:
+                self._on_whisper_change(config.MODEL_SIZE)
             import assistant
             assistant.reload_backend()
             tts.init()

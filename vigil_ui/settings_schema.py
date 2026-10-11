@@ -35,6 +35,10 @@ FIELDS = (
           ("llama_cpp", "ollama_local", "ollama_cloud")),
     Field("whisper_model", "voice", "setting_whisper_model", "choice", "base",
           ("tiny", "base", "small", "medium", "large-v3")),
+    Field("stt_backend", "voice", "setting_stt_backend", "choice", "faster_whisper",
+          ("faster_whisper", "whisper_cpp")),
+    Field("stt_gpu", "voice", "setting_stt_gpu", "toggle", "false",
+          provider=("whisper_cpp",)),
     Field("download_speech", "voice", "setting_download_speech", "action"),
     Field("llama_model", "voice", "setting_llm_model", provider=("llama_cpp",)),
     Field("browse_llama_model", "voice", "setting_browse", "action",
@@ -133,6 +137,7 @@ FIELDS = (
 BY_KEY = {field.key: field for field in FIELDS}
 EDITABLE_KEYS = frozenset(field.key for field in FIELDS if field.kind != "action")
 IMMEDIATE_KEYS = frozenset((
-    "whisper_model", "language", "overlay_position", "overlay_screen",
-    "llama_unload_timeout", "tts_mode", "tts_voice_fr", "tts_voice_en", "tts_volume",
+    "whisper_model", "stt_backend", "stt_gpu", "language", "overlay_position",
+    "overlay_screen", "llama_unload_timeout", "tts_mode", "tts_voice_fr",
+    "tts_voice_en", "tts_volume",
 ))

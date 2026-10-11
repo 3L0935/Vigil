@@ -22,7 +22,7 @@ _STOP = object()  # sentinel to shut down pipeline workers
 
 from logger import log, log_content
 from recorder import Recorder
-from transcriber import Transcriber
+from transcriber import create_transcriber, close_transcriber
 import transcriber as speech
 import privacy
 import dictation
@@ -99,6 +99,10 @@ def _load_settings():
     whisper = db.get_setting("whisper_model", "")
     if whisper:
         config.MODEL_SIZE = whisper
+    backend = db.get_setting("stt_backend", "")
+    if backend:
+        config.STT_BACKEND = backend
+    config.STT_GPU = db.get_setting("stt_gpu", "false") == "true"
     screen = db.get_setting("overlay_screen", "")
     if screen:
         config.OVERLAY_SCREEN = screen
@@ -149,6 +153,7 @@ def _on_whisper_model_change(model_name: str, download: bool = False):
     config.MODEL_SIZE = model_name
     db.save_setting("whisper_model", model_name)
     _model_loading.set()
+    close_transcriber(transcriber)
     transcriber = None
     status = locales.get("speech_downloading" if download else "speech_loading")
     widget.show_status(status)
@@ -158,14 +163,23 @@ def _on_whisper_model_change(model_name: str, download: bool = False):
     def load():
         try:
             if download:
-                speech.model_path(model_name, download=True)
-            model = Transcriber(model_name)
+                _download_model(model_name)
+            model = create_transcriber(model_name)
             _ui(lambda: _finish_model_load(model, None))
         except Exception as exc:
             log.error("Speech model load failed: %s", type(exc).__name__)
             _ui(lambda: _finish_model_load(None, locales.get("speech_missing")))
     threading.Thread(target=load, daemon=True, name="vigil-model-load").start()
     return True
+
+
+def _download_model(model_name: str) -> None:
+    """Fetch the weights for whichever backend is active."""
+    if getattr(config, "STT_BACKEND", "faster_whisper") == "whisper_cpp":
+        import whisper_cpp
+        whisper_cpp.model_path(model_name, download=True)
+        return
+    speech.model_path(model_name, download=True)
 
 
 def _finish_model_load(model, error):
@@ -694,6 +708,7 @@ def _quit():
         except Exception:
             pass
     global transcriber
+    close_transcriber(transcriber)
     transcriber = None
     if root:
         root.quit()

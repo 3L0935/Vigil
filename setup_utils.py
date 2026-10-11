@@ -25,10 +25,17 @@ def needs_asset_repair() -> bool:
     """Open setup when an asset selected by a completed setup is missing."""
     speech_model = db.get_setting("whisper_model", "")
     if speech_model:
-        from transcriber import ModelUnavailable, model_path
+        if db.get_setting("stt_backend", "faster_whisper") == "whisper_cpp":
+            import whisper_cpp
+            if not whisper_cpp.is_installed():
+                return True
+            checker, unavailable = whisper_cpp.model_path, whisper_cpp.ModelUnavailable
+        else:
+            from transcriber import ModelUnavailable, model_path
+            checker, unavailable = model_path, ModelUnavailable
         try:
-            model_path(speech_model)
-        except ModelUnavailable:
+            checker(speech_model)
+        except unavailable:
             return True
     if db.get_setting("llm_provider", "llama_cpp") == "llama_cpp":
         return any(path and not Path(path).expanduser().is_file() for path in (

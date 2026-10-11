@@ -201,6 +201,8 @@ def _option_label(key, value):
         return "language_" + value
     if key == "whisper_language" and value == "auto":
         return "setting_auto_language"
+    if key == "stt_backend":
+        return "stt_backend_" + value
     if key == "mic_device" and not value:
         return "mic_default"
     if key == "overlay_screen" and value == "auto":
