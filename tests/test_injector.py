@@ -45,10 +45,10 @@ def methods(monkeypatch):
 ACCENTED = "Je vois déjà qu'il faudrait peut-être fixer ça, plutôt."
 
 
-def test_xdotool_is_tried_before_the_clipboard(methods):
+def test_the_clipboard_is_tried_before_xdotool(methods):
     calls, _ = methods
     assert injector.inject(ACCENTED) == "pasted"
-    assert calls == ["wtype", "xdotool"]
+    assert calls == ["wtype", "clipboard"]
 
 
 def test_wtype_still_wins_when_the_compositor_supports_it(methods):
@@ -58,11 +58,11 @@ def test_wtype_still_wins_when_the_compositor_supports_it(methods):
     assert calls == ["wtype"]
 
 
-def test_the_clipboard_is_the_last_resort(methods):
+def test_xdotool_catches_a_clipboard_that_did_not_land(methods):
     calls, results = methods
-    results["xdotool"] = False
+    results["clipboard"] = False
     assert injector.inject(ACCENTED) == "pasted"
-    assert calls == ["wtype", "xdotool", "clipboard"]
+    assert calls == ["wtype", "clipboard", "xdotool"]
 
 
 def test_recovery_when_every_method_fails(methods):
@@ -70,7 +70,7 @@ def test_recovery_when_every_method_fails(methods):
     results["xdotool"] = False
     results["clipboard"] = False
     assert injector.inject(ACCENTED) == "recovered"
-    assert calls == ["wtype", "xdotool", "clipboard"]
+    assert calls == ["wtype", "clipboard", "xdotool"]
 
 
 def test_an_empty_request_is_never_injected(methods):

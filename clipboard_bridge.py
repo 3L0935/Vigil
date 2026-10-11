@@ -1,4 +1,6 @@
 """Clipboard transactions on the existing Qt GUI thread, including MIME data."""
+import shutil
+import subprocess
 import threading
 import uuid
 
@@ -23,12 +25,34 @@ def clone_mime(source):
     return result
 
 
-def _paste_keys():
+def _xdotool_paste() -> bool:
+    """Send Ctrl+V with xdotool, the call measured to reach the focused window."""
+    if not shutil.which("xdotool"):
+        return False
+    try:
+        subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                       check=True, timeout=5,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception as exc:
+        log.warning('xdotool paste key failed: %s', type(exc).__name__)
+        return False
+
+
+def _pynput_paste() -> bool:
+    """Portable fallback. Needs an X connection, and proved unable to land a
+    keystroke on KDE Wayland, so it is never the first choice."""
     from pynput.keyboard import Controller, Key
     keyboard = Controller()
     with keyboard.pressed(Key.ctrl):
         keyboard.press('v')
         keyboard.release('v')
+    return True
+
+
+def _paste_keys():
+    if not _xdotool_paste():
+        _pynput_paste()
 
 
 class ClipboardBridge(QObject):

@@ -140,11 +140,10 @@ def inject(text: str) -> str:
         return "failed"
     if _inject_wtype(text):
         return "pasted"
-    # xdotool is proven to reach the focused window here, but it drops some
-    # accented characters. The clipboard carries them exactly, yet a paste can
-    # report success without landing, so it must not pre-empt a path that
-    # actually works: losing an accent is survivable, losing the dictation is not.
-    if _inject_xdotool(text) or _inject_clipboard(text):
+    # The clipboard carries every character exactly, and its paste key is now
+    # the same xdotool call that was measured working here. xdotool's own
+    # typing stays behind it because it drops accents the layout cannot produce.
+    if _inject_clipboard(text) or _inject_xdotool(text):
         return "pasted"
     log.warning("All injection methods failed")
     import recovery
