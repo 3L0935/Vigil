@@ -1,8 +1,13 @@
 """Inject transcribed text into the active application.
 
 Strategy:
-- Wayland: wtype (types directly via Wayland input protocol, no clipboard needed)
-- Clipboard fallback: Qt MIME snapshot + pynput Ctrl+V
+- Wayland: wtype (types directly via the Wayland input protocol)
+- Clipboard: Qt MIME snapshot + pynput Ctrl+V. This is the only path that
+  carries accented characters intact on compositors without the virtual
+  keyboard protocol, which is the case on KWin.
+- xdotool: last resort, and only for pure-ASCII text. Typing through XTEST
+  drops characters the layout cannot produce, so "plutot" arrives where
+  "plutôt" was meant, silently.
 If all else fails, bounded recovery uses the private XDG data directory.
 """
 
@@ -12,15 +17,32 @@ import subprocess
 from platform_linux import is_wayland
 from logger import log
 
+# A compositor never gains the virtual keyboard protocol while it runs, so the
+# verdict is remembered: retrying only costs a doomed subprocess per dictation.
+_wtype_unsupported = False
+
+
+def _is_ascii(text: str) -> bool:
+    return all(ord(char) < 128 for char in text)
+
 
 def _inject_wtype(text: str) -> bool:
     """Type text via wtype (Wayland). Returns True on success."""
-    if not shutil.which("wtype"):
+    global _wtype_unsupported
+    if _wtype_unsupported or not shutil.which("wtype") or not is_wayland():
         return False
     try:
-        subprocess.run(["wtype", "--", text], check=True, timeout=5)
+        subprocess.run(["wtype", "--", text], check=True, timeout=5,
+                       capture_output=True, text=True)
         log.info("Injected via wtype (%d chars)", len(text))
         return True
+    except subprocess.CalledProcessError as exc:
+        if "virtual keyboard protocol" in (exc.stderr or ""):
+            _wtype_unsupported = True
+            log.info("wtype is unusable on this compositor; using the clipboard from now on")
+        else:
+            log.warning("wtype injection failed (falling back): %s", type(exc).__name__)
+        return False
     except Exception as exc:
         log.warning("wtype injection failed (falling back): %s", type(exc).__name__)
         return False
@@ -97,31 +119,34 @@ def prewarm() -> None:
     """
     if not is_wayland():
         return
-    cmd: list[str] | None = None
+    commands: list[list[str]] = []
     if shutil.which("wtype"):
-        cmd = ["wtype", "-m", "ctrl", "-m", "alt", "-m", "shift", "-m", "logo"]
-    elif shutil.which("xdotool"):
-        cmd = ["xdotool", "keyup", "ctrl", "keyup", "alt",
-               "keyup", "shift", "keyup", "super"]
-    if cmd is None:
-        return
-    try:
-        subprocess.run(cmd, check=False,
-                       stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL,
-                       timeout=2)
-        log.info("Injector prewarm: triggered Wayland input permission prompt")
-    except Exception as exc:
-        log.debug("Injector prewarm skipped (%s)", exc)
+        commands.append(["wtype", "-m", "ctrl", "-m", "alt", "-m", "shift", "-m", "logo"])
+    if shutil.which("xdotool"):
+        commands.append(["xdotool", "keyup", "ctrl", "keyup", "alt",
+                         "keyup", "shift", "keyup", "super"])
+    for cmd in commands:
+        try:
+            result = subprocess.run(cmd, check=False, capture_output=True,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, timeout=2)
+        except Exception as exc:
+            log.debug("Injector prewarm skipped (%s)", exc)
+            continue
+        if result.returncode == 0:
+            log.info("Injector prewarm: triggered Wayland input permission prompt")
+            return
 
 
 def inject(text: str) -> str:
     """Return pasted / recovered / failed so the UI reports the actual outcome."""
     if not text:
         return "failed"
-    if is_wayland() and _inject_wtype(text):
+    if _inject_wtype(text):
         return "pasted"
-    if _inject_xdotool(text) or _inject_clipboard(text):
+    # The clipboard carries any character exactly; xdotool is only safe when
+    # there is nothing it can silently drop.
+    if _inject_clipboard(text) or (_is_ascii(text) and _inject_xdotool(text)):
         return "pasted"
     log.warning("All injection methods failed")
     import recovery
