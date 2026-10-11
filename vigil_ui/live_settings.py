@@ -192,6 +192,7 @@ class LiveSettingsModel(SettingsModel):
             int(values["overlay_answer_timeout"])
             int(values["assistant_max_tokens"])
             int(values["assistant_followup_tokens"])
+            int(values["assistant_max_rounds"])
             values.update(validated_theme(values))
         except ValueError:
             self.set_status(self._text("setting_invalid_value"))
@@ -201,7 +202,8 @@ class LiveSettingsModel(SettingsModel):
         previous_timeout = config.OVERLAY_ANSWER_TIMEOUT
         previous_speed = config.OVERLAY_ANSWER_CPS
         previous_budgets = (config.ASSISTANT_MAX_TOKENS,
-                            config.ASSISTANT_FOLLOWUP_TOKENS)
+                            config.ASSISTANT_FOLLOWUP_TOKENS,
+                            config.ASSISTANT_MAX_ROUNDS)
         values["dictation_vocabulary"] = values["dictation_vocabulary"].strip()
         values["whisper_priming"] = values["whisper_priming"].strip()
 
@@ -212,7 +214,8 @@ class LiveSettingsModel(SettingsModel):
             config.OVERLAY_ANSWER_TIMEOUT = previous_timeout
             config.OVERLAY_ANSWER_CPS = previous_speed
             (config.ASSISTANT_MAX_TOKENS,
-             config.ASSISTANT_FOLLOWUP_TOKENS) = previous_budgets
+             config.ASSISTANT_FOLLOWUP_TOKENS,
+             config.ASSISTANT_MAX_ROUNDS) = previous_budgets
             tts.init()
             if self._on_hotkey_change:
                 self._on_hotkey_change()
@@ -226,6 +229,7 @@ class LiveSettingsModel(SettingsModel):
                 values["overlay_answer_speed"], config.OVERLAY_ANSWER_CPS)
             config.ASSISTANT_MAX_TOKENS = int(values["assistant_max_tokens"])
             config.ASSISTANT_FOLLOWUP_TOKENS = int(values["assistant_followup_tokens"])
+            config.ASSISTANT_MAX_ROUNDS = int(values["assistant_max_rounds"])
             configure_content_logging(privacy.enabled("log_content"))
             recovery.prune()
             if values["dictation_retain_last"] == "false" and self._on_clear_last:

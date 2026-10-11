@@ -193,3 +193,69 @@ def test_a_reply_cut_short_with_nothing_written_still_reports_not_understood(flo
     backend.responses.append({"choices": [{"finish_reason": "length",
                                             "message": {"content": ""}}]})
     assert assistant.process("quelle heure est-il") == assistant.locales.get("not_understood")
+
+
+# ── A question asked over a set of files needs several rounds ─────────────
+
+def _found(*names):
+    return {"folder_resolved": "/home/elo/Documents", "scanned": len(names),
+            "found": [{"name": name, "path": f"/home/elo/Documents/{name}"} for name in names],
+            "similar": []}
+
+
+def test_a_verification_gets_the_files_as_data_and_may_keep_looking(flow, monkeypatch):
+    backend, _ = flow
+    monkeypatch.setattr(file_search, "search", lambda *a, **k: _found("ursaff janvier.pdf"))
+    backend.responses.append(tool("search_files", {"folder": "documents", "query": "ursaff"}))
+    backend.responses.append(tool("search_files", {"folder": "documents", "query": "facture"}))
+    backend.responses.append({"choices": [{"message": {"content": "Oui, les douze mois sont la."}}]})
+
+    answer = assistant.process("verifie si j ai bien une paire facture + ursaff pour chaque mois")
+
+    assert answer == "Oui, les douze mois sont la."
+    assert len(backend.calls) == 3
+
+
+def test_the_data_never_reaches_the_user_as_a_numbered_list(flow, monkeypatch):
+    backend, _ = flow
+    monkeypatch.setattr(file_search, "search", lambda *a, **k: _found("ursaff janvier.pdf"))
+    backend.responses.append(tool("search_files", {"folder": "documents", "query": "ursaff"}))
+    backend.responses.append({"choices": [{"message": {"content": ""}}]})   # le modele se tait
+
+    answer = assistant.process("verifie si j ai bien une paire facture + ursaff pour chaque mois")
+
+    assert "1. ursaff janvier.pdf" not in answer          # pas de liste numerotee
+    assert "ursaff janvier.pdf" in answer                 # mais les fichiers sont la
+
+
+def test_a_search_outside_a_verification_stays_a_numbered_list(flow, monkeypatch):
+    backend, _ = flow
+    monkeypatch.setattr(file_search, "search",
+                        lambda *a, **k: _found("facture mars.pdf", "2026.03.04.pdf"))
+    backend.responses.append(tool("search_files", {"folder": "documents", "query": "facture mars"}))
+
+    answer = assistant.process("cherche la facture de mars dans mes documents")
+
+    assert "1. facture mars.pdf" in answer and "2. 2026.03.04.pdf" in answer
+    assert len(backend.calls) == 1              # un seul appel, pas de tour supplementaire
+    assert assistant._pending_choice is not None
+
+
+@pytest.mark.parametrize("text", [
+    "verifie et dis moi si j ai bien une facture",
+    "est-ce que j'ai bien une facture par mois",
+    "combien de factures en 2026",
+    "controle mes documents",
+])
+def test_a_question_over_a_set_is_a_verification(text):
+    assert assistant._is_verification_request(text)
+
+
+@pytest.mark.parametrize("text", [
+    "cherche la facture de mars",
+    "ouvre firefox",
+    "mets un rappel pour demain",
+    "quelle heure est-il",
+])
+def test_an_ordinary_request_is_not_a_verification(text):
+    assert not assistant._is_verification_request(text)

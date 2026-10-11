@@ -64,6 +64,10 @@ FIELDS = (
           ("512", "1024", "2048", "4096")),
     Field("assistant_followup_tokens", "voice", "setting_assistant_followup_tokens", "choice", "512",
           ("256", "512", "1024")),
+    # How many times the assistant may go back to the model within one request,
+    # for a task that needs several lookups before it can answer.
+    Field("assistant_max_rounds", "voice", "setting_assistant_max_rounds", "choice", "3",
+          ("1", "2", "3", "5")),
     Field("llm_profile", "voice", "setting_llm_profile", "choice", "compat",
           ("compat", "model")),
     Field("ollama_local_url", "voice", "setting_ollama_url", "text",

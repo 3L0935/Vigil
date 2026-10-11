@@ -187,6 +187,24 @@ def _is_clear_context_request(text: str) -> bool:
     return bool(_clear_request_pattern().match(normalised))
 
 
+# A question asked over a set of documents cannot be answered by the first
+# search result: the assistant has to look, be handed the whole list as data,
+# and come back with the answer. The small model never sets the search tool's
+# `complete` flag by itself -- measured nought times out of nine -- so the
+# shape of the request decides instead, the way the clear-context wording does.
+# A false positive is cheap: it only changes the shape of a search result.
+_CHECK_PHRASES = (
+    "verifi", "check", "controle", "assure toi", "confirme", "recense", "audit",
+    "combien", "j ai bien", "dis moi si", "dis moi combien", "passe en revue",
+    "liste tous", "liste toutes",
+)
+
+
+def _is_verification_request(text: str) -> bool:
+    normalised = _normalise_request(text)
+    return any(phrase in normalised for phrase in _CHECK_PHRASES)
+
+
 _NEGATED_ACTION = re.compile(
     r"^(?:n['’](?:ouvre|lance|démarre|ferme)|ne\s+(?:ouvre|lance|démarre|ferme))"
     r"\s+pas\s+\S|^(?:do not|don't|never)\s+(?:open|launch|start|close)\s+\S"
@@ -673,6 +691,7 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> ToolResult:
             query = (args.get("query") or "").strip()
             include_date = bool(args.get("include_date", False))
             include_size = bool(args.get("include_size", False))
+            complete = bool(args.get("complete", False))
             r = file_search.search(folder, query,
                                    include_size=include_size,
                                    include_date=include_date)
@@ -682,12 +701,23 @@ def _dispatch(name: str, args: dict, user_text: str = "") -> ToolResult:
             if not results:
                 return message_result("not_found", "file_no_results",
                                       folder=r["folder_resolved"], query=query)
-            # Set multi-turn state so a numbered reply opens a file.
+            visible = [{key: value for key, value in item.items() if key != "path"}
+                       for item in results]
+            # Set multi-turn state so a numbered reply opens a file. Armed for
+            # an inventory too: if the model never writes an answer, what the
+            # user sees is the same list in this same order, so a number still
+            # lands on the file they mean.
             paths = [item["path"] for item in results]
             with _context_lock:
                 _pending_choice = PendingChoice("open_file", tuple(paths))
-            visible = [{key: value for key, value in item.items() if key != "path"}
-                       for item in results]
+            if complete:
+                # Data to reason over rather than a list to pick from: the
+                # caller hands the turn back to the model so it can search for
+                # the rest and answer the question it was asked.
+                return ToolResult("ok", {"kind": "file_inventory",
+                                         "folder": r["folder_resolved"],
+                                         "query": query, "found": bool(r["found"]),
+                                         "results": visible})
             return ToolResult("needs_choice", {"kind": "file_choices",
                               "folder": r["folder_resolved"], "query": query,
                               "found": bool(r["found"]), "results": visible})
@@ -776,6 +806,24 @@ def _render_tool_result(result: ToolResult) -> str:
         key = "file_results_found" if data["found"] else "file_results_similar"
         return locales.get(key, folder=data["folder"], query=data["query"],
                            list="\n".join(lines))
+    if kind == "file_inventory":
+        # Fed back to the model to reason over, and shown as is if it never
+        # writes an answer. Unnumbered on purpose: nothing here is meant to be
+        # opened by replying with a number.
+        lines = []
+        for item in data["results"]:
+            extras = []
+            if "mtime" in item:
+                extras.append(item["mtime"])
+            if "size_kb" in item:
+                extras.append(f"{item['size_kb']} KB")
+            if "matched" in item:
+                extras.append("partial: " + ", ".join(item["matched"]))
+            suffix = f" ({'; '.join(extras)})" if extras else ""
+            lines.append(f"- {item['name']}{suffix}")
+        return locales.get("file_inventory", folder=data["folder"],
+                           query=data["query"], count=len(lines),
+                           list="\n".join(lines))
     raise ValueError(f"unknown tool result kind: {kind}")
 
 
@@ -789,6 +837,71 @@ def ping_llama_server() -> bool:
 def reload_backend():
     reset_context()
     log.info("LLM configuration changed; conversation cleared.")
+
+
+def _keep_working(messages: list[dict], available_tools: list[dict], user_text: str,
+                  tool_call: dict, tool_result: ToolResult,
+                  verifying: bool = False) -> str | None:
+    """Hand the turn back to the model so it can gather more, then answer.
+
+    Bounded by ASSISTANT_MAX_ROUNDS. Returns the text to show, or None when the
+    model never wrote one and the caller should keep the tool result it has.
+
+    The tools stay available on every round on purpose: with an empty tool list
+    this model writes the call syntax into the reply instead of answering.
+    """
+    backend = _get_backend()
+    working = messages + [
+        {"role": "assistant", "tool_calls": [tool_call]},
+        {"role": "tool", "tool_call_id": tool_call.get("id", "tc_0"),
+         "content": _render_tool_result(tool_result)},
+    ]
+    answer = None
+    for _ in range(max(0, int(config.ASSISTANT_MAX_ROUNDS) - 1)):
+        started = _time.perf_counter()
+        data = backend.chat(messages=working, tools=available_tools, local_data=True,
+                            max_tokens=config.ASSISTANT_AGENT_TOKENS)
+        log.info("Agentic round: %.0fms, %d messages",
+                 (_time.perf_counter() - started) * 1000, len(working))
+        choices = (data or {}).get("choices") or []
+        if not choices:
+            break
+        message = choices[0].get("message") or {}
+        calls = message.get("tool_calls") or []
+        content = (message.get("content") or "").strip()
+        if not calls:
+            # The model stopped asking for things: what it wrote is the answer.
+            if content:
+                answer = content
+            break
+        if len(calls) != 1:
+            break
+        call = calls[0]
+        name = (call.get("function") or {}).get("name")
+        try:
+            if name in _WEB_TOOLS:
+                privacy.require_web()
+            if name in _LOCAL_TOOLS:
+                privacy.check_endpoint(backend._url, local_data=True)
+            name, args = validate_call(call, available_tools)
+        except (InvalidToolCall, KeyError, TypeError, IndexError) as exc:
+            log.warning("Agentic round gave up on a bad call: %s", exc)
+            break
+        if verifying:
+            args["complete"] = True
+        result = _dispatch(name, args, user_text=user_text)
+        rendered = _render_tool_result(result)
+        if result.status == "needs_choice":
+            # A numbered list ends the turn: the user picks from it.
+            return rendered
+        working = working + [
+            {"role": "assistant", "tool_calls": [call]},
+            {"role": "tool", "tool_call_id": call.get("id", "tc_0"),
+             "content": rendered},
+        ]
+        if rendered:
+            answer = rendered
+    return answer
 
 
 def process(text: str) -> str:
@@ -820,6 +933,11 @@ def process(text: str) -> str:
         return locales.get("action_negated")
     if _has_two_explicit_targets(text):
         return locales.get("one_action")
+
+    # A question over a set of documents needs the searches to come back as
+    # data, and needs more than one round to answer. Everything else keeps the
+    # single-call path and its numbered list.
+    verifying = _is_verification_request(text)
 
     # Snapshot mutable state under the lock
     with _context_lock:
@@ -960,6 +1078,8 @@ def process(text: str) -> str:
                     fn_name, args = validate_call(tc, available_tools)
                 except InvalidToolCall:
                     return locales.get("not_understood")
+            if verifying:
+                args["complete"] = True
             turn_local_data = fn_name in _LOCAL_TOOLS
             started = _time.perf_counter()
             tool_result = _dispatch(fn_name, args, user_text=text)
@@ -1049,6 +1169,19 @@ def process(text: str) -> str:
                             log.warning("Synthesis empty — using raw result")
                 else:
                     log.warning("Synthesis returned None — using raw result")
+
+            # A lookup that returned data to reason over is not an answer yet:
+            # hand the turn back while the model still has something to gather.
+            # An ordinary command never lands here, so it keeps costing one
+            # call, and a numbered list never lands here either so the pick-a
+            # -number flow reaches the user untouched.
+            elif (isinstance(tool_result.data, dict)
+                  and tool_result.data.get("kind") == "file_inventory"
+                  and int(config.ASSISTANT_MAX_ROUNDS) > 1):
+                continued = _keep_working(messages, available_tools, text, tc,
+                                           tool_result, verifying)
+                if continued is not None:
+                    raw_result = continued
 
             result = raw_result
 

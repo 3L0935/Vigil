@@ -218,6 +218,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "file_no_results":      "No files matching '{query}' in {folder}.",
         "file_results_found":   "Found in {folder}:\n{list}",
         "file_results_similar": "No exact match for '{query}' in {folder}. Similar files:\n{list}",
+        "file_inventory":       "Files matching '{query}' in {folder} ({count}):\n{list}",
         "file_opened":          "Opening {name}.",
         "file_open_failed":     "Could not open '{path}'.",
         "retry_launch_ctx": (
@@ -264,6 +265,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_llm_ctx_size":     "Context size (tokens)",
         "setting_assistant_max_tokens":    "Assistant reply budget (tokens)",
         "setting_assistant_followup_tokens": "Assistant follow-up budget (tokens)",
+        "setting_assistant_max_rounds":     "Assistant rounds per request",
         "setting_llm_url":          "LLM server URL",
         "setting_obsidian_vault":   "Obsidian vault",
         "setting_language":         "Language",
@@ -571,6 +573,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "file_no_results":      "Nessun file corrispondente a '{query}' in {folder}.",
         "file_results_found":   "Trovato in {folder}:\n{list}",
         "file_results_similar": "Nessuna corrispondenza esatta per '{query}' in {folder}. File simili:\n{list}",
+        "file_inventory":       "File corrispondenti a '{query}' in {folder} ({count}):\n{list}",
         "file_opened":          "Apro {name}.",
         "file_open_failed":     "Impossibile aprire '{path}'.",
         "retry_launch_ctx": (
@@ -617,6 +620,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_llm_ctx_size":     "Dimensione contesto (token)",
         "setting_assistant_max_tokens":    "Budget risposta assistente (token)",
         "setting_assistant_followup_tokens": "Budget chiamate di seguito (token)",
+        "setting_assistant_max_rounds":     "Turni per richiesta dell'assistente",
         "setting_llm_url":          "URL server LLM",
         "setting_obsidian_vault":   "Vault Obsidian",
         "setting_language":         "Lingua",
@@ -930,6 +934,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "file_no_results":      "Aucun fichier correspondant à « {query} » dans {folder}.",
         "file_results_found":   "Trouvé dans {folder} :\n{list}",
         "file_results_similar": "Aucune correspondance exacte pour « {query} » dans {folder}. Fichiers similaires :\n{list}",
+        "file_inventory":       "Fichiers correspondant à « {query} » dans {folder} ({count}) :\n{list}",
         "file_opened":          "Ouverture de {name}.",
         "file_open_failed":     "Impossible d'ouvrir « {path} ».",
         "retry_launch_ctx": (
@@ -977,6 +982,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "setting_llm_ctx_size":     "Taille du contexte (tokens)",
         "setting_assistant_max_tokens":    "Budget de réponse de l'assistant (tokens)",
         "setting_assistant_followup_tokens": "Budget des appels de suivi (tokens)",
+        "setting_assistant_max_rounds":     "Tours par demande de l'assistant",
         "setting_llm_url":          "URL du serveur LLM",
         "setting_obsidian_vault":   "Coffre Obsidian",
         "setting_language":         "Langue",

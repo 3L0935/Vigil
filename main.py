@@ -143,7 +143,8 @@ def _load_settings():
     if speed in config.OVERLAY_ANSWER_PACES:
         config.OVERLAY_ANSWER_CPS = config.OVERLAY_ANSWER_PACES[speed]
     for key, attr in (("assistant_max_tokens", "ASSISTANT_MAX_TOKENS"),
-                      ("assistant_followup_tokens", "ASSISTANT_FOLLOWUP_TOKENS")):
+                      ("assistant_followup_tokens", "ASSISTANT_FOLLOWUP_TOKENS"),
+                      ("assistant_max_rounds", "ASSISTANT_MAX_ROUNDS")):
         stored = db.get_setting(key, "")
         if stored:
             try:

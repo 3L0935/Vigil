@@ -53,6 +53,17 @@ ASSISTANT_NAME = "Vigil"
 ASSISTANT_MAX_TOKENS = 2048
 ASSISTANT_FOLLOWUP_TOKENS = 512
 
+# How many times the assistant may go back to the model within one request.
+# One round is the ordinary single call. A verification that spans several
+# lookups needs more: "check I have an invoice and a URSSAF slip for every
+# month" takes one search per document kind before it can be answered.
+ASSISTANT_MAX_ROUNDS = 3
+# The rounds after the first write an answer over everything gathered so far,
+# which costs far more than a routing decision: measured 1359 tokens for a
+# ten-month check, against about eighty for a command. The first round stays
+# on ASSISTANT_MAX_TOKENS so an ordinary command still fails fast.
+ASSISTANT_AGENT_TOKENS = 4096
+
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.
 # Leave empty to disable the feature.
