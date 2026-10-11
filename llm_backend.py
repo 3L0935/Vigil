@@ -45,7 +45,9 @@ class LlamaServerBackend:
         messages: list[dict],
         tools: list[dict] | None = None,
         *, local_data: bool = False, max_tokens: int = 256,
+        extra: dict | None = None,
     ) -> dict | None:
+        """Send messages to the LLM. Returns normalized response dict or None on error."""
         url = privacy.check_endpoint(self._url, local_data=local_data)
         try:
             import httpx
@@ -59,6 +61,8 @@ class LlamaServerBackend:
             body["parallel_tool_calls"] = False
         if self._use_model_profile:
             body.update(profile(self._model, self._provider))
+        if extra:
+            body.update(extra)
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"

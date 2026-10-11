@@ -36,7 +36,7 @@ py-modules = [
     "main", "app_launcher", "assistant", "brand", "compositor", "config",
     "database", "injector", "json_repair", "llm_backend",
     "llm_manager", "locales", "logger", "obsidian", "platform_linux",
-    "recorder", "service", "setup_utils", "whisper_cpp",
+    "recorder", "service", "setup_utils", "whisper_cpp", "dictation_cleanup",
     "transcriber", "tray_qt", "tts", "vigil_trigger",
     "privacy", "data_paths", "dictation", "recovery", "clipboard_bridge",
     "url_shortcuts", "folders", "file_search", "assistant_tools", "assistant_prompts",

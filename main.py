@@ -26,6 +26,7 @@ from transcriber import create_transcriber, close_transcriber
 import transcriber as speech
 import privacy
 import dictation
+import dictation_cleanup
 from dictation_session import LastDictation, DictationSessions
 import recovery
 import clipboard_bridge
@@ -358,14 +359,21 @@ def _dictation_worker():
         oversized = False
         raw_text = ""
         preview_text = ""
+        cleanup_ms = 0.0
         try:
             log.info("Transcribing (dictation)")
             stage_started = time.perf_counter()
-            text = transcriber.transcribe(audio)
+            transcript = transcriber.transcribe(audio)
             stt_ms = (time.perf_counter() - stage_started) * 1000
-            if text:
-                log_content("Transcribed: %r", text)
+            if transcript:
+                log_content("Transcribed: %r", transcript)
                 stage_started = time.perf_counter()
+                text = transcript
+                if dictation_cleanup.enabled():
+                    stage_started = time.perf_counter()
+                    text = dictation_cleanup.cleanup(transcript)
+                    cleanup_ms = (time.perf_counter() - stage_started) * 1000
+                    stage_started = time.perf_counter()
                 final = dictation.postprocess(text)
                 postprocess_ms = (time.perf_counter() - stage_started) * 1000
                 if db.get_setting("dictation_preview", "false") == "true":
@@ -382,9 +390,10 @@ def _dictation_worker():
                     stage_started = time.perf_counter()
                     outcome = inject(final)
                     dispatch_ms = (time.perf_counter() - stage_started) * 1000
-                    log.info("Dictation stages: stt=%.1fms postprocess=%.1fms "
-                             "injection_dispatch=%.1fms (text arrival unverified)",
-                             stt_ms, postprocess_ms, dispatch_ms)
+                    log.info("Dictation stages: stt=%.1fms cleanup=%.1fms "
+                             "postprocess=%.1fms injection_dispatch=%.1fms "
+                             "(text arrival unverified)",
+                             stt_ms, cleanup_ms, postprocess_ms, dispatch_ms)
                     enabled = (db.get_setting("dictation_retain_last", "true") == "true"
                                and _dictation_sessions.retention_allowed(session))
                     retained = _last_dictation.store(text, final, enabled=enabled)
