@@ -45,3 +45,27 @@ def test_qml_translation_keys_exist_in_every_language():
     assert used
     for language, translations in _STRINGS.items():
         assert used <= translations.keys(), (language, sorted(used - translations.keys()))
+
+
+def test_every_settings_field_is_labelled_in_every_language():
+    """A missing label renders as a raw key in the settings window."""
+    from locales import _STRINGS
+    from vigil_ui.settings_schema import FIELDS
+
+    for field in FIELDS:
+        for language, translations in _STRINGS.items():
+            assert field.label in translations, (language, field.key, field.label)
+
+
+def test_every_settings_option_label_exists_in_every_language():
+    from locales import _STRINGS
+    from vigil_ui.settings_model import _option_label
+    from vigil_ui.settings_schema import FIELDS
+
+    for field in FIELDS:
+        for value in field.options:
+            key = _option_label(field.key, value)
+            if not key:
+                continue
+            for language, translations in _STRINGS.items():
+                assert key in translations, (language, field.key, value, key)

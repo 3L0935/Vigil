@@ -172,3 +172,24 @@ def test_repair_and_launch_resolution_share_one_retry(flow, monkeypatch):
     ])
     assert 'Missing App' in assistant.process('Open Missing App')
     assert len(backend.calls) == 2
+
+
+def test_the_reply_budget_leaves_room_for_a_conversational_answer(flow):
+    backend, _ = flow
+    backend.responses.append({"choices": [{"message": {"content": "Bonjour."}}]})
+    assert assistant.process("bonjour") == "Bonjour."
+    assert backend.calls[0]["max_tokens"] == assistant.config.ASSISTANT_MAX_TOKENS
+
+
+def test_a_reply_cut_short_is_shown_rather_than_called_unsupported(flow):
+    backend, _ = flow
+    backend.responses.append({"choices": [{"finish_reason": "length",
+                                            "message": {"content": "Un moteur diesel "}}]})
+    assert assistant.process("explique le diesel") == "Un moteur diesel"
+
+
+def test_a_reply_cut_short_with_nothing_written_still_reports_not_understood(flow):
+    backend, _ = flow
+    backend.responses.append({"choices": [{"finish_reason": "length",
+                                            "message": {"content": ""}}]})
+    assert assistant.process("quelle heure est-il") == assistant.locales.get("not_understood")

@@ -43,6 +43,15 @@ OLLAMA_API_KEY = ""  # only used for ollama_cloud
 
 # ── Assistant identity ────────────────────────────────────────────────────
 ASSISTANT_NAME = "Vigil"
+# Reply budget. It has to fit a conversational answer, not just a tool call:
+# a command costs about eighty tokens, an explanation several hundred, and a
+# reply that runs out of budget reaches the user as "I didn't understand".
+# This model also reasons at length before answering, and that reasoning shares
+# the budget, so a question with no matching tool can spend a thousand tokens
+# thinking. Measured: at 512 a conversation is truncated most of the time, at
+# 2048 it completes. The follow-up calls (repair, retry, synthesis) get less.
+ASSISTANT_MAX_TOKENS = 2048
+ASSISTANT_FOLLOWUP_TOKENS = 512
 
 # ── Obsidian vault (optional) ─────────────────────────────────────────────
 # Set to your vault path to enable the search_obsidian_vault tool.
@@ -55,12 +64,12 @@ OVERLAY_SCREEN   = "auto"            # "auto" or xrandr output name e.g. "DP-2"
 OVERLAY_ANSWER_TIMEOUT = 8           # seconds before answer card auto-closes
 # Answer reveal. The reply arrives complete from the model; it is streamed onto
 # the card at a pace the eye can follow instead of appearing all at once.
-# OVERLAY_ANSWER_CPS is the reading pace, and OVERLAY_ANSWER_REVEAL_MAX caps how
-# long the reveal may take, so a long answer speeds up rather than making the
-# reader wait. Comfortable reading is roughly 20 characters per second; this
-# sits above that so the card does not feel stuck, and clicking the card
-# reveals the whole answer at once when it does.
-OVERLAY_ANSWER_CPS = 45             # characters revealed per second
+# The pace is picked in the settings and OVERLAY_ANSWER_REVEAL_MAX caps how long
+# the reveal may take, so a long answer speeds up rather than making the reader
+# wait. Comfortable reading is roughly 20 characters per second. Clicking the
+# card reveals the whole answer at once when the pace feels too slow.
+OVERLAY_ANSWER_PACES = {"slow": 25, "normal": 45, "fast": 70}
+OVERLAY_ANSWER_CPS = OVERLAY_ANSWER_PACES["normal"]
 OVERLAY_ANSWER_REVEAL_MAX = 12      # seconds, reveal ceiling for any length
 
 # ── TTS ───────────────────────────────────────────────────────────────────

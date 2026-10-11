@@ -842,7 +842,7 @@ def process(text: str) -> str:
     startup_ms = (_time.perf_counter() - started) * 1000
     started = _time.perf_counter()
     data = backend.chat(messages=messages, tools=available_tools, local_data=history_local,
-                        max_tokens=512)
+                        max_tokens=config.ASSISTANT_MAX_TOKENS)
     llm_ms = (_time.perf_counter() - started) * 1000
     tool_ms = 0.0
 
@@ -857,7 +857,12 @@ def process(text: str) -> str:
             return locales.get("not_understood")
 
         if choices[0].get("finish_reason") == "length":
-            return locales.get("not_understood")
+            # The reply outran its budget. A conversation that stops mid
+            # sentence is still a conversation, so fall through and show what
+            # was written; only give up when there is genuinely nothing to show.
+            written = ((choices[0].get("message") or {}).get("content") or "").strip()
+            if not written:
+                return locales.get("not_understood")
         msg = choices[0].get("message") or {}
         tool_calls = msg.get("tool_calls")
 
@@ -880,7 +885,8 @@ def process(text: str) -> str:
                                                   "Return exactly one valid tool call or ask a short clarification."
                                               )}]
                 repair_data = backend.chat(messages=repair_messages, tools=available_tools,
-                                           local_data=history_local, max_tokens=256)
+                                           local_data=history_local,
+                                           max_tokens=config.ASSISTANT_FOLLOWUP_TOKENS)
                 if not repair_data:
                     return locales.get("not_understood")
                 repair_choices = repair_data.get("choices") or []
@@ -918,7 +924,8 @@ def process(text: str) -> str:
                 ]
                 started = _time.perf_counter()
                 retry_data = backend.chat(messages=retry_messages, tools=available_tools,
-                                          local_data=True, max_tokens=256)
+                                          local_data=True,
+                                          max_tokens=config.ASSISTANT_FOLLOWUP_TOKENS)
                 llm_ms += (_time.perf_counter() - started) * 1000
                 if retry_data:
                     try:
@@ -966,7 +973,7 @@ def process(text: str) -> str:
                 started = _time.perf_counter()
                 syn_data = backend.chat(messages=synthesis_messages, tools=None,
                                          local_data=history_local or fn_name != "search_web",
-                                         max_tokens=384)
+                                         max_tokens=config.ASSISTANT_FOLLOWUP_TOKENS)
                 llm_ms += (_time.perf_counter() - started) * 1000
                 if syn_data:
                     syn_choices = syn_data.get("choices", [])

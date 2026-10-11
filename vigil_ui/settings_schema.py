@@ -51,6 +51,14 @@ FIELDS = (
           ("off", "10", "20", "33", "99"), provider=("llama_cpp",)),
     Field("llama_ctx_size", "voice", "setting_llm_ctx_size", "choice", "8192",
           ("2048", "4096", "8192", "16384", "32768"), provider=("llama_cpp",)),
+    # How many tokens the assistant may write per reply. The model reasons
+    # before answering and that reasoning shares the budget, so too small a
+    # value truncates an ordinary answer and the user is told nothing was
+    # understood. Follow-up calls (repair, retry, synthesis) get their own.
+    Field("assistant_max_tokens", "voice", "setting_assistant_max_tokens", "choice", "2048",
+          ("512", "1024", "2048", "4096")),
+    Field("assistant_followup_tokens", "voice", "setting_assistant_followup_tokens", "choice", "512",
+          ("256", "512", "1024")),
     Field("llm_profile", "voice", "setting_llm_profile", "choice", "compat",
           ("compat", "model")),
     Field("ollama_local_url", "voice", "setting_ollama_url", "text",
@@ -107,6 +115,8 @@ FIELDS = (
     Field("overlay_screen", "overlay", "setting_overlay_screen", "choice", "auto"),
     Field("overlay_answer_timeout", "overlay", "setting_answer_timeout", "choice", "8",
           ("5", "8", "10", "15", "20", "30")),
+    Field("overlay_answer_speed", "overlay", "setting_answer_speed", "choice", "normal",
+          ("slow", "normal", "fast")),
 
     Field("theme_background", "theme", "theme_background", "color", "#0a1019"),
     Field("theme_surface", "theme", "theme_surface", "color", "#151e2b"),

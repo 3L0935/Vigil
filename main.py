@@ -139,6 +139,17 @@ def _load_settings():
             config.OVERLAY_ANSWER_TIMEOUT = int(timeout)
         except ValueError:
             pass
+    speed = db.get_setting("overlay_answer_speed", "")
+    if speed in config.OVERLAY_ANSWER_PACES:
+        config.OVERLAY_ANSWER_CPS = config.OVERLAY_ANSWER_PACES[speed]
+    for key, attr in (("assistant_max_tokens", "ASSISTANT_MAX_TOKENS"),
+                      ("assistant_followup_tokens", "ASSISTANT_FOLLOWUP_TOKENS")):
+        stored = db.get_setting(key, "")
+        if stored:
+            try:
+                setattr(config, attr, int(stored))
+            except ValueError:
+                pass
 
     configure_content_logging(privacy.enabled("log_content"))
 

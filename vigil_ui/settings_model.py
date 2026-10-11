@@ -203,11 +203,18 @@ def _option_label(key, value):
         return "setting_auto_language"
     if key == "stt_backend":
         return "stt_backend_" + value
+    if key == "overlay_answer_speed":
+        return "answer_speed_" + value
     if key == "mic_device" and not value:
         return "mic_default"
     if key == "overlay_screen" and value == "auto":
         return "setting_auto_screen"
     if key == "overlay_position":
+        # Nine anchors, but the middle row is named "center" in the labels, so
+        # the centre of that row is position_center rather than
+        # position_center_center.
+        if value == "middle-center":
+            return "position_center"
         return "position_" + value.replace("middle", "center").replace("-", "_")
     if key == "tts_mode":
         return "choice_" + value
